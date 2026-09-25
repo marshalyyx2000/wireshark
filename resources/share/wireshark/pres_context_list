@@ -1,0 +1,3 @@
+# Default PRES presentation context for MMS (IEC 61850).
+# Used when no personal %APPDATA%\Wireshark\pres_context_list exists.
+"3","1.0.9506.2.3"

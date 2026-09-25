@@ -524,6 +524,10 @@ File "${STAGING_DIR}\colorfilters"
 ;IfFileExists dfilters dont_overwrite_dfilters
 File "${STAGING_DIR}\dfilters"
 ;dont_overwrite_dfilters:
+!ifdef ENABLE_MINIMAL_BUILD
+; MMS default: PRES Context Id 3 -> OID 1.0.9506.2.3 (global datafile; AppData overrides if present)
+File "${STAGING_DIR}\pres_context_list"
+!endif
 ;IfFileExists smi_modules dont_overwrite_smi_modules
 !ifndef ENABLE_MINIMAL_BUILD
 File "${STAGING_DIR}\smi_modules"
@@ -1651,6 +1655,7 @@ SectionIn 1 2
 Delete "$INSTDIR\cfilters"
 Delete "$INSTDIR\colorfilters"
 Delete "$INSTDIR\dfilters"
+Delete "$INSTDIR\pres_context_list"
 Delete "$INSTDIR\enterprises.tsv"
 Delete "$INSTDIR\smi_modules"
 RMDir "$INSTDIR"

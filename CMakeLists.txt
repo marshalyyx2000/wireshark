@@ -2354,6 +2354,10 @@ set(INSTALL_FILES
 if(NOT ENABLE_MINIMAL_BUILD)
 	list(APPEND INSTALL_FILES resources/share/wireshark/colorfilters)
 endif()
+if(ENABLE_MINIMAL_BUILD)
+	# MMS over OSI Presentation: Context Id 3 → abstract syntax OID 1.0.9506.2.3
+	list(APPEND INSTALL_FILES resources/share/wireshark/pres_context_list)
+endif()
 
 set(DOC_FILES
 	resources/share/doc/wireshark/pdml2html.xsl
