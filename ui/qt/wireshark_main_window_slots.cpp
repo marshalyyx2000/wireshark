@@ -1296,6 +1296,7 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
 
     main_ui_->actionToolsFirewallAclRules->setEnabled(frame_selected);
 
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsTcpStreamRoundTripTime->setEnabled(is_tcp);
     main_ui_->actionStatisticsTcpStreamStevens->setEnabled(is_tcp);
     main_ui_->actionStatisticsTcpStreamTcptrace->setEnabled(is_tcp);
@@ -1309,6 +1310,7 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
     main_ui_->actionTelephonyRtpStreamAnalysis->setEnabled(is_rtp);
     main_ui_->actionTelephonyRtpPlayer->setEnabled(is_rtp);
     main_ui_->actionTelephonyLteRlcGraph->setEnabled(is_lte_rlc);
+#endif
 }
 
 void WiresharkMainWindow::setMenusForSelectedTreeRow(FieldInformation *finfo) {

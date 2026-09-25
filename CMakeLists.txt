@@ -4638,6 +4638,22 @@ install(
 		${TMP_DST_PATH}
 )
 
+if(ENABLE_MINIMAL_BUILD)
+	# Full colorfilters is omitted from INSTALL_FILES; ship the keep-list subset.
+	install(
+		FILES
+			resources/share/wireshark/colorfilters.minimal
+		PERMISSIONS
+			OWNER_WRITE OWNER_READ
+			GROUP_READ
+			WORLD_READ
+		DESTINATION
+			${TMP_DST_PATH}
+		RENAME
+			colorfilters
+	)
+endif()
+
 if (BUILD_stratoshark)
 	cmake_path(SET TMP_DST_PATH NORMALIZE "${CMAKE_INSTALL_DATADIR}/${STRATOSHARK_NAME}")
 	install(

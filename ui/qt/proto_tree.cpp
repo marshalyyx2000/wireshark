@@ -23,6 +23,10 @@
 
 #include <ui/qt/utils/color_utils.h>
 #include <ui/qt/utils/font_manager.h>
+#ifndef ENABLE_MINIMAL_BUILD
+#include <ui/qt/io_graph_action.h>
+#include <ui/qt/plot_action.h>
+#endif
 #include <ui/qt/utils/variant_pointer.h>
 #include <ui/qt/utils/wireshark_mime_data.h>
 #include <ui/qt/widgets/drag_label.h>
@@ -31,8 +35,6 @@
 #include <ui/qt/filter_action.h>
 #include <ui/qt/follow_stream_action.h>
 #include <ui/qt/main_window.h>
-#include <ui/qt/io_graph_action.h>
-#include <ui/qt/plot_action.h>
 #include <ui/qt/protocol_preferences_menu.h>
 #include <ui/qt/models/pref_models.h>
 #include <ui/all_files_wildcard.h>
@@ -347,6 +349,7 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
         ctx_menu->addSeparator();
     }
 
+#ifndef ENABLE_MINIMAL_BUILD
     ctx_menu->addMenu(IOGraphAction::createMenu(finfo->headerInfo(), ctx_menu));
 
     ctx_menu->addMenu(PlotAction::createMenu(finfo->headerInfo(), ctx_menu));
@@ -373,6 +376,7 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
         emit showDistributionDialog(finfo->headerInfo().abbreviation);
     });
     action->setEnabled(isDistributable);
+#endif
 
     submenu = ctx_menu->addMenu(tr("Copy"));
     submenu->setToolTipsVisible(true);

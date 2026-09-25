@@ -61,7 +61,9 @@ DIAG_ON(frame-larger-than=)
 #include "file_set_dialog.h"
 #include "filter_dialog.h"
 #include "follow_stream_action.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "funnel_statistics.h"
+#endif
 #include "import_text_dialog.h"
 #include "interface_toolbar.h"
 #include "packet_diagram.h"
@@ -480,11 +482,15 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
 
     connect(df_combo_box_, &DisplayFilterEntry::filterPackets, this, &WiresharkMainWindow::applyFilter);
 
+#ifndef ENABLE_MINIMAL_BUILD
     funnel_statistics_ = new FunnelStatistics(this, capture_file_);
     connect(df_combo_box_, &QLineEdit::textChanged, funnel_statistics_, &FunnelStatistics::displayFilterTextChanged);
     connect(funnel_statistics_, &FunnelStatistics::setDisplayFilter, this, &WiresharkMainWindow::setDisplayFilter);
     connect(funnel_statistics_, &FunnelStatistics::openCaptureFile, this,
             [=](QString cf_path, QString filter) { openCaptureFile(cf_path, filter); });
+#else
+    funnel_statistics_ = nullptr;
+#endif
 
     connect(df_combo_box_, &QLineEdit::textChanged, this, &WiresharkMainWindow::updateDisplayFilterTranslationActions);
 
@@ -696,8 +702,8 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectGoMenuActions();
     connectCaptureMenuActions();
     connectAnalyzeMenuActions();
-    connectStatisticsMenuActions();
 #ifndef ENABLE_MINIMAL_BUILD
+    connectStatisticsMenuActions();
     connectTelephonyMenuActions();
     connectWirelessMenuActions();
     connectToolsMenuActions();
@@ -723,8 +729,10 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connect(proto_tree_, &ProtoTree::redissectPacketsRequested,
             this, &WiresharkMainWindow::redissectPackets);
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(proto_tree_, &ProtoTree::showDistributionDialog,
             this, qOverload<const QString&>(&WiresharkMainWindow::showDistributionDialog));
+#endif
 
     connect(main_ui_->statusBar, &MainStatusBar::showExpertInfo, this, [=]() {
         statCommandExpertInfo(NULL, NULL);
@@ -733,8 +741,10 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connect(main_ui_->statusBar, &MainStatusBar::stopLoading,
             &capture_file_, &CaptureFile::stopLoading);
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(main_ui_->statusBar, &MainStatusBar::editCaptureComment,
             main_ui_->actionStatisticsCaptureFileProperties, &QAction::trigger);
+#endif
 
     connect(main_ui_->menuApplyAsFilter, &QMenu::aboutToShow,
             this, &WiresharkMainWindow::filterMenuAboutToShow);
@@ -797,10 +807,11 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
 #ifdef ENABLE_MINIMAL_BUILD
 void WiresharkMainWindow::applyMinimalBuildUi()
 {
-    // Menu bar: keep File/Edit/View/Go/Capture/Analyze/Statistics/Help only.
+    // Menu bar: keep File/Edit/View/Go/Capture/Analyze/Help only.
     main_ui_->menuBar->removeAction(main_ui_->menuTelephony->menuAction());
     main_ui_->menuBar->removeAction(main_ui_->menuWireless->menuAction());
     main_ui_->menuBar->removeAction(main_ui_->menuTools->menuAction());
+    main_ui_->menuBar->removeAction(main_ui_->menuStatistics->menuAction());
 
     // Edit: no secret injection / discard.
     main_ui_->menuEdit->removeAction(main_ui_->actionEditInjectTLSSecrets);
@@ -2515,12 +2526,14 @@ void WiresharkMainWindow::setMenusForCaptureFile(bool force_disable)
     main_ui_->actionFileClose->setEnabled(enable);
     main_ui_->actionFileSave->setEnabled(can_save);
     main_ui_->actionFileSaveAs->setEnabled(can_save_as);
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsCaptureFileProperties->setEnabled(enable);
     /* The Protocol Hierarchy statistics run on all the packets that
      * pass the current filter, don't enable if a read or rescan is
      * still in progress.
      */
     main_ui_->actionStatisticsProtocolHierarchy->setEnabled(enable);
+#endif
     /*
      * "Export Specified Packets..." should be available only if
      * we can write the file out in at least one format.
@@ -2579,7 +2592,9 @@ void WiresharkMainWindow::setMenusForCaptureInProgress(bool capture_in_progress)
     // We might want to enable or disable automatic checks here as well.
     main_ui_->actionHelpCheckUpdates->setEnabled(SoftwareUpdate::plattformSupported() && !capture_in_progress);
 
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsCaptureFileProperties->setEnabled(capture_in_progress);
+#endif
 
     // XXX Fix packet list heading menu sensitivity
     //    set_menu_sensitivity(ui_manager_packet_list_heading, "/PacketListHeadingPopup/SortAscending",
@@ -2603,7 +2618,9 @@ void WiresharkMainWindow::setMenusForCaptureInProgress(bool capture_in_progress)
 void WiresharkMainWindow::setMenusForCaptureStopping() {
     main_ui_->actionFileQuit->setEnabled(false);
     main_ui_->actionHelpCheckUpdates->setEnabled(false);
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsCaptureFileProperties->setEnabled(false);
+#endif
 #ifdef HAVE_LIBPCAP
     main_ui_->actionCaptureStart->setChecked(false);
     main_ui_->actionCaptureStop->setEnabled(false);
@@ -2635,10 +2652,12 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionViewResizeColumns->setEnabled(have_captured_packets);
     main_ui_->actionViewRedissect->setEnabled(have_captured_packets);
 
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsCaptureFileProperties->setEnabled(have_captured_packets);
     main_ui_->actionStatisticsProtocolHierarchy->setEnabled(have_captured_packets);
     main_ui_->actionStatisticsIOGraph->setEnabled(have_captured_packets);
     main_ui_->actionStatisticsPlot->setEnabled(have_captured_packets);
+#endif
 
     if (have_captured_packets && !packet_list_->hasFocus()) {
         packet_list_->setFocus();
@@ -2752,6 +2771,12 @@ void WiresharkMainWindow::addMenusandSubmenus(QAction *action, QMenu *cur_menu)
 
 void WiresharkMainWindow::addMenuActions(QList<QAction *> &actions, int menu_group)
 {
+#ifdef ENABLE_MINIMAL_BUILD
+    // Statistics / Telephony / Tools menus are removed; ignore dynamic entries.
+    Q_UNUSED(actions);
+    Q_UNUSED(menu_group);
+    return;
+#else
     foreach(QAction *action, actions) {
         switch (menu_group) {
         case REGISTER_PACKET_ANALYZE_GROUP_UNSORTED:
@@ -2771,7 +2796,6 @@ void WiresharkMainWindow::addMenuActions(QList<QAction *> &actions, int menu_gro
         case REGISTER_STAT_GROUP_RSERPOOL:
             main_ui_->menuRSerPool->addAction(action);
             break;
-#ifndef ENABLE_MINIMAL_BUILD
         case REGISTER_TELEPHONY_GROUP_UNSORTED:
             addMenusandSubmenus(action, main_ui_->menuTelephony);
             break;
@@ -2796,7 +2820,6 @@ void WiresharkMainWindow::addMenuActions(QList<QAction *> &actions, int menu_gro
         case REGISTER_TOOLS_GROUP_UNSORTED:
             addMenusandSubmenus(action, main_ui_->menuTools);
             break;
-#endif
         default:
             // Skip log items.
             return;
@@ -2811,6 +2834,7 @@ void WiresharkMainWindow::addMenuActions(QList<QAction *> &actions, int menu_gro
             connect(action, &QAction::triggered, funnel_statistics_, &FunnelStatistics::funnelActionTriggered);
         }
     }
+#endif
 }
 
 void WiresharkMainWindow::removeMenusandSubmenus(QAction *action, QMenu *cur_menu)
@@ -3077,7 +3101,11 @@ void WiresharkMainWindow::addPluginIFStructures()
 
 void WiresharkMainWindow::setFunnelMenus(void)
 {
-    funnel_statistics_->loadInitFunnelMenus();
+#ifndef ENABLE_MINIMAL_BUILD
+    if (funnel_statistics_) {
+        funnel_statistics_->loadInitFunnelMenus();
+    }
+#endif
 }
 
 void WiresharkMainWindow::removeAdditionalToolbar(QString toolbarName)
