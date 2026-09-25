@@ -87,6 +87,10 @@ if(WIN32)
 	option(ENABLE_VLD "Enable Visual Leak Detect in Debug configuration" OFF)
 endif()
 
+option(ENABLE_MINIMAL_BUILD
+	"极简构建：仅保留 MMS/GOOSE/SV/IEC-103-104/Modbus 与基础协议，并裁剪高级 GUI/资产"
+	OFF)
+
 option(ENABLE_PCAP       "Enable libpcap support (required for capturing)" ON)
 option(BUILD_SHARED_LIBS            "Build Wireshark libraries as shared" ON)
 option(USE_STATIC               "Always link statically with external libraries" OFF)

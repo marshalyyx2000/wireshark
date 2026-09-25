@@ -83,7 +83,9 @@ patterns = [
 
 # Grep
 for filename in filenames:
-    file = open(filename)
+    # Force UTF-8: on Windows the locale encoding (e.g. GBK) can fail on
+    # source files that contain bytes outside that encoding.
+    file = open(filename, encoding='utf-8', errors='replace')
     # Read the whole file into memory
     contents = file.read()
     for action in patterns:

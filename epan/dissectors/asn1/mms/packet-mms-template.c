@@ -36,6 +36,11 @@ static int hf_mms_response_in;
 static int hf_mms_response_to;
 static int hf_mms_response_time;
 
+/* IEC 61850 FloatingPoint (same encoding as GOOSE) */
+static int hf_mms_float_value;
+#define SINGLE_FLOAT_EXP_BITS	8
+#define FLOAT_ENC_LENGTH		5
+
 /* IEC 61850-8-1 filters */
 static int hf_mms_iec61850_rptid;
 static int hf_mms_iec61850_reported_optflds;
@@ -488,6 +493,9 @@ void proto_register_mms(void) {
                 FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
                 "The time between the Call and the Reply", HFILL }
         },
+        { &hf_mms_float_value,
+                { "float value", "mms.float_value",
+                FT_FLOAT, BASE_NONE, NULL, 0x0, NULL, HFILL }},
         { &hf_mms_iec61850_rptid,
           { "RptID", "mms.iec61850.rptid",
             FT_STRING, BASE_NONE, NULL, 0,

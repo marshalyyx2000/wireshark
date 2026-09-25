@@ -99,7 +99,7 @@ DIAG_ON(frame-larger-than=)
 #include <QUrl>
 #include <ui/tap-aggregation.h>
 
-#ifdef HAVE_LUA
+#if defined(HAVE_LUA) && !defined(ENABLE_MINIMAL_BUILD)
 #include "lua_debugger.h"
 #endif
 
@@ -382,8 +382,13 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     // The fewer children we have at this point the better.
     main_ui_->setupUi(this);
 
+#ifdef ENABLE_MINIMAL_BUILD
+    applyMinimalBuildUi();
+#endif
+
     main_ui_->mainStack->setFocusPolicy(Qt::NoFocus);
     main_ui_->centralWidget->setFocusPolicy(Qt::NoFocus);
+#ifndef ENABLE_MINIMAL_BUILD
     action_telephony_dis_streams_ = new QAction(tr("DIS Streams"), this);
     action_telephony_dis_streams_->setObjectName(QStringLiteral("actionTelephonyDisStreams"));
     action_telephony_dis_streams_->setToolTip(tr("Show and analyze DIS radio streams"));
@@ -391,8 +396,12 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     action_telephony_imsi_list_ = new QAction(tr("IMSI List"), this);
     action_telephony_imsi_list_->setObjectName(QStringLiteral("actionTelephonyImsiList"));
     action_telephony_imsi_list_->setToolTip(tr("Show all IMSIs in the capture"));
+#else
+    action_telephony_dis_streams_ = nullptr;
+    action_telephony_imsi_list_ = nullptr;
+#endif
 
-#ifdef HAVE_LUA
+#if defined(HAVE_LUA) && !defined(ENABLE_MINIMAL_BUILD)
     QAction *luaDebuggerAction = new QAction(tr("Lua Debugger"), this);
     connect(luaDebuggerAction, &QAction::triggered, this,
             &WiresharkMainWindow::openLuaDebuggerDialog);
@@ -422,13 +431,16 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
             << REGISTER_STAT_GROUP_GENERIC
             << REGISTER_STAT_GROUP_RESPONSE_TIME
             << REGISTER_STAT_GROUP_RSERPOOL
+#ifndef ENABLE_MINIMAL_BUILD
             << REGISTER_TELEPHONY_GROUP_UNSORTED
             << REGISTER_TELEPHONY_GROUP_ANSI
             << REGISTER_TELEPHONY_GROUP_GSM
             << REGISTER_TELEPHONY_GROUP_3GPP_UU
             << REGISTER_TELEPHONY_GROUP_MTP3
             << REGISTER_TELEPHONY_GROUP_SCTP
-            << REGISTER_TOOLS_GROUP_UNSORTED;
+            << REGISTER_TOOLS_GROUP_UNSORTED
+#endif
+            ;
 
     setWindowIcon(mainApp->normalIcon());
     updateTitlebar();
@@ -648,7 +660,9 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
 
     connect(mainApp, &MainApplication::checkDisplayFilter, this, &WiresharkMainWindow::checkDisplayFilter);
     connect(mainApp, &MainApplication::fieldsChanged, this, &WiresharkMainWindow::fieldsChanged);
+#ifndef ENABLE_MINIMAL_BUILD
     connect(mainApp, &MainApplication::reloadLuaPlugins, this, &WiresharkMainWindow::reloadLuaPlugins);
+#endif
 
     connect(main_ui_->mainStack, &QStackedWidget::currentChanged, this, &WiresharkMainWindow::mainStackChanged);
 
@@ -683,9 +697,11 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectCaptureMenuActions();
     connectAnalyzeMenuActions();
     connectStatisticsMenuActions();
+#ifndef ENABLE_MINIMAL_BUILD
     connectTelephonyMenuActions();
     connectWirelessMenuActions();
     connectToolsMenuActions();
+#endif
     connectHelpMenuActions();
 
     connect(packet_list_, &PacketList::packetDissectionChanged, this, &WiresharkMainWindow::redissectPackets);
@@ -777,6 +793,29 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
 
     showWelcome();
 }
+
+#ifdef ENABLE_MINIMAL_BUILD
+void WiresharkMainWindow::applyMinimalBuildUi()
+{
+    // Menu bar: keep File/Edit/View/Go/Capture/Analyze/Statistics/Help only.
+    main_ui_->menuBar->removeAction(main_ui_->menuTelephony->menuAction());
+    main_ui_->menuBar->removeAction(main_ui_->menuWireless->menuAction());
+    main_ui_->menuBar->removeAction(main_ui_->menuTools->menuAction());
+
+    // Edit: no secret injection / discard.
+    main_ui_->menuEdit->removeAction(main_ui_->actionEditInjectTLSSecrets);
+    main_ui_->menuEdit->removeAction(main_ui_->actionEditInjectESPSecrets);
+    main_ui_->menuEdit->removeAction(main_ui_->actionEditDiscardAllSecrets);
+
+    // Analyze: no Reload Lua Plugins.
+    main_ui_->menuAnalyze->removeAction(main_ui_->actionAnalyzeReloadLuaPlugins);
+
+    // File → Export: no TLS Session Keys, no Export Objects, no Strip Headers.
+    main_ui_->menuFile->removeAction(main_ui_->actionFileExportTLSSessionKeys);
+    main_ui_->menuFile->removeAction(main_ui_->menuFileExportObjects->menuAction());
+    main_ui_->menuFile->removeAction(main_ui_->actionFileStripHeaders);
+}
+#endif
 
 WiresharkMainWindow::~WiresharkMainWindow()
 {
@@ -1018,7 +1057,7 @@ void WiresharkMainWindow::closeEvent(QCloseEvent *event) {
         return;
     }
 
-#ifdef HAVE_LUA
+#if defined(HAVE_LUA) && !defined(ENABLE_MINIMAL_BUILD)
     /* Refuse to close while the Lua debugger is paused; the debugger
      * defers and re-delivers the close once the Lua C stack has
      * unwound. Running tryClosingCaptureFile() / mainApp->quit() with
@@ -2366,6 +2405,11 @@ void WiresharkMainWindow::initConversationMenus()
 
 bool WiresharkMainWindow::addExportObjectsMenuItem(const void *, void *value, void *userdata)
 {
+#ifdef ENABLE_MINIMAL_BUILD
+    Q_UNUSED(value);
+    Q_UNUSED(userdata);
+    return false;
+#else
     register_eo_t *eo = (register_eo_t*)value;
     WiresharkMainWindow *window = (WiresharkMainWindow*)userdata;
 
@@ -2378,11 +2422,14 @@ bool WiresharkMainWindow::addExportObjectsMenuItem(const void *, void *value, vo
     connect(&window->capture_file_, &CaptureFile::captureEvent, export_action, &ExportObjectAction::captureFileEvent);
     connect(export_action, &ExportObjectAction::triggered, window, &WiresharkMainWindow::applyExportObject);
     return false;
+#endif
 }
 
 void WiresharkMainWindow::initExportObjectsMenus()
 {
+#ifndef ENABLE_MINIMAL_BUILD
     eo_iterate_tables(addExportObjectsMenuItem, this);
+#endif
 }
 
 bool WiresharkMainWindow::addFollowStreamMenuItem(const void *key, void *value, void *userdata)
@@ -2488,12 +2535,14 @@ void WiresharkMainWindow::setMenusForCaptureFile(bool force_disable)
     main_ui_->actionFileExportAsJSON->setEnabled(enable);
 
     main_ui_->actionFileExportPDU->setEnabled(enable);
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionFileStripHeaders->setEnabled(enable);
     main_ui_->actionFileExportTLSSessionKeys->setEnabled(enable && secrets_get_count("TLS") > 0);
 
     foreach(QAction *eo_action, main_ui_->menuFileExportObjects->actions()) {
         eo_action->setEnabled(enable);
     }
+#endif
 
     main_ui_->actionViewReload->setEnabled(enable);
 
@@ -2516,12 +2565,14 @@ void WiresharkMainWindow::setMenusForCaptureInProgress(bool capture_in_progress)
     main_ui_->actionFileExportAsJSON->setEnabled(capture_in_progress);
 
     main_ui_->actionFileExportPDU->setEnabled(!capture_in_progress);
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionFileStripHeaders->setEnabled(!capture_in_progress);
     main_ui_->actionFileExportTLSSessionKeys->setEnabled(capture_in_progress);
 
     foreach(QAction *eo_action, main_ui_->menuFileExportObjects->actions()) {
         eo_action->setEnabled(capture_in_progress);
     }
+#endif
 
     main_ui_->menuFileSet->setEnabled(!capture_in_progress);
     main_ui_->actionFileQuit->setEnabled(true);
@@ -2720,6 +2771,7 @@ void WiresharkMainWindow::addMenuActions(QList<QAction *> &actions, int menu_gro
         case REGISTER_STAT_GROUP_RSERPOOL:
             main_ui_->menuRSerPool->addAction(action);
             break;
+#ifndef ENABLE_MINIMAL_BUILD
         case REGISTER_TELEPHONY_GROUP_UNSORTED:
             addMenusandSubmenus(action, main_ui_->menuTelephony);
             break;
@@ -2744,6 +2796,7 @@ void WiresharkMainWindow::addMenuActions(QList<QAction *> &actions, int menu_gro
         case REGISTER_TOOLS_GROUP_UNSORTED:
             addMenusandSubmenus(action, main_ui_->menuTools);
             break;
+#endif
         default:
             // Skip log items.
             return;
@@ -2799,6 +2852,7 @@ void WiresharkMainWindow::removeMenuActions(QList<QAction *> &actions, int menu_
         case REGISTER_STAT_GROUP_RSERPOOL:
             main_ui_->menuRSerPool->removeAction(action);
             break;
+#ifndef ENABLE_MINIMAL_BUILD
         case REGISTER_TELEPHONY_GROUP_UNSORTED:
             removeMenusandSubmenus(action, main_ui_->menuTelephony);
             break;
@@ -2820,6 +2874,7 @@ void WiresharkMainWindow::removeMenuActions(QList<QAction *> &actions, int menu_
         case REGISTER_TOOLS_GROUP_UNSORTED:
             removeMenusandSubmenus(action, main_ui_->menuTools);
             break;
+#endif
         default:
 //            qDebug() << "FIX: Remove" << action->text() << "from the menu";
             break;
@@ -2829,6 +2884,7 @@ void WiresharkMainWindow::removeMenuActions(QList<QAction *> &actions, int menu_
 
 void WiresharkMainWindow::addDynamicMenus()
 {
+#ifndef ENABLE_MINIMAL_BUILD
     // Manual additions
     mainApp->addDynamicMenuGroupItem(REGISTER_TELEPHONY_GROUP_GSM, main_ui_->actionTelephonyGsmMapSummary);
     mainApp->addDynamicMenuGroupItem(REGISTER_TELEPHONY_GROUP_3GPP_UU, main_ui_->actionTelephonyLteMacStatistics);
@@ -2838,6 +2894,7 @@ void WiresharkMainWindow::addDynamicMenus()
     mainApp->addDynamicMenuGroupItem(REGISTER_TELEPHONY_GROUP_UNSORTED, main_ui_->actionTelephonySipFlows);
     mainApp->addDynamicMenuGroupItem(REGISTER_TELEPHONY_GROUP_UNSORTED, action_telephony_dis_streams_);
     mainApp->addDynamicMenuGroupItem(REGISTER_TELEPHONY_GROUP_UNSORTED, action_telephony_imsi_list_);
+#endif
 
     // Fill in each menu
     foreach(register_stat_group_t menu_group, menu_groups_) {
@@ -2845,6 +2902,7 @@ void WiresharkMainWindow::addDynamicMenus()
         addMenuActions(actions, menu_group);
     }
 
+#ifndef ENABLE_MINIMAL_BUILD
     // Empty menus don't show up: https://bugreports.qt.io/browse/QTBUG-33728
     // We've added a placeholder in order to make sure some menus are visible.
     // Hide them as needed.
@@ -2860,6 +2918,7 @@ void WiresharkMainWindow::addDynamicMenus()
     if (mainApp->dynamicMenuGroupItems(REGISTER_TELEPHONY_GROUP_MTP3).length() > 0) {
         main_ui_->actionTelephonyMTP3Placeholder->setVisible(false);
     }
+#endif
 }
 
 void WiresharkMainWindow::reloadDynamicMenus()
@@ -3172,6 +3231,7 @@ QString WiresharkMainWindow::findRtpStreams(QVector<rtpstream_id_t *> *stream_id
     return NULL;
 }
 
+#ifndef ENABLE_MINIMAL_BUILD
 void WiresharkMainWindow::openTLSKeylogDialog()
 {
     // Have a single instance of the dialog at any one time.
@@ -3189,8 +3249,9 @@ void WiresharkMainWindow::openTLSKeylogDialog()
     tlskeylog_dialog_->raise();
     tlskeylog_dialog_->activateWindow();
 }
+#endif
 
-#ifdef HAVE_LUA
+#if defined(HAVE_LUA) && !defined(ENABLE_MINIMAL_BUILD)
 void WiresharkMainWindow::openLuaDebuggerDialog()
 {
     LuaDebugger::open(this);

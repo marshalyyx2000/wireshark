@@ -33,6 +33,9 @@ Output filename.
 .PARAMETER DebugConfig
 Assume debug binaries.
 
+.PARAMETER MinimalManifest
+Drop heavyweight Qt plugins/DLLs (OpenGL softpipe, D3D shaders, FFmpeg, etc.).
+
 .INPUTS
 -Executable Path to the Qt application.
 -FilePath Output NSIS file.
@@ -52,7 +55,10 @@ Param(
     [String] $FilePath = "wireshark-qt-manifest.nsh",
 
     [Parameter(Mandatory=$false)]
-    [Switch] $DebugConfig
+    [Switch] $DebugConfig,
+
+    [Parameter(Mandatory=$false)]
+    [Switch] $MinimalManifest
 )
 
 
@@ -85,6 +91,23 @@ try {
             # Work around a pre Qt 6.11.1 + Windows ICU issue
             Write-Host "Skipping system library: $($entry)"
             continue
+        }
+        if ($MinimalManifest) {
+            $el = $entry.Replace('/', '\').ToLowerInvariant().TrimStart('\')
+            $dropSubstrings = @(
+                'opengl32sw.dll', 'dxcompiler.dll', 'd3dcompiler_47.dll', 'dxil.dll',
+                'avcodec-', 'avformat-', 'avutil-', 'swresample-', 'swscale-',
+                'multimedia\', 'tls\qcertonlybackend', 'tls\qopensslbackend',
+                'generic\qtuiotouchplugin', 'networkinformation\'
+            )
+            $skip = $false
+            foreach ($p in $dropSubstrings) {
+                if ($el.Contains($p)) { $skip = $true; break }
+            }
+            if ($skip) {
+                Write-Host "MinimalManifest: skipping $entry"
+                continue
+            }
         }
         $dir = Split-Path -Parent $entry
         if ($dir -and $dir -ne $currentDir) {

@@ -1,0 +1,65 @@
+# Wireshark ENABLE_MINIMAL_BUILD keep-list (one *.c basename per line).
+# Scope: MMS / GOOSE / SV / IEC 60870-5-101/103/104 / Modbus + L2/L3/L4 + OSI.
+# Extra support files are required link dependencies of the keep-list dissectors.
+# dns/tls/dtls intentionally omitted (plan section 7.3). Symbols come from packet-minimal-stubs.c.
+# usb/rtacser Decode-As registrations remain guarded in packet-mbtcp.c and packet-iec104.c.
+# IMPORTANT: do not put semicolons in this file. CMake file(STRINGS) treats them as list separators.
+
+# --- Link layer ---
+packet-eth.c
+packet-ethertype.c
+packet-ieee8023.c
+packet-isl.c
+packet-vlan.c
+packet-null.c
+packet-raw.c
+packet-sll.c
+packet-arp.c
+packet-llc.c
+packet-xdlc.c
+packet-pcap_pktdata.c
+
+# --- Network layer ---
+packet-ip.c
+packet-ipv6.c
+packet-icmp.c
+packet-icmpv6.c
+packet-gre.c
+packet-6lowpan.c
+
+# --- Transport layer ---
+packet-tcp.c
+packet-udp.c
+packet-sctp.c
+
+# --- OSI / MMS stack ---
+packet-tpkt.c
+packet-ositp.c
+packet-osi.c
+packet-ses.c
+packet-pres.c
+packet-rtse.c
+packet-acse.c
+packet-ber.c
+packet-mms.c
+packet-x509af.c
+packet-x509if.c
+packet-x509ce.c
+packet-x509sat.c
+
+# --- IEC 61850 ---
+packet-goose.c
+packet-sv.c
+
+# --- IEC 60870-5 (101/103/104 live in this file) ---
+packet-iec104.c
+
+# --- Modbus ---
+packet-mbtcp.c
+
+# --- Infrastructure ---
+packet-data.c
+packet-frame.c
+
+# --- Minimal stubs (dns/tls/dtls symbols without registering those protocols) ---
+packet-minimal-stubs.c

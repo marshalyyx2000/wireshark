@@ -28,6 +28,9 @@
 /* Define to 1 if we want to enable plugins */
 #cmakedefine HAVE_PLUGINS 1
 
+/* Minimal industrial-protocol-only build */
+#cmakedefine ENABLE_MINIMAL_BUILD 1
+
 /*  Define to 1 if we check hf conflict */
 #cmakedefine ENABLE_CHECK_FILTER 1
 

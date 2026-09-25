@@ -41,6 +41,11 @@ static int hf_mms_response_in;
 static int hf_mms_response_to;
 static int hf_mms_response_time;
 
+/* IEC 61850 FloatingPoint (same encoding as GOOSE) */
+static int hf_mms_float_value;
+#define SINGLE_FLOAT_EXP_BITS	8
+#define FLOAT_ENC_LENGTH		5
+
 /* IEC 61850-8-1 filters */
 static int hf_mms_iec61850_rptid;
 static int hf_mms_iec61850_reported_optflds;
@@ -2597,10 +2602,19 @@ dissect_mms_T_unsigned(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset
 
 static unsigned
 dissect_mms_FloatingPoint(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+
+	int len = tvb_reported_length_remaining(tvb, offset);
+
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        NULL);
 
-        private_data_add_moreCinfo_float(actx, tvb);
+	if ((len == FLOAT_ENC_LENGTH) && (tvb_get_uint8(tvb, 0) == SINGLE_FLOAT_EXP_BITS)) {
+		/* IEEE 754 single precision floating point (IEC 61850) */
+		proto_item_set_hidden(actx->created_item);
+		proto_tree_add_item(tree, hf_mms_float_value, tvb, 1, (FLOAT_ENC_LENGTH - 1), ENC_BIG_ENDIAN);
+	}
+
+	private_data_add_moreCinfo_float(actx, tvb);
 
 
   return offset;
@@ -8523,6 +8537,9 @@ void proto_register_mms(void) {
                 FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
                 "The time between the Call and the Reply", HFILL }
         },
+        { &hf_mms_float_value,
+                { "float value", "mms.float_value",
+                FT_FLOAT, BASE_NONE, NULL, 0x0, NULL, HFILL }},
         { &hf_mms_iec61850_rptid,
           { "RptID", "mms.iec61850.rptid",
             FT_STRING, BASE_NONE, NULL, 0,

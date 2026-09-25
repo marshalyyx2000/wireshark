@@ -525,10 +525,13 @@ File "${STAGING_DIR}\colorfilters"
 File "${STAGING_DIR}\dfilters"
 ;dont_overwrite_dfilters:
 ;IfFileExists smi_modules dont_overwrite_smi_modules
+!ifndef ENABLE_MINIMAL_BUILD
 File "${STAGING_DIR}\smi_modules"
+!endif
 ;dont_overwrite_smi_modules:
 
 
+!ifndef ENABLE_MINIMAL_BUILD
 ;
 ; Install the Diameter DTD and XML files in the "diameter" subdirectory
 ; of the installation directory.
@@ -568,7 +571,9 @@ File "${STAGING_DIR}\diameter\Vodafone.xml"
 File "${STAGING_DIR}\diameter\VerizonWireless.xml"
 !include "custom_diameter_xmls.txt"
 SetOutPath $INSTDIR
+!endif
 
+!ifndef ENABLE_MINIMAL_BUILD
 ;
 ; Install the RADIUS directory files in the "radius" subdirectory
 ; of the installation directory.
@@ -828,6 +833,7 @@ File "${STAGING_DIR}\radius\dictionary.zte"
 File "${STAGING_DIR}\radius\dictionary.zyxel"
 !include "custom_radius_dict.txt"
 SetOutPath $INSTDIR
+!endif
 
 ;
 ; install the dtds in the dtds subdirectory
@@ -1011,7 +1017,19 @@ Section "${PROGRAM_NAME}" SecWiresharkQt
 ; by default, Wireshark.exe is installed
 SetOutPath $INSTDIR
 File "${QT_DIR}\${PROGRAM_NAME_PATH}"
+!ifdef ENABLE_MINIMAL_BUILD
+; Only ship Chinese + English Qt/Wireshark translations.
+SetOutPath $INSTDIR\translations
+File /nonfatal "${QT_DIR}\translations\qt_zh_CN.qm"
+File /nonfatal "${QT_DIR}\translations\qt_en.qm"
+File /nonfatal "${QT_DIR}\translations\wireshark_zh_CN.qm"
+File /nonfatal "${QT_DIR}\translations\wireshark_en.qm"
+File /nonfatal "${QT_DIR}\translations\qtbase_zh_CN.qm"
+File /nonfatal "${QT_DIR}\translations\qtbase_en.qm"
+SetOutPath $INSTDIR
+!else
 File /r "${QT_DIR}\translations"
+!endif
 ; Write an entry for ShellExecute
 WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME_PATH}" "" '$INSTDIR\${PROGRAM_NAME_PATH}'
 WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME_PATH}" "Path" '$INSTDIR'
@@ -1040,6 +1058,7 @@ File "${STAGING_DIR}\tshark.exe"
 File "${STAGING_DIR}\tshark.html"
 SectionEnd
 
+!ifndef ENABLE_MINIMAL_BUILD
 Section "-Plugins & Extensions"
 
 SetOutPath '$INSTDIR\plugins\${MAJOR_VERSION}.${MINOR_VERSION}\codecs'
@@ -1184,6 +1203,7 @@ SectionEnd
 !insertmacro CheckExtrasFlag "udpdump"
 
 SectionGroupEnd ; "External Capture (extcap)"
+!endif ; ENABLE_MINIMAL_BUILD
 
 Section "-Write Registry Keys"
   !ifdef QT_DIR
@@ -1192,6 +1212,7 @@ Section "-Write Registry Keys"
   !insertmacro ComponentInstalled "TShark" ${SecTShark}
 
   ; Store whether each extcap was selected or not
+!ifndef ENABLE_MINIMAL_BUILD
   !insertmacro ComponentInstalled "Extcaps\androiddump" ${SecAndroiddump}
   !ifdef BUILD_etwdump
     !insertmacro ComponentInstalled "Extcaps\etwdump" ${SecEtwdump}
@@ -1202,12 +1223,16 @@ Section "-Write Registry Keys"
     !insertmacro ComponentInstalled "Extcaps\sshdump" ${SecSshdump}
   !endif
   !insertmacro ComponentInstalled "Extcaps\udpdump" ${SecUdpdump}
+!endif
 SectionEnd
 
+!ifndef ENABLE_MINIMAL_BUILD
 Section "-Clear Partial Selected"
 !insertmacro ClearSectionFlag ${SecExtcapGroup} ${SF_PSELECTED}
 SectionEnd
+!endif
 
+!ifndef ENABLE_MINIMAL_BUILD
 !ifdef DOC_DIR
 Section "-Documentation"
 
@@ -1215,6 +1240,7 @@ SetOutPath "$INSTDIR\Wireshark User's Guide"
 File /r "${DOC_DIR}\wsug_html_chunked\*.*"
 
 SectionEnd
+!endif
 !endif
 
 Section "-Finally"

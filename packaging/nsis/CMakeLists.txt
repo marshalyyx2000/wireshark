@@ -303,6 +303,7 @@ macro( ADD_NSIS_PACKAGE_TARGETS )
 						-Executable $<TARGET_FILE:wireshark>
 						-FilePath ${_nsis_binary_dir}/wireshark-qt-manifest.nsh
 						$<$<CONFIG:Debug>:-DebugConfig>
+						$<$<BOOL:${ENABLE_MINIMAL_BUILD}>:-MinimalManifest>
 					DEPENDS
 						"${_nsis_source_dir}/windeployqt-to-nsis.ps1"
 						$<TARGET_FILE:wireshark>
@@ -336,13 +337,21 @@ macro( ADD_NSIS_PACKAGE_TARGETS )
 		# Build NSIS package dependencies. We build the package in
 		# two stages so that wireshark_nsis below doesn't trigger
 		# any dependencies that might clobber any signed executables.
-		add_custom_target(wireshark_nsis_prep
-			DEPENDS
-				${WIRESHARK_NSIS_FILES}
-				copy_data_files
-				user_guide_html
-				release_notes_html
-		)
+		if(ENABLE_MINIMAL_BUILD)
+			add_custom_target(wireshark_nsis_prep
+				DEPENDS
+					${WIRESHARK_NSIS_FILES}
+					copy_data_files
+			)
+		else()
+			add_custom_target(wireshark_nsis_prep
+				DEPENDS
+					${WIRESHARK_NSIS_FILES}
+					copy_data_files
+					user_guide_html
+					release_notes_html
+			)
+		endif()
 		set_target_properties(wireshark_nsis_prep PROPERTIES
 			FOLDER "Packaging"
 			EXCLUDE_FROM_DEFAULT_BUILD True
@@ -357,7 +366,8 @@ macro( ADD_NSIS_PACKAGE_TARGETS )
 		add_custom_target(wireshark_nsis
 			COMMAND ${MAKENSIS_EXECUTABLE} ${NSIS_OPTIONS}
 				$<$<CONFIG:Debug>:-DBUNDLE_DEBUG_DLLS>
-				$<$<BOOL:${MSVC}>:-DUSE_VCREDIST>
+				# Minimal builds omit the ~24MB VC++ redistributable to stay under size budget.
+				$<$<AND:$<BOOL:${MSVC}>,$<NOT:$<BOOL:${ENABLE_MINIMAL_BUILD}>>>:-DUSE_VCREDIST>
 				wireshark.nsi
 			WORKING_DIRECTORY ${_nsis_source_dir}
 		)

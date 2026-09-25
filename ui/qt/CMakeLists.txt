@@ -343,7 +343,7 @@ if(ENABLE_PCAP)
 	endif()
 endif()
 
-if(LUA_FOUND)
+if(LUA_FOUND AND NOT ENABLE_MINIMAL_BUILD)
 	include(${CMAKE_CURRENT_SOURCE_DIR}/lua_debugger/CMakeLists.txt)
 	list(APPEND WIRESHARK_QT_HEADERS ${WIRESHARK_LUA_DEBUGGER_HEADERS})
 endif()
@@ -678,7 +678,7 @@ if(ENABLE_PCAP)
 	endif()
 endif()
 
-if(LUA_FOUND)
+if(LUA_FOUND AND NOT ENABLE_MINIMAL_BUILD)
 	list(APPEND WIRESHARK_QT_SRC ${WIRESHARK_LUA_DEBUGGER_SRCS})
 endif()
 
@@ -826,7 +826,7 @@ if(HAVE_PCAP_REMOTE)
 	)
 endif()
 
-if(LUA_FOUND)
+if(LUA_FOUND AND NOT ENABLE_MINIMAL_BUILD)
 	list(APPEND WIRESHARK_QT_UI ${WIRESHARK_LUA_DEBUGGER_UI})
 endif()
 
@@ -834,6 +834,56 @@ set(WIRESHARK_QT_UI_SRCS
 	${WIRESHARK_QT_UI}
 	${WIRESHARK_QT_WIDGETS_UI}
 )
+
+if(ENABLE_MINIMAL_BUILD)
+	list(REMOVE_ITEM WIRESHARK_QT_HEADERS
+		credentials_dialog.h
+		firewall_rules_dialog.h
+		tlskeylog_launcher_dialog.h
+		strip_headers_dialog.h
+		gsm_map_summary_dialog.h
+		mtp3_summary_dialog.h
+	)
+	list(REMOVE_ITEM WIRESHARK_MODEL_HEADERS
+		models/credentials_model.h
+	)
+	list(REMOVE_ITEM WIRESHARK_QT_SRC
+		credentials_dialog.cpp
+		firewall_rules_dialog.cpp
+		tlskeylog_launcher_dialog.cpp
+		strip_headers_dialog.cpp
+	)
+	list(REMOVE_ITEM WIRESHARK_MODEL_SRCS
+		models/credentials_model.cpp
+	)
+	list(REMOVE_ITEM WIRESHARK_QT_UI
+		credentials_dialog.ui
+		firewall_rules_dialog.ui
+		tlskeylog_launcher_dialog.ui
+		strip_headers_dialog.ui
+		gsm_map_summary_dialog.ui
+		mtp3_summary_dialog.ui
+	)
+	# Tap listeners that register against protocols omitted from the keep-list.
+	list(REMOVE_ITEM WIRESHARK_QT_TAP_SRC
+		${CMAKE_CURRENT_SOURCE_DIR}/gsm_map_summary_dialog.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/mtp3_summary_dialog.cpp
+	)
+	# NONGENERATED_SRC already expanded MODEL_SRCS / QT_SRC / TAP_SRC above; drop again.
+	list(REMOVE_ITEM WIRESHARK_QT_NONGENERATED_SRC
+		credentials_dialog.cpp
+		firewall_rules_dialog.cpp
+		tlskeylog_launcher_dialog.cpp
+		strip_headers_dialog.cpp
+		models/credentials_model.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/gsm_map_summary_dialog.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/mtp3_summary_dialog.cpp
+	)
+	set(WIRESHARK_QT_UI_SRCS
+		${WIRESHARK_QT_UI}
+		${WIRESHARK_QT_WIDGETS_UI}
+	)
+endif()
 
 set(WIRESHARK_QT_TS
 	wireshark_ca.ts

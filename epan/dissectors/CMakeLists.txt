@@ -231,6 +231,16 @@ set(CORBA_IDL_DISSECTOR_SRC
 	${DIRTY_CORBA_IDL_DISSECTOR_SRC}
 )
 
+if(ENABLE_MINIMAL_BUILD)
+	# Avoid compiling/linking unused CORBA IDL dissectors in minimal builds.
+	set(CORBA_IDL_DISSECTOR_SRC "")
+	set(CLEAN_CORBA_IDL_DISSECTOR_SRC "")
+	set(DIRTY_CORBA_IDL_DISSECTOR_SRC "")
+	# MSVC OBJECT libraries need at least one translation unit.
+	file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/corba-minimal-stub.c" "/* ENABLE_MINIMAL_BUILD: no CORBA dissectors */\n")
+	set(CORBA_IDL_DISSECTOR_SRC "${CMAKE_CURRENT_BINARY_DIR}/corba-minimal-stub.c")
+endif()
+
 source_group(dissectors-corba FILES ${CORBA_IDL_DISSECTOR_SRC})
 
 add_library(dissectors-corba OBJECT
@@ -1993,9 +2003,98 @@ set(DISSECTOR_FILES
 )
 source_group(dissectors FILES ${DISSECTOR_FILES})
 
-add_lex_files(LEX_FILES DISSECTOR_LEX
-	radius_dict.l
-)
+#
+# Minimal build: keep non-packet-* support sources, then union with the
+# explicit packet keep-list. Also drop CORBA/PIDL-heavy event dissectors.
+#
+if(ENABLE_MINIMAL_BUILD)
+	set(_min_keep "")
+	file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/minimal-dissectors.txt _min_lines)
+	foreach(_l IN LISTS _min_lines)
+		string(STRIP "${_l}" _l)
+		# Treat any line whose first non-space char is '#' as a comment.
+		if(_l STREQUAL "" OR _l MATCHES "^#")
+			continue()
+		endif()
+		# Allow space-separated names on one line.
+		string(REPLACE " " ";" _l_words "${_l}")
+		foreach(_w IN LISTS _l_words)
+			if(_w STREQUAL "" OR _w MATCHES "^#")
+				continue()
+			endif()
+			# Only accept *.c basenames — ignore stray punctuation from comments.
+			if(NOT _w MATCHES "^[A-Za-z0-9_+.-]+\\.c$")
+				message(FATAL_ERROR "ENABLE_MINIMAL_BUILD: invalid keep-list token: '${_w}'")
+			endif()
+			set(_p "${CMAKE_CURRENT_SOURCE_DIR}/${_w}")
+			if(NOT EXISTS "${_p}")
+				message(FATAL_ERROR "ENABLE_MINIMAL_BUILD: keep-list file missing: ${_w}")
+			endif()
+			list(APPEND _min_keep "${_p}")
+		endforeach()
+	endforeach()
+	list(REMOVE_DUPLICATES _min_keep)
+	list(LENGTH _min_keep _min_keep_n)
+	if(_min_keep_n LESS 1)
+		message(FATAL_ERROR "ENABLE_MINIMAL_BUILD: keep-list produced zero sources")
+	endif()
+	message(STATUS "ENABLE_MINIMAL_BUILD: keep-list has ${_min_keep_n} packet sources")
+
+	set(_non_packet "")
+	foreach(_f IN LISTS DISSECTOR_FILES)
+		# Keep non-packet support sources, but drop file dissectors that pull
+		# in Bluetooth/SMB (and similar) dependency chains we intentionally omit.
+		if(_f MATCHES "/packet-")
+			continue()
+		endif()
+		# Only keep the capture-file dissectors needed to open pcap/pcapng.
+		# Other file-* dissectors register into http/wtap_file heur lists and
+		# inflate -G protocols far beyond the §7.3 budget.
+		if(_f MATCHES "/file-" AND NOT _f MATCHES "/file-(file|pcap|pcapng)\\.c$")
+			continue()
+		endif()
+		list(APPEND _non_packet "${_f}")
+	endforeach()
+	set(DISSECTOR_FILES ${_non_packet} ${_min_keep})
+	list(REMOVE_DUPLICATES DISSECTOR_FILES)
+
+	# Drop CORBA IDL dissectors from registration + object lib contents.
+	set(CORBA_IDL_DISSECTOR_SRC "")
+	set(CLEAN_CORBA_IDL_DISSECTOR_SRC "")
+	set(DIRTY_CORBA_IDL_DISSECTOR_SRC "")
+
+	# Event dissectors: keep file-* + frame/data/pcapng_block only.
+	set(EVENT_DISSECTOR_SRC
+		${CMAKE_CURRENT_SOURCE_DIR}/file-file.c
+		${CMAKE_CURRENT_SOURCE_DIR}/file-pcapng.c
+		${CMAKE_CURRENT_SOURCE_DIR}/packet-frame.c
+		${CMAKE_CURRENT_SOURCE_DIR}/packet-data.c
+		${CMAKE_CURRENT_SOURCE_DIR}/packet-pcapng_block.c
+	)
+	set(EVENT_FILES "")
+
+	# event-only sources must also be compiled into the dissectors object lib.
+	list(APPEND DISSECTOR_FILES ${EVENT_DISSECTOR_SRC})
+	list(REMOVE_DUPLICATES DISSECTOR_FILES)
+
+	# Drop heavy support files unused by the keep-list.
+	set(DISSECTOR_SUPPORT_SRC
+		${CMAKE_CURRENT_SOURCE_DIR}/json-dictionary.c
+		${CUSTOM_DISSECTOR_SUPPORT_SRC}
+	)
+
+	# Skip radius lex if radius dissector is not kept.
+	set(DISSECTOR_LEX "")
+
+	list(LENGTH DISSECTOR_FILES _min_n)
+	message(STATUS "ENABLE_MINIMAL_BUILD: ${_min_n} dissector sources after filter")
+endif()
+
+if(NOT ENABLE_MINIMAL_BUILD)
+	add_lex_files(LEX_FILES DISSECTOR_LEX
+		radius_dict.l
+	)
+endif()
 
 set(ALL_DISSECTOR_SRC
 	${DISSECTOR_FILES}

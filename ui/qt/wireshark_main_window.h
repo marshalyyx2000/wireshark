@@ -68,7 +68,9 @@
 #include "main_window.h"
 #include "rtp_stream_dialog.h"
 #include "rtp_analysis_dialog.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "tlskeylog_launcher_dialog.h"
+#endif
 
 class AccordionFrame;
 class DataSourceTab;
@@ -286,7 +288,17 @@ private:
     InPacketSearch *in_packet_search_; /**< In-packet search for the main-window proto tree. */
     QPoint dragStartPosition; /**< Mouse position recorded at the start of a drag operation. */
 
+#ifndef ENABLE_MINIMAL_BUILD
     QPointer<TLSKeylogDialog> tlskeylog_dialog_; /**< Modeless TLS keylog dialog; null when not open. */
+#endif
+
+#ifdef ENABLE_MINIMAL_BUILD
+    /**
+     * @brief Removes Telephony/Wireless/Tools menus and other non-essential UI
+     *        actions when building with ENABLE_MINIMAL_BUILD.
+     */
+    void applyMinimalBuildUi();
+#endif
 
     /**
      * @brief Freezes the packet list and disables UI elements during long operations.
@@ -644,7 +656,7 @@ public slots:
     void launchRLCGraph(bool channelKnown, uint8_t RAT, uint16_t ueid, uint8_t rlcMode,
                         uint16_t channelType, uint16_t channelId, uint8_t direction);
 
-#ifdef HAVE_LUA
+#if defined(HAVE_LUA) && !defined(ENABLE_MINIMAL_BUILD)
     /** @brief Opens the Lua debugger dialog. */
     void openLuaDebuggerDialog();
 #endif
@@ -954,11 +966,13 @@ private slots:
     /** @brief Opens the Export PDU dialog to export reassembled PDUs to a new capture file. */
     void exportPDU();
 
+#ifndef ENABLE_MINIMAL_BUILD
     /** @brief Opens the Strip Headers dialog to remove encapsulation layers from packets. */
     void stripPacketHeaders();
 
     /** @brief Exports TLS session keys from the current capture to a keylog file. */
     void exportTLSSessionKeys();
+#endif
 
     /** @brief Opens the print dialog for the current capture file. */
     void printFile();
@@ -1321,8 +1335,10 @@ private slots:
      */
     QString findRtpStreams(QVector<rtpstream_id_t *> *stream_ids, bool reverse);
 
+#ifndef ENABLE_MINIMAL_BUILD
     /** @brief Opens the TLS Keylog dialog, creating it if it does not already exist. */
     void openTLSKeylogDialog();
+#endif
 
     /** @brief Friend class allowing access to private members. */
     friend class MainApplication;

@@ -118,11 +118,15 @@ DIAG_ON(frame-larger-than=)
 #include "file_set_dialog.h"
 #include "filter_action.h"
 #include "filter_dialog.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "firewall_rules_dialog.h"
+#endif
 #include "follow_stream_action.h"
 #include "follow_stream_dialog.h"
 #include "funnel_statistics.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "gsm_map_summary_dialog.h"
+#endif
 #include "iax2_analysis_dialog.h"
 #include "interface_toolbar.h"
 #include "io_graph_dialog.h"
@@ -139,13 +143,17 @@ DIAG_ON(frame-larger-than=)
 #include "main_application.h"
 #include <ui/qt/utils/font_manager.h>
 #include "manuf_dialog.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "mtp3_summary_dialog.h"
+#endif
 #include "multicast_statistics_dialog.h"
 #include "packet_comment_dialog.h"
 #include "packet_diagram.h"
 #include "packet_dialog.h"
 #include "packet_list.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "credentials_dialog.h"
+#endif
 #include "preferences_dialog.h"
 #include "print_dialog.h"
 #include "profile_dialog.h"
@@ -160,9 +168,11 @@ DIAG_ON(frame-larger-than=)
 #include "sctp_graph_dialog.h"
 #include "sequence_dialog.h"
 #include "show_packet_bytes_dialog.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "tlskeylog_launcher_dialog.h"
-#include "stats_tree_dialog.h"
 #include "strip_headers_dialog.h"
+#endif
+#include "stats_tree_dialog.h"
 #include <ui/qt/utils/stock_icon.h>
 #include "keyboard_shortcuts_dialog.h"
 #include "supported_protocols_dialog.h"
@@ -793,7 +803,9 @@ void WiresharkMainWindow::captureFileReadStarted(const QString &action) {
     QString msgtip = QString();
     mainApp->pushStatus(WiresharkApplication::FileStatus, msg, msgtip);
     showCapture();
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionAnalyzeReloadLuaPlugins->setEnabled(false);
+#endif
     main_ui_->wirelessTimelineWidget->captureFileReadStarted(capture_file_.capFile());
 }
 
@@ -816,7 +828,9 @@ void WiresharkMainWindow::captureFileReadFinished() {
     setForCapturedPackets(true);
 
     main_ui_->statusBar->setFileName(capture_file_);
+#ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionAnalyzeReloadLuaPlugins->setEnabled(true);
+#endif
 
     packet_list_->captureFileReadFinished();
 
@@ -1851,11 +1865,13 @@ void WiresharkMainWindow::connectFileMenuActions()
     connect(main_ui_->actionFileExportPDU, &QAction::triggered, this,
         [this]() { exportPDU(); });
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(main_ui_->actionFileStripHeaders, &QAction::triggered, this,
         [this]() { stripPacketHeaders(); });
 
     connect(main_ui_->actionFileExportTLSSessionKeys, &QAction::triggered, this,
         [this]() { exportTLSSessionKeys(); });
+#endif
 
     connect(main_ui_->actionFilePrint, &QAction::triggered, this,
         [this]() { printFile(); });
@@ -1908,6 +1924,7 @@ void WiresharkMainWindow::exportPDU()
     exportpdu_dialog->activateWindow();
 }
 
+#ifndef ENABLE_MINIMAL_BUILD
 void WiresharkMainWindow::stripPacketHeaders()
 {
     // After stripping headers the current capture file is closed and the
@@ -1931,8 +1948,10 @@ void WiresharkMainWindow::stripPacketHeaders()
     stripheaders_dialog->raise();
     stripheaders_dialog->activateWindow();
 }
+#endif
 
 
+#ifndef ENABLE_MINIMAL_BUILD
 void WiresharkMainWindow::exportTLSSessionKeys()
 {
     QString file_name;
@@ -1975,6 +1994,7 @@ void WiresharkMainWindow::exportTLSSessionKeys()
 
     g_free(keylist);
 }
+#endif
 
 void WiresharkMainWindow::printFile()
 {
@@ -2119,6 +2139,7 @@ void WiresharkMainWindow::connectEditMenuActions()
     connect(main_ui_->actionDeleteAllPacketComments, &QAction::triggered, this,
             [this]() { deleteAllPacketComments(); }, Qt::QueuedConnection);
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(main_ui_->actionEditInjectTLSSecrets, &QAction::triggered, this,
             [this]() { injectSecrets("TLS", "TLS#tls-decryption"); }, Qt::QueuedConnection);
 
@@ -2127,6 +2148,7 @@ void WiresharkMainWindow::connectEditMenuActions()
 
     connect(main_ui_->actionEditDiscardAllSecrets, &QAction::triggered, this,
             [this]() { discardAllSecrets(); }, Qt::QueuedConnection);
+#endif
 
     connect(main_ui_->actionEditConfigurationProfiles, &QAction::triggered, this,
             [this]() { editConfigurationProfiles(); }, Qt::QueuedConnection);
@@ -3236,7 +3258,9 @@ void WiresharkMainWindow::connectAnalyzeMenuActions()
         da_dialog->show();
     });
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(main_ui_->actionAnalyzeReloadLuaPlugins, &QAction::triggered, this, &WiresharkMainWindow::reloadLuaPlugins);
+#endif
 
     connect(main_ui_->actionAnalyzeShowPacketBytes, &QAction::triggered, this, [=]() {
         ShowPacketBytesDialog *spbd = new ShowPacketBytesDialog(*this, capture_file_);
@@ -3836,10 +3860,12 @@ void WiresharkMainWindow::connectTelephonyMenuActions()
 
     connect(main_ui_->actionTelephonyISUPMessages, &QAction::triggered, this, [=]() { openStatisticsTreeDialog("isup_msg"); });
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(main_ui_->actionTelephonyGsmMapSummary, &QAction::triggered, this, [=]() {
         GsmMapSummaryDialog *gms_dialog = new GsmMapSummaryDialog(*this, capture_file_);
         gms_dialog->show();
     });
+#endif
 
     connect(main_ui_->actionTelephonyLteMacStatistics, &QAction::triggered, this, [=]() { statCommandLteMacStatistics(NULL, NULL); });
     connect(main_ui_->actionTelephonyLteRlcGraph, &QAction::triggered, this, [=]() {
@@ -3848,10 +3874,12 @@ void WiresharkMainWindow::connectTelephonyMenuActions()
     });
     connect(main_ui_->actionTelephonyLteRlcStatistics, &QAction::triggered, this, [=]() { statCommandLteRlcStatistics(NULL, NULL); });
 
+#ifndef ENABLE_MINIMAL_BUILD
     connect(main_ui_->actionTelephonyMtp3Summary, &QAction::triggered, this, [=]() {
         Mtp3SummaryDialog *mtp3s_dialog = new Mtp3SummaryDialog(*this, capture_file_);
         mtp3s_dialog->show();
     });
+#endif
 
     connect(main_ui_->actionTelephonyOsmuxPacketCounter, &QAction::triggered, this, [=]() { openStatisticsTreeDialog("osmux"); });
 
@@ -4046,6 +4074,7 @@ void WiresharkMainWindow::connectWirelessMenuActions()
 
 void WiresharkMainWindow::connectToolsMenuActions()
 {
+#ifndef ENABLE_MINIMAL_BUILD
   connect(main_ui_->actionToolsFirewallAclRules, &QAction::triggered, this, [=]() {
         FirewallRulesDialog *firewall_rules_dialog = new FirewallRulesDialog(*this, capture_file_);
         firewall_rules_dialog->show();
@@ -4062,6 +4091,7 @@ void WiresharkMainWindow::connectToolsMenuActions()
     });
 
     connect(main_ui_->actionToolsTLSKeylog, &QAction::triggered, this, &WiresharkMainWindow::openTLSKeylogDialog);
+#endif
 }
 
 // Help Menu

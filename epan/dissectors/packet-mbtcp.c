@@ -1733,7 +1733,9 @@ apply_mbtcp_prefs(void)
     /* Modbus/RTU uses the port preference to determine request/response */
     global_mbus_tcp_ports = prefs_get_range_value("mbtcp", "tcp.port");
     global_mbus_udp_ports = prefs_get_range_value("mbudp", "udp.port");
+#ifndef ENABLE_MINIMAL_BUILD
     global_mbus_tls_ports = prefs_get_range_value("mbtcp", "tls.port");
+#endif
 }
 
 static void
@@ -2271,12 +2273,17 @@ proto_reg_handoff_mbtcp(void)
 {
     dissector_add_uint_with_preference("tcp.port", PORT_MBTCP, mbtcp_handle);
     dissector_add_uint_with_preference("udp.port", PORT_MBTCP, mbudp_handle);
+#ifndef ENABLE_MINIMAL_BUILD
+    /* Needs packet-tls.c to create the tls.port table / ssl_dissector_add. */
     dissector_add_uint_with_preference("tls.port", PORT_MBTLS, mbtls_handle);
+#endif
     apply_mbtcp_prefs();
 
     dissector_add_uint("mbtcp.prot_id", MODBUS_PROTOCOL_ID, modbus_handle);
 
+#ifndef ENABLE_MINIMAL_BUILD
     ssl_dissector_add(PORT_MBTLS, mbtls_handle);
+#endif
 }
 
 void
@@ -2291,10 +2298,12 @@ proto_reg_handoff_mbrtu(void)
     apply_mbrtu_prefs();
 
     dissector_add_uint("mbtcp.prot_id", MODBUS_PROTOCOL_ID, modbus_handle);
+#ifndef ENABLE_MINIMAL_BUILD
     dissector_add_for_decode_as("rtacser.data", mbrtu_handle);
     dissector_add_for_decode_as("usb.device", mbrtu_handle);
     dissector_add_for_decode_as("usb.product", mbrtu_handle);
     dissector_add_for_decode_as("usb.protocol", mbrtu_handle);
+#endif
 
 }
 

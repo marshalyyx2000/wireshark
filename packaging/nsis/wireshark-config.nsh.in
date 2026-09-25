@@ -41,3 +41,4 @@
 
 #cmakedefine ENABLE_SIGNED_NSIS
 #cmakedefine SKIP_NSIS_QT_DLLS
+#cmakedefine ENABLE_MINIMAL_BUILD

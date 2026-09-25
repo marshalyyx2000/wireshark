@@ -1,0 +1,17 @@
+# Default color filters for ENABLE_MINIMAL_BUILD (industrial subset).
+# Only references protocols/fields present in the keep-list.
+@Bad TCP@tcp.analysis.flags && !tcp.analysis.window_update && !tcp.analysis.keep_alive && !tcp.analysis.keep_alive_ack@[4718,10030,11796][63479,34695,34695]
+@ICMP errors@icmp.type in { 3..5, 11 } || icmpv6.type in { 1..4 }@[4718,10030,11796][47031,63479,29812]
+@ARP@arp@[64250,61680,55255][4718,10030,11796]
+@ICMP@icmp || icmpv6@[64764,57568,65535][4718,10030,11796]
+@TCP RST@tcp.flags.reset eq 1@[42148,0,0][65535,64764,40092]
+@IPv4 TTL low@ip.ttl < 5 && ip.dst != 224.0.0.0/4@[42148,0,0][60652,61680,60395]
+@IPv6 hop limit low@ipv6.hlim < 5 && ipv6.dst != ff00::/8@[42148,0,0][60652,61680,60395]
+@Checksum Errors@eth.fcs.status=="Bad" || ip.checksum.status=="Bad" || tcp.checksum.status=="Bad" || udp.checksum.status=="Bad"@[4718,10030,11796][63479,34695,34695]
+@Modbus@mbtcp || mbrtu || mbudp || modbus@[58596,65535,51143][4718,10030,11796]
+@IEC 60870@iec60870_104 || iec60870_101 || iec60870_5_103 || iec60870_asdu@[51199,38706,65533][4718,10030,11796]
+@IEC 61850@mms || goose || sv || r-goose@[65534,62325,54808][4718,10030,11796]
+@TCP SYN/FIN@tcp.flags & 0x02 || tcp.flags.fin == 1@[41026,41026,41026][4718,10030,11796]
+@TCP@tcp@[59345,58980,65535][4718,10030,11796]
+@UDP@udp@[56026,61166,65535][4718,10030,11796]
+@Broadcast@eth[0] & 1@[65535,65535,65535][47802,48573,46774]

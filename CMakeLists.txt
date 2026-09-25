@@ -768,6 +768,11 @@ if( CMAKE_C_COMPILER_ID MATCHES "MSVC")
 	list(APPEND LOCAL_CFLAGS /diagnostics:caret /Zo /utf-8 /guard:cf)
 	set(WS_LINK_FLAGS "${WS_LINK_FLAGS} /guard:cf")
 	set(WS_LINK_FLAGS "${WS_LINK_FLAGS} /STACK:0x800000")
+	if(ENABLE_MINIMAL_BUILD)
+		# Function-level linking so /OPT:REF can drop unused protocol code.
+		add_compile_options(/Gy)
+		set(WS_LINK_FLAGS "${WS_LINK_FLAGS} /OPT:REF /OPT:ICF")
+	endif()
 	# /Qspectre depends on the optional "Microsoft.VisualStudio.Component...Spectre" components,
 	# so we need to test for its availability.
 	set(WIRESHARK_COMMON_FLAGS /Qspectre)
@@ -1546,7 +1551,9 @@ ws_find_package(Systemd BUILD_sdjournal HAVE_SYSTEMD)
 
 # The SpeexDSP resampler is required iff building sharkd, or building
 # Wireshark or Stratoshark with Qt Multimedia
-if(BUILD_sharkd)
+if(ENABLE_MINIMAL_BUILD)
+	# Skip SpeexDSP / Qt Multimedia to keep FFmpeg and multimedia plugins out.
+elseif(BUILD_sharkd)
 	reset_find_package(SPEEXDSP)
 	find_package(SpeexDSP REQUIRED)
 elseif(BUILD_wireshark OR BUILD_stratoshark)
@@ -2338,13 +2345,15 @@ endif()
 # at install time.
 set(INSTALL_FILES
 	resources/share/wireshark/cfilters
-	resources/share/wireshark/colorfilters
 	resources/share/wireshark/dmacros
 	resources/share/wireshark/dfilters
 	resources/share/wireshark/ipmap.html
 	resources/share/wireshark/smi_modules
 	wka
 )
+if(NOT ENABLE_MINIMAL_BUILD)
+	list(APPEND INSTALL_FILES resources/share/wireshark/colorfilters)
+endif()
 
 set(DOC_FILES
 	resources/share/doc/wireshark/pdml2html.xsl
@@ -2751,6 +2760,21 @@ foreach(_install_file ${INSTALL_FILES} ${DOC_FILES})
 	)
 	list(APPEND copy_data_files_depends "${_output_file}")
 endforeach()
+
+if(ENABLE_MINIMAL_BUILD)
+	# Ship a keep-list-compatible colorfilters (full defaults reference HSRP/HTTP/...).
+	set(_minimal_colorfilters_src "${CMAKE_SOURCE_DIR}/resources/share/wireshark/colorfilters.minimal")
+	set(_minimal_colorfilters_dst "${DATAFILE_DIR}/colorfilters")
+	add_custom_command(OUTPUT "${_minimal_colorfilters_dst}"
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"${_minimal_colorfilters_src}"
+			"${_minimal_colorfilters_dst}"
+		DEPENDS
+			docs
+			"${_minimal_colorfilters_src}"
+	)
+	list(APPEND copy_data_files_depends "${_minimal_colorfilters_dst}")
+endif()
 
 if (BUILD_stratoshark)
 	if (ENABLE_APPLICATION_BUNDLE)
@@ -3260,6 +3284,16 @@ function(add_qt_default_translations _target)
 		string(SUBSTRING "${QM_STEM}" 7 -1 LANG_CODE)
 		list(APPEND DETECTED_LANGUAGES "${LANG_CODE}")
 	endforeach()
+	if(ENABLE_MINIMAL_BUILD)
+		set(_keep_langs zh_CN en)
+		set(_filtered_langs "")
+		foreach(_lang IN LISTS DETECTED_LANGUAGES)
+			if(_lang IN_LIST _keep_langs)
+				list(APPEND _filtered_langs "${_lang}")
+			endif()
+		endforeach()
+		set(DETECTED_LANGUAGES "${_filtered_langs}")
+	endif()
 	message(DEBUG "Detected Languages: ${DETECTED_LANGUAGES}")
 	set(GENERATED_QM_FILES "")
 
