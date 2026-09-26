@@ -58,6 +58,7 @@ static int hf_mms_iec61850_datset;
 static int hf_mms_iec61850_bufovfl;
 static int hf_mms_iec61850_confrev;
 static int hf_mms_iec61850_inclusion_bitstring;
+static int hf_mms_iec61850_inclusion_member;
 static int hf_mms_iec61850_reason_code;
 static int hf_mms_iec61850_reason_reserved;
 static int hf_mms_iec61850_reason_data_change;
@@ -802,6 +803,7 @@ static int ett_mms;
 static int ett_mms_iec61850_quality_bitstring;
 static int ett_mms_iec61850_check_bitstring;
 static int ett_mms_iec61850_reason_code;
+static int ett_mms_iec61850_inclusion_bitstring;
 static int ett_mms_ReportedOptFlds;
 static int ett_mms_MMSpdu;
 static int ett_mms_Confirmed_RequestPDU;
@@ -1589,13 +1591,35 @@ mms_store_dataset_member(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv)
     wmem_array_append_one(members, path_file);
 }
 
+static const char *
+mms_rpt_dataset_member_path(mms_actx_private_data_t *mms_priv, packet_info *pinfo,
+                            uint32_t member_ord)
+{
+    mms_conv_info_t *cinfo;
+    wmem_array_t *members;
+
+    if (!mms_priv || !mms_priv->rpt_datset) {
+        return NULL;
+    }
+    cinfo = mms_get_conv_info(pinfo);
+    members = (wmem_array_t *)wmem_map_lookup(cinfo->datasets, mms_priv->rpt_datset);
+    if (members && member_ord < wmem_array_get_count(members)) {
+        char **paths = (char **)wmem_array_get_raw(members);
+        return paths[member_ord];
+    }
+    return NULL;
+}
+
 static void
-mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pinfo, tvbuff_t *parameter_tvb)
+mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pinfo,
+                             tvbuff_t *parameter_tvb, proto_item *bitstring_item)
 {
     int nbytes;
     int nbits;
     int i;
     uint32_t pop = 0;
+    proto_tree *sub_tree = NULL;
+    wmem_strbuf_t *idx_list;
 
     if (!mms_priv || !parameter_tvb) {
         return;
@@ -1609,19 +1633,53 @@ mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pin
     if (!mms_priv->rpt_inclusion_indices) {
         mms_priv->rpt_inclusion_indices = wmem_array_new(pinfo->pool, sizeof(uint32_t));
     }
+    if (bitstring_item) {
+        sub_tree = proto_item_add_subtree(bitstring_item, ett_mms_iec61850_inclusion_bitstring);
+    }
+    idx_list = wmem_strbuf_new(pinfo->pool, "");
+
     for (i = 0; i < nbits; i++) {
         int byte_idx = i / 8;
         int bit_idx = 7 - (i % 8); /* ASN.1 bitstring: MSB first */
         uint8_t b = tvb_get_uint8(parameter_tvb, byte_idx);
         if (b & (1 << bit_idx)) {
             uint32_t ord = (uint32_t)i;
+            const char *path = mms_rpt_dataset_member_path(mms_priv, pinfo, ord);
+
             wmem_array_append_one(mms_priv->rpt_inclusion_indices, ord);
             pop++;
+            if (wmem_strbuf_get_len(idx_list) > 0) {
+                wmem_strbuf_append(idx_list, ",");
+            }
+            /* 1-based member number for display */
+            wmem_strbuf_append_printf(idx_list, "%u", ord + 1);
+
+            if (sub_tree) {
+                if (path) {
+                    proto_tree_add_boolean_format(sub_tree, hf_mms_iec61850_inclusion_member,
+                        parameter_tvb, byte_idx, 1, true,
+                        "位%u (成员%u): 纳入 [%s]", ord, ord + 1, path);
+                } else {
+                    proto_tree_add_boolean_format(sub_tree, hf_mms_iec61850_inclusion_member,
+                        parameter_tvb, byte_idx, 1, true,
+                        "位%u (成员%u): 纳入", ord, ord + 1);
+                }
+            }
         }
     }
     mms_priv->rpt_included_count = pop;
-    mms_priv->access_result_summary =
-        wmem_strdup_printf(pinfo->pool, "纳入位图: %u项", pop);
+    if (pop > 0) {
+        mms_priv->access_result_summary =
+            wmem_strdup_printf(pinfo->pool, "纳入位图: %u项 (#%s)",
+                               pop, wmem_strbuf_get_str(idx_list));
+        if (bitstring_item) {
+            proto_item_append_text(bitstring_item, " [%u项: #%s]",
+                                   pop, wmem_strbuf_get_str(idx_list));
+        }
+    } else {
+        mms_priv->access_result_summary =
+            wmem_strdup_printf(pinfo->pool, "纳入位图: 0项");
+    }
 }
 
 static void
@@ -2932,7 +2990,8 @@ static int * const mms_iec61850_reason_bits[] = {
     if (mms_priv && parameter_tvb) {
         if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
             mms_priv->listOfAccessResult_cnt == 11) {
-            mms_store_rpt_inclusion_bits(mms_priv, actx->pinfo, parameter_tvb);
+            mms_store_rpt_inclusion_bits(mms_priv, actx->pinfo, parameter_tvb,
+                                         actx->created_item);
         } else if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
                    (mms_priv->listOfAccessResult_cnt == 14 ||
                     mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) &&
@@ -9255,9 +9314,13 @@ void proto_register_mms(void) {
             FT_INT32, BASE_DEC, NULL, 0,
             NULL, HFILL }},
         { &hf_mms_iec61850_inclusion_bitstring,
-          { "Inclusion-bitstring", "mms.iec61850.inclusion_bitstring",
+          { "纳入位图", "mms.iec61850.inclusion_bitstring",
             FT_BYTES, BASE_NONE, NULL, 0,
-            NULL, HFILL }},
+            "IEC 61850 Inclusion bit-string (dataset member presence)", HFILL }},
+        { &hf_mms_iec61850_inclusion_member,
+          { "纳入成员", "mms.iec61850.inclusion.member",
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+            "Set bit in Inclusion bit-string for a dataset member", HFILL }},
         { &hf_mms_iec61850_reason_code,
           { "ReasonCode", "mms.iec61850.reason_code",
             FT_BYTES, BASE_NONE, NULL, 0,
@@ -12206,6 +12269,7 @@ void proto_register_mms(void) {
             &ett_mms_iec61850_quality_bitstring,
             &ett_mms_iec61850_check_bitstring,
             &ett_mms_iec61850_reason_code,
+            &ett_mms_iec61850_inclusion_bitstring,
     &ett_mms_ReportedOptFlds,
     &ett_mms_MMSpdu,
     &ett_mms_Confirmed_RequestPDU,
