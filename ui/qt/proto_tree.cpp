@@ -163,6 +163,76 @@ void ProtoTree::ctxCopyAsFilter()
     }
 }
 
+QString ProtoTree::findMmsObjectReference(const QModelIndex &start) const
+{
+    auto valueAt = [this](const QModelIndex &idx) -> QString {
+        if (!idx.isValid()) {
+            return QString();
+        }
+        ProtoNode *node = proto_tree_model_->protoNodeFromIndex(idx);
+        if (!node || !node->isValid()) {
+            return QString();
+        }
+        FieldInformation finfo(node);
+        if (!finfo.isValid()) {
+            return QString();
+        }
+        if (finfo.headerInfo().abbreviation != QLatin1String("mms.iec61850.object_reference")) {
+            return QString();
+        }
+        QString val = finfo.toString();
+        if (val.isEmpty() || val == QLatin1String("[no value for field]")) {
+            return QString();
+        }
+        return val;
+    };
+
+    for (QModelIndex idx = start; idx.isValid(); idx = idx.parent()) {
+        QString ref = valueAt(idx);
+        if (!ref.isEmpty()) {
+            return ref;
+        }
+        int rows = model()->rowCount(idx);
+        for (int r = 0; r < rows; ++r) {
+            ref = valueAt(model()->index(r, 0, idx));
+            if (!ref.isEmpty()) {
+                return ref;
+            }
+        }
+    }
+    return QString();
+}
+
+void ProtoTree::ctxShowMmsObjectReference()
+{
+    QAction *send = qobject_cast<QAction *>(sender());
+    if (!send) {
+        return;
+    }
+    QString ref = send->data().toString();
+    if (ref.isEmpty()) {
+        return;
+    }
+    QMessageBox::information(this,
+        mainApp->windowTitleString(tr("MMS Object Reference")),
+        ref);
+}
+
+void ProtoTree::ctxCopyMmsObjectReference()
+{
+    QAction *send = qobject_cast<QAction *>(sender());
+    if (!send) {
+        return;
+    }
+    QString ref = send->data().toString();
+    if (ref.isEmpty()) {
+        return;
+    }
+    mainApp->clipboard()->setText(ref);
+    mainApp->pushStatus(MainApplication::TemporaryStatus,
+                        tr("Copied MMS object reference \"%1\" to the clipboard.").arg(ref));
+}
+
 void ProtoTree::ctxCopySelectedInfo()
 {
     int val = -1;
@@ -292,6 +362,17 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
     action = ctx_menu->addAction(tr("Collapse All"), this, &ProtoTree::collapseAll);
     action->setEnabled(have_subtree);
     ctx_menu->addSeparator();
+
+    QString mms_obj_ref = findMmsObjectReference(index);
+    if (!mms_obj_ref.isEmpty()) {
+        action = ctx_menu->addAction(tr("View MMS Object Reference"),
+                                     this, &ProtoTree::ctxShowMmsObjectReference);
+        action->setData(mms_obj_ref);
+        action = ctx_menu->addAction(tr("Copy MMS Object Reference"),
+                                     this, &ProtoTree::ctxCopyMmsObjectReference);
+        action->setData(mms_obj_ref);
+        ctx_menu->addSeparator();
+    }
 
     if (! buildForDialog)
     {

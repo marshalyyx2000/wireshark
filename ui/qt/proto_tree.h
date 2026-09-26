@@ -356,6 +356,21 @@ protected slots:
      */
     void ctxOpenUrlWiki();
 
+    /**
+     * @brief Find IEC 61850 object reference near the selected proto tree index.
+     */
+    QString findMmsObjectReference(const QModelIndex &start) const;
+
+    /**
+     * @brief Context menu: show MMS full-path object reference.
+     */
+    void ctxShowMmsObjectReference();
+
+    /**
+     * @brief Context menu: copy MMS full-path object reference.
+     */
+    void ctxCopyMmsObjectReference();
+
 private slots:
     /**
      * @brief Updates the content width of the tree columns.

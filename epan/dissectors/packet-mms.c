@@ -23,6 +23,7 @@
 #include <epan/proto_data.h>
 #include <epan/conversation.h>
 #include <wsutil/array.h>
+#include <wsutil/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -43,6 +44,8 @@ static int hf_mms_response_time;
 
 /* IEC 61850 FloatingPoint (same encoding as GOOSE) */
 static int hf_mms_float_value;
+static int hf_mms_iec61850_object_reference;
+static int hf_mms_iec61850_data_reference;
 #define SINGLE_FLOAT_EXP_BITS	8
 #define FLOAT_ENC_LENGTH		5
 
@@ -1049,11 +1052,25 @@ typedef struct _mms_transaction_t {
     /* Request info*/
     itemid_type itemid;    /* Numeric representation of ItemId substring */
     int conf_serv_pdu_type_req;
+    /* GetDataValue (MMS Read) request ObjectName paths, file-scoped char* */
+    wmem_array_t *read_var_paths;
+    /* GetDataSetDirectory request dataset ObjectReference (file-scoped) */
+    char *dataset_name;
 } mms_transaction_t;
 
 typedef struct _mms_conv_info_t {
     wmem_map_t* pdus;
+    /* dataset ObjectReference -> wmem_array_t of member path char* */
+    wmem_map_t* datasets;
 } mms_conv_info_t;
+
+typedef enum {
+    MMS_RPT_PHASE_HEADER = 0,
+    MMS_RPT_PHASE_DATA_REF,
+    MMS_RPT_PHASE_VALUE,
+    MMS_RPT_PHASE_REASON,
+    MMS_RPT_PHASE_DONE
+} mms_rpt_phase_t;
 
 typedef struct mms_private_data_t
 {
@@ -1186,6 +1203,29 @@ typedef struct mms_actx_private_data_t
     mms_transaction_t* mms_trans_p;                 /* Pointer to the transaction record */
     char* itemid_str;
     int success;                                    /* If variable access succeeded or not */
+    /* GetDataValue object reference correlation */
+    bool collecting_read_var;
+    char *cur_domain_id;
+    char *cur_item_id;
+    char *cur_vmd_or_aa;
+    int read_access_result_idx;
+    const char *current_object_ref;
+    /* RPT AccessResult phase / path correlation */
+    mms_rpt_phase_t rpt_phase;
+    uint32_t rpt_included_count;
+    uint32_t rpt_phase_idx;
+    wmem_array_t *rpt_data_refs;
+    wmem_array_t *rpt_inclusion_indices;            /* dataset member ordinals for set bits */
+    char *rpt_datset;
+    bool rpt_pending_inclusion;
+    bool rpt_collecting_data_ref;
+    /* Nested structure path suffixes */
+    bool struct_path_active;
+    int struct_child_idx;
+    const char *object_ref_stack[16];
+    int object_ref_stack_depth;
+    /* GetDataSetDirectory member collection */
+    bool collecting_dataset_members;
 } mms_actx_private_data_t;
 
 
@@ -1302,6 +1342,254 @@ mms_has_private_data(asn1_ctx_t* actx)
     return (p_get_proto_data(pinfo->pool, pinfo, proto_mms, pinfo->curr_layer_num) != NULL);
 }
 
+/* Build IEC 61850-style object reference from MMS ObjectName parts (domain/item with '$' -> '.'). */
+static char *
+mms_build_object_reference(wmem_allocator_t *scope, mms_actx_private_data_t *mms_priv)
+{
+    if (!mms_priv) {
+        return NULL;
+    }
+    if (mms_priv->cur_domain_id && mms_priv->cur_item_id) {
+        char *item = wmem_strdup(scope, mms_priv->cur_item_id);
+        for (char *p = item; *p; p++) {
+            if (*p == '$') {
+                *p = '.';
+            }
+        }
+        return wmem_strdup_printf(scope, "%s/%s", mms_priv->cur_domain_id, item);
+    }
+    if (mms_priv->cur_vmd_or_aa && mms_priv->cur_vmd_or_aa[0]) {
+        return wmem_strdup(scope, mms_priv->cur_vmd_or_aa);
+    }
+    return NULL;
+}
+
+static void
+mms_store_read_variable_path(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv)
+{
+    char *path;
+    char *path_file;
+
+    if (!mms_priv || !mms_priv->mms_trans_p) {
+        return;
+    }
+    if (mms_priv->mms_trans_p->conf_serv_pdu_type_req != MMS_IEC_61850_CONF_SERV_PDU_READ) {
+        return;
+    }
+    path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
+    if (!path) {
+        return;
+    }
+    /* Persist across packets in the conversation transaction. */
+    if (!PINFO_FD_VISITED(actx->pinfo)) {
+        path_file = wmem_strdup(wmem_file_scope(), path);
+        if (!mms_priv->mms_trans_p->read_var_paths) {
+            mms_priv->mms_trans_p->read_var_paths =
+                wmem_array_new(wmem_file_scope(), sizeof(char *));
+        }
+        wmem_array_append_one(mms_priv->mms_trans_p->read_var_paths, path_file);
+    }
+}
+
+static void
+mms_add_object_reference_item(proto_tree *tree, tvbuff_t *tvb, const char *ref)
+{
+    proto_item *it;
+
+    if (!tree || !ref || !ref[0]) {
+        return;
+    }
+    it = proto_tree_add_string(tree, hf_mms_iec61850_object_reference, tvb, 0, 0, ref);
+    proto_item_set_generated(it);
+}
+
+static bool
+mms_is_get_data_value_response(mms_actx_private_data_t *mms_priv)
+{
+    return mms_priv
+        && mms_priv->mms_trans_p
+        && mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_READ
+        && mms_priv->vmd_specific != IEC61850_8_1_RPT;
+}
+
+static mms_conv_info_t *
+mms_get_conv_info(packet_info *pinfo)
+{
+    conversation_t *conversation = find_or_create_conversation(pinfo);
+    mms_conv_info_t *mms_info = (mms_conv_info_t *)conversation_get_proto_data(conversation, proto_mms);
+    if (!mms_info) {
+        mms_info = wmem_new0(wmem_file_scope(), mms_conv_info_t);
+        mms_info->pdus = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
+        mms_info->datasets = wmem_map_new(wmem_file_scope(), wmem_str_hash, g_str_equal);
+        conversation_add_proto_data(conversation, proto_mms, mms_info);
+    } else if (!mms_info->datasets) {
+        mms_info->datasets = wmem_map_new(wmem_file_scope(), wmem_str_hash, g_str_equal);
+    }
+    return mms_info;
+}
+
+static void
+mms_try_add_leaf_object_ref(asn1_ctx_t *actx, proto_tree *tree, tvbuff_t *tvb)
+{
+    mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+    if (mms_priv && mms_priv->current_object_ref) {
+        mms_add_object_reference_item(tree, tvb, mms_priv->current_object_ref);
+    }
+}
+
+static const char *
+mms_rpt_lookup_value_path(mms_actx_private_data_t *mms_priv, packet_info *pinfo, uint32_t idx)
+{
+    if (mms_priv->rpt_data_refs &&
+        idx < wmem_array_get_count(mms_priv->rpt_data_refs)) {
+        char **refs = (char **)wmem_array_get_raw(mms_priv->rpt_data_refs);
+        return refs[idx];
+    }
+    if (mms_priv->rpt_datset && mms_priv->rpt_inclusion_indices) {
+        mms_conv_info_t *cinfo = mms_get_conv_info(pinfo);
+        wmem_array_t *members = (wmem_array_t *)wmem_map_lookup(cinfo->datasets, mms_priv->rpt_datset);
+        if (members && idx < wmem_array_get_count(mms_priv->rpt_inclusion_indices)) {
+            uint32_t *ords = (uint32_t *)wmem_array_get_raw(mms_priv->rpt_inclusion_indices);
+            uint32_t member_ord = ords[idx];
+            if (member_ord < wmem_array_get_count(members)) {
+                char **paths = (char **)wmem_array_get_raw(members);
+                return paths[member_ord];
+            }
+        }
+        return wmem_strdup_printf(pinfo->pool, "%s#%u", mms_priv->rpt_datset, idx + 1);
+    }
+    return NULL;
+}
+
+static char *
+mms_normalize_objref(wmem_allocator_t *scope, const char *s)
+{
+    char *o;
+
+    if (!s) {
+        return NULL;
+    }
+    o = wmem_strdup(scope, s);
+    for (char *p = o; *p; p++) {
+        if (*p == '$') {
+            *p = '.';
+        }
+    }
+    return o;
+}
+
+static char *
+mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int depth)
+{
+    if (!base) {
+        return NULL;
+    }
+    if (depth == 1) {
+        switch (idx) {
+        case 1:
+            return wmem_strdup_printf(scope, "%s.mag", base);
+        case 2:
+            return wmem_strdup_printf(scope, "%s.q", base);
+        case 3:
+            return wmem_strdup_printf(scope, "%s.t", base);
+        default:
+            break;
+        }
+    }
+    if (depth == 2 && idx == 1) {
+        return wmem_strdup_printf(scope, "%s.f", base);
+    }
+    return wmem_strdup_printf(scope, "%s.s%d", base, idx);
+}
+
+static void
+mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb, proto_item *prev_last,
+                             const char *ref)
+{
+    proto_tree *item_tree;
+
+    if (!ref || !tree || !tree->last_child || tree->last_child == prev_last) {
+        return;
+    }
+    proto_item_append_text(tree->last_child, " [%s]", ref);
+    item_tree = proto_item_get_subtree(tree->last_child);
+    if (!item_tree) {
+        item_tree = proto_item_add_subtree(tree->last_child, ett_mms_AccessResult);
+    }
+    mms_add_object_reference_item(item_tree, tvb, ref);
+}
+
+static void
+mms_store_dataset_member(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv)
+{
+    char *path;
+    char *path_file;
+    char *ds_key;
+    wmem_array_t *members;
+    mms_conv_info_t *cinfo;
+
+    if (!mms_priv || !mms_priv->mms_trans_p || !mms_priv->mms_trans_p->dataset_name) {
+        return;
+    }
+    path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
+    if (!path) {
+        return;
+    }
+    if (PINFO_FD_VISITED(actx->pinfo)) {
+        return;
+    }
+    path_file = wmem_strdup(wmem_file_scope(), path);
+    ds_key = wmem_strdup(wmem_file_scope(), mms_priv->mms_trans_p->dataset_name);
+    cinfo = mms_get_conv_info(actx->pinfo);
+    members = (wmem_array_t *)wmem_map_lookup(cinfo->datasets, ds_key);
+    if (!members) {
+        members = wmem_array_new(wmem_file_scope(), sizeof(char *));
+        wmem_map_insert(cinfo->datasets, ds_key, members);
+    }
+    wmem_array_append_one(members, path_file);
+}
+
+static void
+mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pinfo, tvbuff_t *parameter_tvb)
+{
+    int nbytes;
+    int nbits;
+    int i;
+    uint32_t pop = 0;
+
+    if (!mms_priv || !parameter_tvb) {
+        return;
+    }
+    nbytes = (int)tvb_reported_length(parameter_tvb);
+    if (nbytes <= 0) {
+        return;
+    }
+    /* parameter_tvb from dissect_ber_bitstring is packed bit data (no unused-bits prefix). */
+    nbits = nbytes * 8;
+    if (!mms_priv->rpt_inclusion_indices) {
+        mms_priv->rpt_inclusion_indices = wmem_array_new(pinfo->pool, sizeof(uint32_t));
+    }
+    for (i = 0; i < nbits; i++) {
+        int byte_idx = i / 8;
+        int bit_idx = 7 - (i % 8); /* ASN.1 bitstring: MSB first */
+        uint8_t b = tvb_get_uint8(parameter_tvb, byte_idx);
+        if (b & (1 << bit_idx)) {
+            uint32_t ord = (uint32_t)i;
+            wmem_array_append_one(mms_priv->rpt_inclusion_indices, ord);
+            pop++;
+        }
+    }
+    mms_priv->rpt_included_count = pop;
+}
+
+static void
+col_append_mms_invokeid(packet_info *pinfo, mms_actx_private_data_t *mms_priv)
+{
+    if (mms_priv) {
+        col_append_fstr(pinfo->cinfo, COL_INFO, ": mms.invokeid=%u", mms_priv->invokeid);
+    }
+}
+
 static void
 private_data_add_preCinfo(asn1_ctx_t* actx, uint32_t val)
 {
@@ -1396,7 +1684,6 @@ dissect_mms_ReportedOptFlds(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned o
 static unsigned
 dissect_mms_Unsigned32(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
     uint32_t  val;
-    conversation_t *conversation;
     mms_conv_info_t *mms_info;
     mms_transaction_t *mms_trans;
 
@@ -1408,19 +1695,7 @@ dissect_mms_Unsigned32(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset
         if(mms_priv){
             mms_priv->invokeid=val;
             private_data_add_preCinfo(actx, val);
-            conversation = find_or_create_conversation(actx->pinfo);
-
-            mms_info = (mms_conv_info_t *)conversation_get_proto_data(conversation, proto_mms);
-            if (!mms_info) {
-                /*
-                 * No.  Attach that information to the conversation, and add
-                 * it to the list of information structures.
-                 */
-                mms_info = wmem_new(wmem_file_scope(), mms_conv_info_t);
-                mms_info->pdus=wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
-
-                conversation_add_proto_data(conversation, proto_mms, mms_info);
-            }
+            mms_info = mms_get_conv_info(actx->pinfo);
             /* Request or response? */
             bool is_request;
 
@@ -1546,6 +1821,19 @@ dissect_mms_Identifier(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset
             const char *vmd_specific_str = (char*)tvb_get_string_enc(actx->pinfo->pool, parameter_tvb, 0, tvb_reported_length(parameter_tvb), ENC_ASCII|ENC_NA);
             if (strcmp(vmd_specific_str, "RPT") == 0) {
                     mms_priv->vmd_specific = IEC61850_8_1_RPT;
+            }
+        }
+
+        /* Collect ObjectName pieces while dissecting Read listOfVariable items. */
+        if (mms_priv && mms_priv->collecting_read_var) {
+            char *s = (char*)tvb_get_string_enc(actx->pinfo->pool, parameter_tvb, 0,
+                    tvb_reported_length(parameter_tvb), ENC_ASCII|ENC_NA);
+            if (hf_index == hf_mms_domainId) {
+                mms_priv->cur_domain_id = s;
+            } else if (hf_index == hf_mms_objectName_domain_specific_itemId) {
+                mms_priv->cur_item_id = s;
+            } else if (hf_index == hf_mms_vmd_specific || hf_index == hf_mms_aa_specific) {
+                mms_priv->cur_vmd_or_aa = s;
             }
         }
     }
@@ -2331,8 +2619,36 @@ static const ber_sequence_t T_listOfVariable_item_02_sequence[] = {
 
 static unsigned
 dissect_mms_T_listOfVariable_item_02(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+  proto_item *prev_last = tree ? tree->last_child : NULL;
+
+  if (mms_priv) {
+    mms_priv->cur_domain_id = NULL;
+    mms_priv->cur_item_id = NULL;
+    mms_priv->cur_vmd_or_aa = NULL;
+    mms_priv->collecting_read_var = true;
+  }
+
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    T_listOfVariable_item_02_sequence, hf_index, ett_mms_T_listOfVariable_item_02);
+
+  if (mms_priv) {
+    char *path;
+
+    mms_priv->collecting_read_var = false;
+    mms_store_read_variable_path(actx, mms_priv);
+    path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
+    if (path && tree && tree->last_child && tree->last_child != prev_last) {
+      proto_tree *item_tree;
+
+      proto_item_append_text(tree->last_child, " [%s]", path);
+      item_tree = proto_item_get_subtree(tree->last_child);
+      if (!item_tree) {
+        item_tree = proto_item_add_subtree(tree->last_child, ett_mms_T_listOfVariable_item_02);
+      }
+      mms_add_object_reference_item(item_tree, tvb, path);
+    }
+  }
 
   return offset;
 }
@@ -2381,6 +2697,13 @@ static const ber_sequence_t Read_Request_sequence[] = {
 
 static unsigned
 dissect_mms_Read_Request(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
+  /* Mark as Read before listOfVariable so object paths are stored on the transaction. */
+  if (mms_priv && mms_priv->mms_trans_p) {
+    mms_priv->mms_trans_p->conf_serv_pdu_type_req = MMS_IEC_61850_CONF_SERV_PDU_READ;
+  }
+
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    Read_Request_sequence, hf_index, ett_mms_Read_Request);
 
@@ -2408,6 +2731,10 @@ static const ber_sequence_t T_structure_01_sequence_of[1] = {
 static unsigned
 dissect_mms_T_structure_01(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+    int saved_child = 0;
+    int saved_depth = 0;
+    bool pushed = false;
+
     if((mms_priv)&& (mms_priv->mms_trans_p)){
         if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
             if(mms_priv->data_cnt == 3){
@@ -2420,10 +2747,28 @@ dissect_mms_T_structure_01(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned of
             }
         }
     }
+
+    if (mms_priv && mms_priv->current_object_ref &&
+        mms_priv->object_ref_stack_depth < 16) {
+        saved_child = mms_priv->struct_child_idx;
+        saved_depth = mms_priv->object_ref_stack_depth;
+        mms_priv->object_ref_stack[mms_priv->object_ref_stack_depth++] =
+            mms_priv->current_object_ref;
+        mms_priv->struct_child_idx = 0;
+        mms_priv->struct_path_active = true;
+        pushed = true;
+    }
+
   offset = dissect_ber_sequence_of(implicit_tag, actx, tree, tvb, offset,
                                       T_structure_01_sequence_of, hf_index, ett_mms_T_structure_01);
 
-
+    if (pushed && mms_priv) {
+        mms_priv->object_ref_stack_depth = saved_depth;
+        mms_priv->struct_child_idx = saved_child;
+        if (saved_depth == 0) {
+            mms_priv->struct_path_active = false;
+        }
+    }
 
   return offset;
 }
@@ -2451,7 +2796,7 @@ dissect_mms_T_boolean(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
     }
   offset = dissect_ber_boolean(implicit_tag, actx, tree, tvb, offset, hf_index, NULL);
 
-
+  mms_try_add_leaf_object_ref(actx, tree, tvb);
 
   return offset;
 }
@@ -2491,23 +2836,23 @@ static int * const mms_iec61850_chec_bits[] = {
     proto_tree *sub_tree;
 
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
-    if((mms_priv)&&(mms_priv->mms_trans_p)){
-        if(mms_priv->vmd_specific == IEC61850_8_1_RPT ){
-            if(mms_priv->listOfAccessResult_cnt == 2){
+    if (mms_priv) {
+        if (mms_priv->vmd_specific == IEC61850_8_1_RPT) {
+            if (mms_priv->listOfAccessResult_cnt == 2) {
                     /* IEC 61850-8-1 Reported OptFlds */
                     return dissect_mms_ReportedOptFlds(implicit_tag, tvb, offset, actx, tree, hf_mms_iec61850_reported_optflds);
-            }else{
-                if(mms_priv->listOfAccessResult_cnt == 11){
+            } else if (mms_priv->listOfAccessResult_cnt == 11) {
                     hf_index = hf_mms_iec61850_inclusion_bitstring;
-                }
             }
-        }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
-            hf_index = hf_mms_iec61850_quality_bitstring;
-        }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
-            hf_index = hf_mms_iec61850_check_bitstring;
-        }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
-            if(mms_priv->data_cnt == 10){
+        } else if (mms_priv->mms_trans_p) {
+            if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
+                hf_index = hf_mms_iec61850_quality_bitstring;
+            }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
                 hf_index = hf_mms_iec61850_check_bitstring;
+            }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
+                if(mms_priv->data_cnt == 10){
+                    hf_index = hf_mms_iec61850_check_bitstring;
+                }
             }
         }
     }
@@ -2517,22 +2862,28 @@ static int * const mms_iec61850_chec_bits[] = {
                                     &parameter_tvb);
 
 
-    if((mms_priv)&&(parameter_tvb) && (mms_priv->mms_trans_p)){
-        if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
-            sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_quality_bitstring);
-            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, quality_field_bits_oct1, ENC_NA);
-            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 1, 1, quality_field_bits_oct2, ENC_NA);
-        }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
-            sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_check_bitstring);
-            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, mms_iec61850_chec_bits, ENC_NA);
-        }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
-            if(mms_priv->data_cnt == 10){
+    if (mms_priv && parameter_tvb) {
+        if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
+            mms_priv->listOfAccessResult_cnt == 11) {
+            mms_store_rpt_inclusion_bits(mms_priv, actx->pinfo, parameter_tvb);
+        } else if (mms_priv->mms_trans_p) {
+            if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
+                sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_quality_bitstring);
+                proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, quality_field_bits_oct1, ENC_NA);
+                proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 1, 1, quality_field_bits_oct2, ENC_NA);
+            }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
                 sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_check_bitstring);
                 proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, mms_iec61850_chec_bits, ENC_NA);
+            }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
+                if(mms_priv->data_cnt == 10){
+                    sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_check_bitstring);
+                    proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, mms_iec61850_chec_bits, ENC_NA);
+                }
             }
         }
     }
 
+    mms_try_add_leaf_object_ref(actx, tree, tvb);
 
   return offset;
 }
@@ -2564,7 +2915,7 @@ dissect_mms_T_integer(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 NULL);
 
-
+  mms_try_add_leaf_object_ref(actx, tree, tvb);
 
   return offset;
 }
@@ -2612,6 +2963,7 @@ dissect_mms_FloatingPoint(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned off
 		/* IEEE 754 single precision floating point (IEC 61850) */
 		proto_item_set_hidden(actx->created_item);
 		proto_tree_add_item(tree, hf_mms_float_value, tvb, 1, (FLOAT_ENC_LENGTH - 1), ENC_BIG_ENDIAN);
+		mms_try_add_leaf_object_ref(actx, tree, tvb);
 	}
 
 	private_data_add_moreCinfo_float(actx, tvb);
@@ -2654,7 +3006,7 @@ dissect_mms_T_data_octet_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsign
 
 static unsigned
 dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-
+    tvbuff_t *parameter_tvb = NULL;
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if(mms_priv){
         if(mms_priv->vmd_specific == IEC61850_8_1_RPT ){
@@ -2664,14 +3016,33 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
             }else if(mms_priv->listOfAccessResult_cnt == 5){
                     /* IEC 61850-8-1 DatSet */
                     hf_index = hf_mms_iec61850_datset;
+            }else if (mms_priv->rpt_collecting_data_ref) {
+                    hf_index = hf_mms_iec61850_data_reference;
             }
         }
     }
   offset = dissect_ber_restricted_string(implicit_tag, BER_UNI_TAG_VisibleString,
                                             actx, tree, tvb, offset, hf_index,
-                                            NULL);
+                                            &parameter_tvb);
 
-
+    if (mms_priv && parameter_tvb) {
+        char *s = (char *)tvb_get_string_enc(actx->pinfo->pool, parameter_tvb, 0,
+                tvb_reported_length(parameter_tvb), ENC_ASCII | ENC_NA);
+        if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
+            mms_priv->listOfAccessResult_cnt == 5) {
+            mms_priv->rpt_datset = mms_normalize_objref(actx->pinfo->pool, s);
+        } else if (mms_priv->rpt_collecting_data_ref) {
+            char *ref = mms_normalize_objref(actx->pinfo->pool, s);
+            if (!mms_priv->rpt_data_refs) {
+                mms_priv->rpt_data_refs = wmem_array_new(actx->pinfo->pool, sizeof(char *));
+            }
+            wmem_array_append_one(mms_priv->rpt_data_refs, ref);
+        } else {
+            mms_try_add_leaf_object_ref(actx, tree, tvb);
+        }
+    } else {
+        mms_try_add_leaf_object_ref(actx, tree, tvb);
+    }
 
   return offset;
 }
@@ -2852,8 +3223,7 @@ dissect_mms_UtcTime(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U
             proto_tree_add_bitmask_list(tree, tvb, offset+7, 1, TimeQuality_bits, ENC_BIG_ENDIAN);
         }
 
-
-
+        mms_try_add_leaf_object_ref(actx, tree, tvb);
 
   return offset;
 }
@@ -2904,15 +3274,36 @@ dissect_mms_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, 
   // Data -> Data/array -> Data
   increment_dissection_depth_by_n(actx->pinfo, 2);
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+    const char *saved_ref = NULL;
+
     if(mms_priv){
         mms_priv->data_cnt += 1;
+        if (mms_priv->struct_path_active && mms_priv->object_ref_stack_depth > 0) {
+            const char *base = mms_priv->object_ref_stack[mms_priv->object_ref_stack_depth - 1];
+            mms_priv->struct_child_idx++;
+            saved_ref = mms_priv->current_object_ref;
+            mms_priv->current_object_ref = mms_struct_child_path(
+                actx->pinfo->pool, base, mms_priv->struct_child_idx,
+                mms_priv->object_ref_stack_depth);
+        }
     }
 
   offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  Data_choice, hf_index, ett_mms_Data,
                                  NULL);
 
-
+    if (mms_priv && saved_ref) {
+        /* Keep child path on the Data node text when useful */
+        if (mms_priv->current_object_ref && tree && tree->last_child) {
+            proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
+            mms_add_object_reference_item(
+                proto_item_get_subtree(tree->last_child)
+                    ? proto_item_get_subtree(tree->last_child)
+                    : tree,
+                tvb, mms_priv->current_object_ref);
+        }
+        mms_priv->current_object_ref = saved_ref;
+    }
 
   decrement_dissection_depth_by_n(actx->pinfo, 2);
   return offset;
@@ -3111,7 +3502,29 @@ dissect_mms_DefineNamedVariableList_Request(bool implicit_tag _U_, tvbuff_t *tvb
 
 static unsigned
 dissect_mms_GetNamedVariableListAttributes_Request(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
+  if (mms_priv) {
+    mms_priv->cur_domain_id = NULL;
+    mms_priv->cur_item_id = NULL;
+    mms_priv->cur_vmd_or_aa = NULL;
+    mms_priv->collecting_read_var = true;
+    if (mms_priv->mms_trans_p) {
+      mms_priv->mms_trans_p->conf_serv_pdu_type_req = MMS_IEC_61850_CONF_SERV_PDU_GETDATASETDIRECTORY;
+    }
+  }
+
   offset = dissect_mms_ObjectName(implicit_tag, tvb, offset, actx, tree, hf_index);
+
+  if (mms_priv) {
+    char *path;
+    mms_priv->collecting_read_var = false;
+    path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
+    if (path && mms_priv->mms_trans_p && !PINFO_FD_VISITED(actx->pinfo)) {
+      mms_priv->mms_trans_p->dataset_name =
+          mms_normalize_objref(wmem_file_scope(), path);
+    }
+  }
 
   return offset;
 }
@@ -5727,87 +6140,179 @@ static unsigned
 dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
     int branch_taken;
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
-    if(mms_priv){
-        /* If listOfAccessResult_cnt > 2 we are into the optional data.
-         * if data is not present increase count.
-         */
+    proto_item *prev_last = tree ? tree->last_child : NULL;
+    bool is_gdv_resp = mms_is_get_data_value_response(mms_priv);
+    bool is_rpt = mms_priv && mms_priv->vmd_specific == IEC61850_8_1_RPT;
+    bool label_path = false;
+
+    if (is_gdv_resp) {
+        int idx = mms_priv->read_access_result_idx++;
+        mms_priv->current_object_ref = NULL;
+        if (mms_priv->mms_trans_p->read_var_paths &&
+            idx < (int)wmem_array_get_count(mms_priv->mms_trans_p->read_var_paths)) {
+            char **paths = (char **)wmem_array_get_raw(mms_priv->mms_trans_p->read_var_paths);
+            mms_priv->current_object_ref = paths[idx];
+        }
+        label_path = (mms_priv->current_object_ref != NULL);
+    } else if (is_rpt) {
+        mms_priv->rpt_collecting_data_ref = false;
+        mms_priv->current_object_ref = NULL;
+
+        if (mms_priv->rpt_phase == MMS_RPT_PHASE_HEADER) {
+            bool present;
+            do {
+                mms_priv->listOfAccessResult_cnt += 1;
+                present = true;
+                switch (mms_priv->listOfAccessResult_cnt) {
+                case 1: /* RptID */
+                case 2: /* OptFlds */
+                    break;
+                case 3:
+                    if ((mms_priv->reported_optflds & 0x4000) != 0x4000) {
+                        present = false;
+                    }
+                    break;
+                case 4:
+                    if ((mms_priv->reported_optflds & 0x2000) != 0x2000) {
+                        present = false;
+                    }
+                    break;
+                case 5:
+                    if ((mms_priv->reported_optflds & 0x0800) != 0x0800) {
+                        present = false;
+                    }
+                    break;
+                case 6:
+                    if ((mms_priv->reported_optflds & 0x0200) != 0x0200) {
+                        present = false;
+                    }
+                    break;
+                case 7:
+                    if ((mms_priv->reported_optflds & 0x0100) != 0x0100) {
+                        present = false;
+                    }
+                    break;
+                case 8:
+                    if ((mms_priv->reported_optflds & 0x0080) != 0x0080) {
+                        present = false;
+                    }
+                    break;
+                case 9:
+                case 10:
+                    if ((mms_priv->reported_optflds & 0x0040) != 0x0040) {
+                        present = false;
+                    }
+                    break;
+                case 11: /* Inclusion */
+                    break;
+                default:
+                    /* Past header — should not happen; clamp */
+                    present = true;
+                    break;
+                }
+            } while (!present && mms_priv->listOfAccessResult_cnt < 11);
+        } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_DATA_REF) {
+            mms_priv->listOfAccessResult_cnt = 12;
+            mms_priv->rpt_collecting_data_ref = true;
+        } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
+            mms_priv->listOfAccessResult_cnt = 13;
+            mms_priv->current_object_ref =
+                mms_rpt_lookup_value_path(mms_priv, actx->pinfo, mms_priv->rpt_phase_idx);
+            label_path = (mms_priv->current_object_ref != NULL);
+        } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
+            mms_priv->listOfAccessResult_cnt = 14;
+        }
+    } else if (mms_priv) {
+        /* Non-RPT / non-GDV: keep legacy linear counter (Write etc.) */
         bool present;
         do {
-            mms_priv->listOfAccessResult_cnt+=1;
+            mms_priv->listOfAccessResult_cnt += 1;
             present = true;
-            switch(mms_priv->listOfAccessResult_cnt){
-            case 1: /*RptID*/
+            switch (mms_priv->listOfAccessResult_cnt) {
+            case 1: case 2: case 11: case 13:
                 break;
-            case 2: /* Reported OptFlds */
+            case 3:
+                if ((mms_priv->reported_optflds & 0x4000) != 0x4000) present = false;
                 break;
-            case 3: /* SeqNum Shall be present if OptFlds.sequence-number is true */
-                if((mms_priv->reported_optflds & 0x4000) != 0x4000){
-                    present = false;
-                }
+            case 4:
+                if ((mms_priv->reported_optflds & 0x2000) != 0x2000) present = false;
                 break;
-            case 4: /*TimeOfEntry Shall be present if OptFlds.report-time-stamp is true */
-                if((mms_priv->reported_optflds & 0x2000) != 0x2000){
-                    present = false;
-                }
+            case 5:
+                if ((mms_priv->reported_optflds & 0x0800) != 0x0800) present = false;
                 break;
-            case 5: /*DatSet Shall be present if OptFlds.data-set-name is true */
-                if((mms_priv->reported_optflds & 0x0800) !=0x0800){
-                    present = false;
-                }
+            case 6:
+                if ((mms_priv->reported_optflds & 0x0200) != 0x0200) present = false;
                 break;
-            case 6: /*BufOvfl Shall be present if OptFlds.buffer-overflow is true */
-                if((mms_priv->reported_optflds & 0x0200) !=0x0200){
-                    present = false;
-                }
+            case 7:
+                if ((mms_priv->reported_optflds & 0x0100) != 0x0100) present = false;
                 break;
-            case 7: /*EntryID Shall be present if OptFlds.entryID is true */
-                if((mms_priv->reported_optflds & 0x0100) !=0x0100){
-                    present = false;
-                }
+            case 8:
+                if ((mms_priv->reported_optflds & 0x0080) != 0x0080) present = false;
                 break;
-            case 8: /*ConfRev Shall be present if OptFlds.conf-rev is true */
-                if((mms_priv->reported_optflds & 0x0080) !=0x0080){
-                    present = false;
-                }
+            case 9: case 10:
+                if ((mms_priv->reported_optflds & 0x0040) != 0x0040) present = false;
                 break;
-            case 9: /*SubSeqNum Shall be present if OptFlds.segmentation is true */
-                if((mms_priv->reported_optflds & 0x0040) !=0x0040){
-                    present = false;
-                }
+            case 12:
+                if ((mms_priv->reported_optflds & 0x0400) != 0x0400) present = false;
                 break;
-            case 10: /*MoreSegmentsFollow Shall be present if OptFlds.segmentation is true */
-                if((mms_priv->reported_optflds & 0x0040) !=0x0040){
-                    present = false;
-                }
-                break;
-            case 11: /*Inclusion-bitstring Shall be present */
-                break;
-            case 12: /*data-reference(s) Shall be present if OptFlds.data-reference is true */
-                if((mms_priv->reported_optflds & 0x0400) !=0x0400){
-                    present = false;
-                }
-                break;
-            case 13: /*value(s) See AccessResult for value(s) */
-                break;
-            case 14: /*ReasonCode(s) Shall be present if OptFlds OptFlds.reason-for-inclusion is true */
-                if((mms_priv->reported_optflds & 0x1000) !=0x1000){
-                    present = false;
-                }
+            case 14:
+                if ((mms_priv->reported_optflds & 0x1000) != 0x1000) present = false;
                 break;
             default:
                 break;
             }
-         } while(!present);
+        } while (!present);
     }
 
   offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  AccessResult_choice, hf_index, ett_mms_AccessResult,
                                  &branch_taken);
 
-    if(mms_priv){
+    if (mms_priv) {
         mms_priv->success = branch_taken;
     }
 
+    if (label_path) {
+        mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
+    }
+
+    if (is_rpt) {
+        if (mms_priv->rpt_phase == MMS_RPT_PHASE_HEADER &&
+            mms_priv->listOfAccessResult_cnt == 11) {
+            if ((mms_priv->reported_optflds & 0x0400) == 0x0400 &&
+                mms_priv->rpt_included_count > 0) {
+                mms_priv->rpt_phase = MMS_RPT_PHASE_DATA_REF;
+            } else {
+                mms_priv->rpt_phase = MMS_RPT_PHASE_VALUE;
+            }
+            mms_priv->rpt_phase_idx = 0;
+            if (!mms_priv->rpt_data_refs) {
+                mms_priv->rpt_data_refs = wmem_array_new(actx->pinfo->pool, sizeof(char *));
+            }
+        } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_DATA_REF) {
+            mms_priv->rpt_collecting_data_ref = false;
+            mms_priv->rpt_phase_idx++;
+            if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+                mms_priv->rpt_phase = MMS_RPT_PHASE_VALUE;
+                mms_priv->rpt_phase_idx = 0;
+            }
+        } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
+            mms_priv->rpt_phase_idx++;
+            if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+                if ((mms_priv->reported_optflds & 0x1000) == 0x1000) {
+                    mms_priv->rpt_phase = MMS_RPT_PHASE_REASON;
+                } else {
+                    mms_priv->rpt_phase = MMS_RPT_PHASE_DONE;
+                }
+                mms_priv->rpt_phase_idx = 0;
+            }
+        } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
+            mms_priv->rpt_phase_idx++;
+            if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+                mms_priv->rpt_phase = MMS_RPT_PHASE_DONE;
+            }
+        }
+    }
 
   return offset;
 }
@@ -5957,8 +6462,22 @@ static const ber_sequence_t T_listOfVariable_item_01_sequence[] = {
 
 static unsigned
 dissect_mms_T_listOfVariable_item_01(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
+  if (mms_priv && mms_priv->collecting_dataset_members) {
+    mms_priv->cur_domain_id = NULL;
+    mms_priv->cur_item_id = NULL;
+    mms_priv->cur_vmd_or_aa = NULL;
+    mms_priv->collecting_read_var = true;
+  }
+
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    T_listOfVariable_item_01_sequence, hf_index, ett_mms_T_listOfVariable_item_01);
+
+  if (mms_priv && mms_priv->collecting_dataset_members) {
+    mms_priv->collecting_read_var = false;
+    mms_store_dataset_member(actx, mms_priv);
+  }
 
   return offset;
 }
@@ -5985,8 +6504,18 @@ static const ber_sequence_t GetNamedVariableListAttributes_Response_sequence[] =
 
 static unsigned
 dissect_mms_GetNamedVariableListAttributes_Response(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
+  if (mms_priv) {
+    mms_priv->collecting_dataset_members = true;
+  }
+
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    GetNamedVariableListAttributes_Response_sequence, hf_index, ett_mms_GetNamedVariableListAttributes_Response);
+
+  if (mms_priv) {
+    mms_priv->collecting_dataset_members = false;
+  }
 
   return offset;
 }
@@ -7592,6 +8121,17 @@ dissect_mms_T_listOfAccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsig
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if(mms_priv){
         mms_priv->listOfAccessResult_cnt = 0;
+        mms_priv->rpt_phase = MMS_RPT_PHASE_HEADER;
+        mms_priv->rpt_included_count = 0;
+        mms_priv->rpt_phase_idx = 0;
+        mms_priv->rpt_data_refs = NULL;
+        mms_priv->rpt_inclusion_indices = NULL;
+        mms_priv->rpt_datset = NULL;
+        mms_priv->rpt_collecting_data_ref = false;
+        mms_priv->current_object_ref = NULL;
+        mms_priv->struct_path_active = false;
+        mms_priv->struct_child_idx = 0;
+        mms_priv->object_ref_stack_depth = 0;
     }
 
   offset = dissect_ber_sequence_of(implicit_tag, actx, tree, tvb, offset,
@@ -8408,6 +8948,7 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                             col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s%s%s",
                                     private_data_get_preCinfo(actx), mms_MMSpdu_vals[branch_taken].strptr, private_data_get_moreCinfo(actx));
                         }
+                        col_append_mms_invokeid(actx->pinfo, mms_priv);
                     break;
                     case MMS_CONFIRMED_RESPONSE_PDU:
                         if(mms_priv->mms_trans_p){
@@ -8452,6 +8993,7 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                             col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s%s%s",
                                     private_data_get_preCinfo(actx), mms_MMSpdu_vals[branch_taken].strptr, private_data_get_moreCinfo(actx));
                         }
+                        col_append_mms_invokeid(actx->pinfo, mms_priv);
                     break;
                    default:
                         col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s%s%s",
@@ -8540,6 +9082,14 @@ void proto_register_mms(void) {
         { &hf_mms_float_value,
                 { "float value", "mms.float_value",
                 FT_FLOAT, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+        { &hf_mms_iec61850_object_reference,
+                { "IEC 61850 Object Reference", "mms.iec61850.object_reference",
+                FT_STRING, BASE_NONE, NULL, 0x0,
+                "Full path reference for GetDataValue/RPT AccessResult items", HFILL }},
+        { &hf_mms_iec61850_data_reference,
+                { "Data Reference", "mms.iec61850.data_reference",
+                FT_STRING, BASE_NONE, NULL, 0x0,
+                "IEC 61850 RPT OptFlds data-reference string", HFILL }},
         { &hf_mms_iec61850_rptid,
           { "RptID", "mms.iec61850.rptid",
             FT_STRING, BASE_NONE, NULL, 0,
