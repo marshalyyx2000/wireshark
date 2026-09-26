@@ -1666,7 +1666,23 @@ dissect_mms_ReportedOptFlds(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned o
 
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if(mms_priv && parameter_tvb){
-        mms_priv->reported_optflds = tvb_get_ntohs(parameter_tvb,0);
+        uint16_t bits = tvb_get_ntohs(parameter_tvb, 0);
+        wmem_strbuf_t *on = wmem_strbuf_new(actx->pinfo->pool, "");
+
+        mms_priv->reported_optflds = bits;
+        /* High byte (IEC bit 0..7), then low byte bit 8..9 */
+        if (bits & 0x4000) { wmem_strbuf_append(on, "序号 "); }
+        if (bits & 0x2000) { wmem_strbuf_append(on, "报告时标 "); }
+        if (bits & 0x1000) { wmem_strbuf_append(on, "包含原因 "); }
+        if (bits & 0x0800) { wmem_strbuf_append(on, "数据集名 "); }
+        if (bits & 0x0400) { wmem_strbuf_append(on, "数据引用 "); }
+        if (bits & 0x0200) { wmem_strbuf_append(on, "缓冲溢出 "); }
+        if (bits & 0x0100) { wmem_strbuf_append(on, "条目标识 "); }
+        if (bits & 0x0080) { wmem_strbuf_append(on, "配置版本 "); }
+        if (bits & 0x0040) { wmem_strbuf_append(on, "分段 "); }
+        if (actx->created_item && wmem_strbuf_get_len(on) > 0) {
+            proto_item_append_text(actx->created_item, " [%s]", wmem_strbuf_get_str(on));
+        }
     }
 
 
@@ -9124,9 +9140,9 @@ void proto_register_mms(void) {
             FT_STRING, BASE_NONE, NULL, 0,
             NULL, HFILL }},
         { &hf_mms_iec61850_reported_optflds,
-          { "Reported OptFlds", "mms.iec61850.reported_optfld",
+          { "报告可选字段", "mms.iec61850.reported_optfld",
             FT_BYTES, BASE_NONE, NULL, 0,
-            NULL, HFILL }},
+            "IEC 61850 ReportedOptFlds bit-string", HFILL }},
         { &hf_mms_iec61850_seqnum,
           { "SeqNum", "mms.iec61850.seqnum",
             FT_INT32, BASE_DEC, NULL, 0,
@@ -11640,45 +11656,45 @@ void proto_register_mms(void) {
         FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_mms_ReportedOptFlds_reserved,
-      { "reserved", "mms.ReportedOptFlds.reserved",
+      { "保留", "mms.ReportedOptFlds.reserved",
         FT_BOOLEAN, 8, NULL, 0x80,
-        NULL, HFILL }},
+        "ReportedOptFlds reserved", HFILL }},
     { &hf_mms_ReportedOptFlds_sequence_number,
-      { "sequence-number", "mms.ReportedOptFlds.sequence.number",
+      { "序号", "mms.ReportedOptFlds.sequence.number",
         FT_BOOLEAN, 8, NULL, 0x40,
-        NULL, HFILL }},
+        "ReportedOptFlds sequence-number", HFILL }},
     { &hf_mms_ReportedOptFlds_report_time_stamp,
-      { "report-time-stamp", "mms.ReportedOptFlds.report.time.stamp",
+      { "报告时标", "mms.ReportedOptFlds.report.time.stamp",
         FT_BOOLEAN, 8, NULL, 0x20,
-        NULL, HFILL }},
+        "ReportedOptFlds report-time-stamp", HFILL }},
     { &hf_mms_ReportedOptFlds_reason_for_inclusion,
-      { "reason-for-inclusion", "mms.ReportedOptFlds.reason.for.inclusion",
+      { "包含原因", "mms.ReportedOptFlds.reason.for.inclusion",
         FT_BOOLEAN, 8, NULL, 0x10,
-        NULL, HFILL }},
+        "ReportedOptFlds reason-for-inclusion", HFILL }},
     { &hf_mms_ReportedOptFlds_data_set_name,
-      { "data-set-name", "mms.ReportedOptFlds.data.set.name",
+      { "数据集名", "mms.ReportedOptFlds.data.set.name",
         FT_BOOLEAN, 8, NULL, 0x08,
-        NULL, HFILL }},
+        "ReportedOptFlds data-set-name", HFILL }},
     { &hf_mms_ReportedOptFlds_data_reference,
-      { "data-reference", "mms.ReportedOptFlds.data.reference",
+      { "数据引用", "mms.ReportedOptFlds.data.reference",
         FT_BOOLEAN, 8, NULL, 0x04,
-        NULL, HFILL }},
+        "ReportedOptFlds data-reference", HFILL }},
     { &hf_mms_ReportedOptFlds_buffer_overflow,
-      { "buffer-overflow", "mms.ReportedOptFlds.buffer.overflow",
+      { "缓冲溢出", "mms.ReportedOptFlds.buffer.overflow",
         FT_BOOLEAN, 8, NULL, 0x02,
-        NULL, HFILL }},
+        "ReportedOptFlds buffer-overflow", HFILL }},
     { &hf_mms_ReportedOptFlds_entryID,
-      { "entryID", "mms.ReportedOptFlds.entryID",
+      { "条目标识", "mms.ReportedOptFlds.entryID",
         FT_BOOLEAN, 8, NULL, 0x01,
-        NULL, HFILL }},
+        "ReportedOptFlds entryID", HFILL }},
     { &hf_mms_ReportedOptFlds_conf_revision,
-      { "conf-revision", "mms.ReportedOptFlds.conf.revision",
+      { "配置版本", "mms.ReportedOptFlds.conf.revision",
         FT_BOOLEAN, 8, NULL, 0x80,
-        NULL, HFILL }},
+        "ReportedOptFlds conf-revision", HFILL }},
     { &hf_mms_ReportedOptFlds_segmentation,
-      { "segmentation", "mms.ReportedOptFlds.segmentation",
+      { "分段", "mms.ReportedOptFlds.segmentation",
         FT_BOOLEAN, 8, NULL, 0x40,
-        NULL, HFILL }},
+        "ReportedOptFlds segmentation", HFILL }},
     { &hf_mms_ParameterSupportOptions_str1,
       { "str1", "mms.ParameterSupportOptions.str1",
         FT_BOOLEAN, 8, NULL, 0x80,
