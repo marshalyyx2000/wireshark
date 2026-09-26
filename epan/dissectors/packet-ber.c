@@ -3496,6 +3496,8 @@ proto_tree_add_debug_text(tree, "SQ OF dissect_ber_sq_of(%s) entered\n", name);
     }
 
     /* loop over all entries until we reach the end of the sequence */
+    {
+    unsigned item_num = 0;
     while (offset < end_offset) {
         int8_t      ber_class;
         bool    pc;
@@ -3505,6 +3507,7 @@ proto_tree_add_debug_text(tree, "SQ OF dissect_ber_sq_of(%s) entered\n", name);
         unsigned         hoffset;
         proto_item *cause;
         bool    imp_tag;
+        proto_item *prev_last_child;
 
         hoffset = offset;
         /*if (ind) {  this sequence was of indefinite length, if this is implicit indefinite impossible maybe
@@ -3590,13 +3593,21 @@ proto_tree_add_debug_text(tree, "SQ OF dissect_ber_sq_of(%s) entered\n", name);
         imp_tag = false;
         if (seq->flags == BER_FLAGS_IMPLTAG)
             imp_tag = true;
+        /* Snapshot after any BER header items so we only number the element node. */
+        prev_last_child = tree ? tree->last_child : NULL;
         /* call the dissector for this field */
         seq->func(imp_tag, next_tvb, 0, actx, tree, *seq->p_id);
+        /* Number SEQUENCE OF / SET OF elements for easier identification in the UI. */
+        if (tree && tree->last_child && tree->last_child != prev_last_child) {
+            item_num++;
+            proto_item_prepend_text(tree->last_child, "%u. ", item_num);
+        }
         /* hold on if we are implicit and the result is zero, i.e. the item in the sequence of
            doesn't match the next item, thus this implicit sequence is over, return the number of bytes
            we have eaten to allow the possible upper sequence continue... */
         cnt++; /* rubbish*/
         offset = eoffset;
+    }
     }
 
     /* if we didn't end up at exactly offset, then we ate too many bytes */

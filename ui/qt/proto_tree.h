@@ -283,12 +283,12 @@ public slots:
     void collapseSubtrees();
 
     /**
-     * @brief Expands all items in the tree.
+     * @brief Expands all items in the tree, or the selected subtree if a node is selected.
      */
     void expandAll();
 
     /**
-     * @brief Collapses all items in the tree.
+     * @brief Collapses all items in the tree, or the selected subtree if a node is selected.
      */
     void collapseAll();
 

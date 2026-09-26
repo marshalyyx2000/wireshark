@@ -261,6 +261,10 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
     if (! index.isValid())
         return;
 
+    // Select the right-clicked node so expand/collapse actions target it.
+    selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    setCurrentIndex(index);
+
     // We're in a PacketDialog
     bool buildForDialog = false;
     if (! window()->findChild<QAction *>("actionViewExpandSubtrees"))
@@ -273,30 +277,20 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
     QMenu *main_menu_item, *submenu;
     QAction *action;
 
-    bool have_subtree = false;
     FieldInformation *finfo = new FieldInformation(proto_tree_model_->protoNodeFromIndex(index), ctx_menu);
     field_info * fi = finfo->fieldInfo();
-    bool is_selected = false;
     epan_dissect_t *edt = cap_file_ ? cap_file_->edt : edt_;
 
-    if (cap_file_ && cap_file_->finfo_selected == fi)
-        is_selected = true;
-    else if (! window()->findChild<QAction *>("actionViewExpandSubtrees"))
-        is_selected = true;
-
-    if (is_selected)
-    {
-        if (fi && fi->tree_type != -1) {
-            have_subtree = true;
-        }
-    }
+    bool have_subtree = (fi && fi->tree_type != -1);
 
     action = ctx_menu->addAction(tr("Expand Subtrees"), this, &ProtoTree::expandSubtrees);
     action->setEnabled(have_subtree);
     action = ctx_menu->addAction(tr("Collapse Subtrees"), this, &ProtoTree::collapseSubtrees);
     action->setEnabled(have_subtree);
-    ctx_menu->addAction(tr("Expand All"), this, &ProtoTree::expandAll);
-    ctx_menu->addAction(tr("Collapse All"), this, &ProtoTree::collapseAll);
+    action = ctx_menu->addAction(tr("Expand All"), this, &ProtoTree::expandAll);
+    action->setEnabled(have_subtree);
+    action = ctx_menu->addAction(tr("Collapse All"), this, &ProtoTree::collapseAll);
+    action->setEnabled(have_subtree);
     ctx_menu->addSeparator();
 
     if (! buildForDialog)
@@ -789,6 +783,12 @@ void ProtoTree::collapseSubtrees()
 
 void ProtoTree::expandAll()
 {
+    // With a selection: expand that node and all descendants only.
+    if (selectionModel()->hasSelection()) {
+        expandSubtrees();
+        return;
+    }
+
     for (int i = 0; i < num_tree_types; i++) {
         tree_expanded_set(i, true);
     }
@@ -798,6 +798,12 @@ void ProtoTree::expandAll()
 
 void ProtoTree::collapseAll()
 {
+    // With a selection: collapse that node and all descendants only.
+    if (selectionModel()->hasSelection()) {
+        collapseSubtrees();
+        return;
+    }
+
     for (int i = 0; i < num_tree_types; i++) {
         tree_expanded_set(i, false);
     }
