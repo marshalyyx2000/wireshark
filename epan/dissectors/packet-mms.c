@@ -1232,6 +1232,10 @@ typedef struct mms_actx_private_data_t
     bool rpt_collecting_data_ref;
     /* Summary text appended to AccessResult parent label */
     const char *access_result_summary;
+    /* Collect leaf values (exclude q/t) for AccessResult summary */
+    bool collecting_value_summary;
+    wmem_strbuf_t *value_summary;
+    uint32_t value_summary_count;
     /* Nested structure path suffixes */
     bool struct_path_active;
     int struct_child_idx;
@@ -1515,6 +1519,28 @@ mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb _U_, proto_item *pr
         return;
     }
     proto_item_append_text(tree->last_child, " [%s]", ref);
+}
+
+static void
+mms_append_value_summary(mms_actx_private_data_t *mms_priv, const char *text)
+{
+    if (!mms_priv || !mms_priv->collecting_value_summary || !mms_priv->value_summary || !text) {
+        return;
+    }
+    /* Skip quality / timestamp leaves even if typed as scalar. */
+    if (mms_priv->current_object_ref) {
+        const char *ref = mms_priv->current_object_ref;
+        size_t len = strlen(ref);
+        if (len >= 2 && (ref[len - 2] == '.' || ref[len - 2] == '$') &&
+            (ref[len - 1] == 'q' || ref[len - 1] == 't')) {
+            return;
+        }
+    }
+    if (mms_priv->value_summary_count > 0) {
+        wmem_strbuf_append(mms_priv->value_summary, ", ");
+    }
+    wmem_strbuf_append(mms_priv->value_summary, text);
+    mms_priv->value_summary_count++;
 }
 
 /* IEC 61850 ReportedOptFlds: Chinese names for set bits (MSB = bit 0). */
@@ -2904,6 +2930,8 @@ dissect_mms_T_boolean(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
       mms_priv->listOfAccessResult_cnt == 6) {
       mms_priv->access_result_summary =
           wmem_strdup_printf(actx->pinfo->pool, "缓冲溢出: %s", bool_val ? "是" : "否");
+  } else if (mms_priv) {
+      mms_append_value_summary(mms_priv, bool_val ? "true" : "false");
   }
 
   mms_try_add_leaf_object_ref(actx, tree, tvb);
@@ -3042,6 +3070,7 @@ static int * const mms_iec61850_reason_bits[] = {
 
 static unsigned
 dissect_mms_T_integer(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+    uint32_t value = 0;
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if((mms_priv) && (mms_priv->mms_trans_p)){
         if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CTLMODEL){
@@ -3063,7 +3092,12 @@ dissect_mms_T_integer(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
     }
 
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                                NULL);
+                                                &value);
+
+  if (mms_priv) {
+      mms_append_value_summary(mms_priv,
+          wmem_strdup_printf(actx->pinfo->pool, "%d", (int32_t)value));
+  }
 
   mms_try_add_leaf_object_ref(actx, tree, tvb);
 
@@ -3102,7 +3136,13 @@ dissect_mms_T_unsigned(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset
         } else if (mms_priv->listOfAccessResult_cnt == 8) {
             mms_priv->access_result_summary =
                 wmem_strdup_printf(actx->pinfo->pool, "配置版本: %u", value);
+        } else {
+            mms_append_value_summary(mms_priv,
+                wmem_strdup_printf(actx->pinfo->pool, "%u", value));
         }
+    } else if (mms_priv) {
+        mms_append_value_summary(mms_priv,
+            wmem_strdup_printf(actx->pinfo->pool, "%u", value));
     }
 
   return offset;
@@ -3120,9 +3160,18 @@ dissect_mms_FloatingPoint(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned off
 
 	if ((len == FLOAT_ENC_LENGTH) && (tvb_get_uint8(tvb, 0) == SINGLE_FLOAT_EXP_BITS)) {
 		/* IEEE 754 single precision floating point (IEC 61850) */
+		float fval;
 		proto_item_set_hidden(actx->created_item);
 		proto_tree_add_item(tree, hf_mms_float_value, tvb, 1, (FLOAT_ENC_LENGTH - 1), ENC_BIG_ENDIAN);
 		mms_try_add_leaf_object_ref(actx, tree, tvb);
+		fval = tvb_get_ieee_float(tvb, 1, ENC_BIG_ENDIAN);
+		{
+			mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+			if (mms_priv) {
+				mms_append_value_summary(mms_priv,
+					wmem_strdup_printf(actx->pinfo->pool, "%g", fval));
+			}
+		}
 	}
 
 	private_data_add_moreCinfo_float(actx, tvb);
@@ -3212,6 +3261,8 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
             wmem_array_append_one(mms_priv->rpt_data_refs, ref);
             mms_priv->access_result_summary = ref;
         } else {
+            mms_append_value_summary(mms_priv,
+                wmem_strdup_printf(actx->pinfo->pool, "\"%s\"", s));
             mms_try_add_leaf_object_ref(actx, tree, tvb);
         }
     } else {
@@ -6336,6 +6387,9 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
 
     if (mms_priv) {
         mms_priv->access_result_summary = NULL;
+        mms_priv->collecting_value_summary = false;
+        mms_priv->value_summary = NULL;
+        mms_priv->value_summary_count = 0;
     }
 
     if (is_gdv_resp) {
@@ -6347,6 +6401,8 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
             mms_priv->current_object_ref = paths[idx];
         }
         label_path = (mms_priv->current_object_ref != NULL);
+        mms_priv->collecting_value_summary = true;
+        mms_priv->value_summary = wmem_strbuf_new(actx->pinfo->pool, "");
     } else if (is_rpt) {
         mms_priv->rpt_collecting_data_ref = false;
         mms_priv->current_object_ref = NULL;
@@ -6412,6 +6468,8 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
             mms_priv->current_object_ref =
                 mms_rpt_lookup_value_path(mms_priv, actx->pinfo, mms_priv->rpt_phase_idx);
             label_path = (mms_priv->current_object_ref != NULL);
+            mms_priv->collecting_value_summary = true;
+            mms_priv->value_summary = wmem_strbuf_new(actx->pinfo->pool, "");
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
             mms_priv->listOfAccessResult_cnt = 14;
         }
@@ -6469,6 +6527,18 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
         mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
     } else if (mms_priv && mms_priv->access_result_summary) {
         mms_label_access_result_path(tree, tvb, prev_last, mms_priv->access_result_summary);
+    }
+
+    if (mms_priv && mms_priv->collecting_value_summary &&
+        mms_priv->value_summary && mms_priv->value_summary_count > 0 &&
+        tree && tree->last_child && tree->last_child != prev_last) {
+        proto_item_append_text(tree->last_child, " (%s)",
+                               wmem_strbuf_get_str(mms_priv->value_summary));
+    }
+    if (mms_priv) {
+        mms_priv->collecting_value_summary = false;
+        mms_priv->value_summary = NULL;
+        mms_priv->value_summary_count = 0;
     }
 
     if (is_rpt) {
