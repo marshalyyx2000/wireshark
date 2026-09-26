@@ -165,7 +165,30 @@ void ProtoTree::ctxCopyAsFilter()
 
 QString ProtoTree::findMmsObjectReference(const QModelIndex &start) const
 {
-    auto valueAt = [this](const QModelIndex &idx) -> QString {
+    auto pathFromLabel = [](const QString &label) -> QString {
+        /* Prefer the last [...] segment that looks like LD/LN... object reference. */
+        int from = 0;
+        QString best;
+        while (from < label.size()) {
+            int open = label.indexOf(QLatin1Char('['), from);
+            if (open < 0) {
+                break;
+            }
+            int close = label.indexOf(QLatin1Char(']'), open + 1);
+            if (close < 0) {
+                break;
+            }
+            QString inside = label.mid(open + 1, close - open - 1).trimmed();
+            if (inside.contains(QLatin1Char('/')) &&
+                !inside.startsWith(QLatin1String("IEC 61850"))) {
+                best = inside;
+            }
+            from = close + 1;
+        }
+        return best;
+    };
+
+    auto valueAt = [this, &pathFromLabel](const QModelIndex &idx) -> QString {
         if (!idx.isValid()) {
             return QString();
         }
@@ -174,17 +197,14 @@ QString ProtoTree::findMmsObjectReference(const QModelIndex &start) const
             return QString();
         }
         FieldInformation finfo(node);
-        if (!finfo.isValid()) {
-            return QString();
+        if (finfo.isValid() &&
+            finfo.headerInfo().abbreviation == QLatin1String("mms.iec61850.object_reference")) {
+            QString val = finfo.toString();
+            if (!val.isEmpty() && val != QLatin1String("[no value for field]")) {
+                return val;
+            }
         }
-        if (finfo.headerInfo().abbreviation != QLatin1String("mms.iec61850.object_reference")) {
-            return QString();
-        }
-        QString val = finfo.toString();
-        if (val.isEmpty() || val == QLatin1String("[no value for field]")) {
-            return QString();
-        }
-        return val;
+        return pathFromLabel(node->labelText());
     };
 
     for (QModelIndex idx = start; idx.isValid(); idx = idx.parent()) {

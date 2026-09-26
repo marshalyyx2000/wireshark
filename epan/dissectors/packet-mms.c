@@ -58,6 +58,14 @@ static int hf_mms_iec61850_datset;
 static int hf_mms_iec61850_bufovfl;
 static int hf_mms_iec61850_confrev;
 static int hf_mms_iec61850_inclusion_bitstring;
+static int hf_mms_iec61850_reason_code;
+static int hf_mms_iec61850_reason_reserved;
+static int hf_mms_iec61850_reason_data_change;
+static int hf_mms_iec61850_reason_quality_change;
+static int hf_mms_iec61850_reason_data_update;
+static int hf_mms_iec61850_reason_integrity;
+static int hf_mms_iec61850_reason_general_interrogation;
+static int hf_mms_iec61850_reason_application_trigger;
 static int hf_mms_iec61850_ctlModel;
 
 static int hf_mms_iec61850_QualityC0;
@@ -793,6 +801,7 @@ static int hf_mms_Transitions_any_to_deleted;
 static int ett_mms;
 static int ett_mms_iec61850_quality_bitstring;
 static int ett_mms_iec61850_check_bitstring;
+static int ett_mms_iec61850_reason_code;
 static int ett_mms_ReportedOptFlds;
 static int ett_mms_MMSpdu;
 static int ett_mms_Confirmed_RequestPDU;
@@ -1392,15 +1401,9 @@ mms_store_read_variable_path(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv
 }
 
 static void
-mms_add_object_reference_item(proto_tree *tree, tvbuff_t *tvb, const char *ref)
+mms_add_object_reference_item(proto_tree *tree _U_, tvbuff_t *tvb _U_, const char *ref _U_)
 {
-    proto_item *it;
-
-    if (!tree || !ref || !ref[0]) {
-        return;
-    }
-    it = proto_tree_add_string(tree, hf_mms_iec61850_object_reference, tvb, 0, 0, ref);
-    proto_item_set_generated(it);
+    /* Intentionally unused: paths are appended to item labels only. */
 }
 
 static bool
@@ -1429,12 +1432,10 @@ mms_get_conv_info(packet_info *pinfo)
 }
 
 static void
-mms_try_add_leaf_object_ref(asn1_ctx_t *actx, proto_tree *tree, tvbuff_t *tvb)
+mms_try_add_leaf_object_ref(asn1_ctx_t *actx _U_, proto_tree *tree _U_, tvbuff_t *tvb _U_)
 {
-    mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
-    if (mms_priv && mms_priv->current_object_ref) {
-        mms_add_object_reference_item(tree, tvb, mms_priv->current_object_ref);
-    }
+    /* Path is shown only on the Data/AccessResult item label via proto_item_append_text.
+     * Do not add a separate generated child field (avoids duplicate display). */
 }
 
 static const char *
@@ -1503,20 +1504,13 @@ mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int de
 }
 
 static void
-mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb, proto_item *prev_last,
+mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb _U_, proto_item *prev_last,
                              const char *ref)
 {
-    proto_tree *item_tree;
-
     if (!ref || !tree || !tree->last_child || tree->last_child == prev_last) {
         return;
     }
     proto_item_append_text(tree->last_child, " [%s]", ref);
-    item_tree = proto_item_get_subtree(tree->last_child);
-    if (!item_tree) {
-        item_tree = proto_item_add_subtree(tree->last_child, ett_mms_AccessResult);
-    }
-    mms_add_object_reference_item(item_tree, tvb, ref);
 }
 
 static void
@@ -2639,14 +2633,7 @@ dissect_mms_T_listOfVariable_item_02(bool implicit_tag _U_, tvbuff_t *tvb _U_, u
     mms_store_read_variable_path(actx, mms_priv);
     path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
     if (path && tree && tree->last_child && tree->last_child != prev_last) {
-      proto_tree *item_tree;
-
       proto_item_append_text(tree->last_child, " [%s]", path);
-      item_tree = proto_item_get_subtree(tree->last_child);
-      if (!item_tree) {
-        item_tree = proto_item_add_subtree(tree->last_child, ett_mms_T_listOfVariable_item_02);
-      }
-      mms_add_object_reference_item(item_tree, tvb, path);
     }
   }
 
@@ -2832,6 +2819,18 @@ static int * const mms_iec61850_chec_bits[] = {
     &hf_mms_iec61850_check_b13_b0,
     NULL
 };
+
+/* IEC 61850-7-2 / 8-1 ReasonForInclusion (MSB = bit 0) */
+static int * const mms_iec61850_reason_bits[] = {
+    &hf_mms_iec61850_reason_reserved,
+    &hf_mms_iec61850_reason_data_change,
+    &hf_mms_iec61850_reason_quality_change,
+    &hf_mms_iec61850_reason_data_update,
+    &hf_mms_iec61850_reason_integrity,
+    &hf_mms_iec61850_reason_general_interrogation,
+    &hf_mms_iec61850_reason_application_trigger,
+    NULL
+};
     tvbuff_t *parameter_tvb = NULL;
     proto_tree *sub_tree;
 
@@ -2843,6 +2842,9 @@ static int * const mms_iec61850_chec_bits[] = {
                     return dissect_mms_ReportedOptFlds(implicit_tag, tvb, offset, actx, tree, hf_mms_iec61850_reported_optflds);
             } else if (mms_priv->listOfAccessResult_cnt == 11) {
                     hf_index = hf_mms_iec61850_inclusion_bitstring;
+            } else if (mms_priv->listOfAccessResult_cnt == 14 ||
+                       mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
+                    hf_index = hf_mms_iec61850_reason_code;
             }
         } else if (mms_priv->mms_trans_p) {
             if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
@@ -2866,6 +2868,38 @@ static int * const mms_iec61850_chec_bits[] = {
         if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
             mms_priv->listOfAccessResult_cnt == 11) {
             mms_store_rpt_inclusion_bits(mms_priv, actx->pinfo, parameter_tvb);
+        } else if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
+                   (mms_priv->listOfAccessResult_cnt == 14 ||
+                    mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) &&
+                   tvb_reported_length(parameter_tvb) >= 1) {
+            uint8_t b = tvb_get_uint8(parameter_tvb, 0);
+            wmem_strbuf_t *reasons = wmem_strbuf_new(actx->pinfo->pool, "");
+
+            sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_reason_code);
+            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1,
+                                        mms_iec61850_reason_bits, ENC_BIG_ENDIAN);
+            if (b & 0x40) {
+                wmem_strbuf_append(reasons, "数据变化 ");
+            }
+            if (b & 0x20) {
+                wmem_strbuf_append(reasons, "品质变化 ");
+            }
+            if (b & 0x10) {
+                wmem_strbuf_append(reasons, "数据更新 ");
+            }
+            if (b & 0x08) {
+                wmem_strbuf_append(reasons, "完整性 ");
+            }
+            if (b & 0x04) {
+                wmem_strbuf_append(reasons, "总召唤 ");
+            }
+            if (b & 0x02) {
+                wmem_strbuf_append(reasons, "应用触发 ");
+            }
+            if (wmem_strbuf_get_len(reasons) > 0) {
+                proto_item_append_text(actx->created_item, " [%s]",
+                                       wmem_strbuf_get_str(reasons));
+            }
         } else if (mms_priv->mms_trans_p) {
             if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
                 sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_quality_bitstring);
@@ -3293,14 +3327,9 @@ dissect_mms_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, 
                                  NULL);
 
     if (mms_priv && saved_ref) {
-        /* Keep child path on the Data node text when useful */
+        /* Path only on the Data item label; leaf dissectors add the generated field once. */
         if (mms_priv->current_object_ref && tree && tree->last_child) {
             proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
-            mms_add_object_reference_item(
-                proto_item_get_subtree(tree->last_child)
-                    ? proto_item_get_subtree(tree->last_child)
-                    : tree,
-                tvb, mms_priv->current_object_ref);
         }
         mms_priv->current_object_ref = saved_ref;
     }
@@ -9122,6 +9151,38 @@ void proto_register_mms(void) {
           { "Inclusion-bitstring", "mms.iec61850.inclusion_bitstring",
             FT_BYTES, BASE_NONE, NULL, 0,
             NULL, HFILL }},
+        { &hf_mms_iec61850_reason_code,
+          { "ReasonCode", "mms.iec61850.reason_code",
+            FT_BYTES, BASE_NONE, NULL, 0,
+            "IEC 61850 Reason for Inclusion", HFILL }},
+        { &hf_mms_iec61850_reason_reserved,
+          { "保留", "mms.iec61850.reason.reserved",
+            FT_BOOLEAN, 8, NULL, 0x80,
+            "ReasonForInclusion reserved", HFILL }},
+        { &hf_mms_iec61850_reason_data_change,
+          { "数据变化", "mms.iec61850.reason.data_change",
+            FT_BOOLEAN, 8, NULL, 0x40,
+            "ReasonForInclusion data-change", HFILL }},
+        { &hf_mms_iec61850_reason_quality_change,
+          { "品质变化", "mms.iec61850.reason.quality_change",
+            FT_BOOLEAN, 8, NULL, 0x20,
+            "ReasonForInclusion quality-change", HFILL }},
+        { &hf_mms_iec61850_reason_data_update,
+          { "数据更新", "mms.iec61850.reason.data_update",
+            FT_BOOLEAN, 8, NULL, 0x10,
+            "ReasonForInclusion data-update", HFILL }},
+        { &hf_mms_iec61850_reason_integrity,
+          { "完整性", "mms.iec61850.reason.integrity",
+            FT_BOOLEAN, 8, NULL, 0x08,
+            "ReasonForInclusion integrity", HFILL }},
+        { &hf_mms_iec61850_reason_general_interrogation,
+          { "总召唤", "mms.iec61850.reason.general_interrogation",
+            FT_BOOLEAN, 8, NULL, 0x04,
+            "ReasonForInclusion general-interrogation", HFILL }},
+        { &hf_mms_iec61850_reason_application_trigger,
+          { "应用触发", "mms.iec61850.reason.application_trigger",
+            FT_BOOLEAN, 8, NULL, 0x02,
+            "ReasonForInclusion application-trigger", HFILL }},
         { &hf_mms_iec61850_ctlModel,
         { "ctlModel", "mms.iec61850.ctlmodel",
             FT_UINT8, BASE_DEC, VALS(mms_iec6150_cntmodel_vals), 0,
@@ -12037,6 +12098,7 @@ void proto_register_mms(void) {
             &ett_mms,
             &ett_mms_iec61850_quality_bitstring,
             &ett_mms_iec61850_check_bitstring,
+            &ett_mms_iec61850_reason_code,
     &ett_mms_ReportedOptFlds,
     &ett_mms_MMSpdu,
     &ett_mms_Confirmed_RequestPDU,
