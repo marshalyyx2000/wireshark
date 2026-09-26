@@ -1228,6 +1228,8 @@ typedef struct mms_actx_private_data_t
     char *rpt_datset;
     bool rpt_pending_inclusion;
     bool rpt_collecting_data_ref;
+    /* Summary text appended to AccessResult parent label */
+    const char *access_result_summary;
     /* Nested structure path suffixes */
     bool struct_path_active;
     int struct_child_idx;
@@ -1513,6 +1515,50 @@ mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb _U_, proto_item *pr
     proto_item_append_text(tree->last_child, " [%s]", ref);
 }
 
+/* IEC 61850 ReportedOptFlds: Chinese names for set bits (MSB = bit 0). */
+static char *
+mms_optflds_zh_summary(wmem_allocator_t *scope, uint16_t bits)
+{
+    wmem_strbuf_t *on = wmem_strbuf_new(scope, "");
+
+    if (bits & 0x4000) { wmem_strbuf_append(on, "序号 "); }
+    if (bits & 0x2000) { wmem_strbuf_append(on, "报告时标 "); }
+    if (bits & 0x1000) { wmem_strbuf_append(on, "包含原因 "); }
+    if (bits & 0x0800) { wmem_strbuf_append(on, "数据集名 "); }
+    if (bits & 0x0400) { wmem_strbuf_append(on, "数据引用 "); }
+    if (bits & 0x0200) { wmem_strbuf_append(on, "缓冲溢出 "); }
+    if (bits & 0x0100) { wmem_strbuf_append(on, "条目标识 "); }
+    if (bits & 0x0080) { wmem_strbuf_append(on, "配置版本 "); }
+    if (bits & 0x0040) { wmem_strbuf_append(on, "分段 "); }
+    if (wmem_strbuf_get_len(on) == 0) {
+        return NULL;
+    }
+    if (wmem_strbuf_get_str(on)[wmem_strbuf_get_len(on) - 1] == ' ') {
+        wmem_strbuf_truncate(on, wmem_strbuf_get_len(on) - 1);
+    }
+    return wmem_strbuf_finalize(on);
+}
+
+static char *
+mms_reason_zh_summary(wmem_allocator_t *scope, uint8_t b)
+{
+    wmem_strbuf_t *reasons = wmem_strbuf_new(scope, "");
+
+    if (b & 0x40) { wmem_strbuf_append(reasons, "数据变化 "); }
+    if (b & 0x20) { wmem_strbuf_append(reasons, "品质变化 "); }
+    if (b & 0x10) { wmem_strbuf_append(reasons, "数据更新 "); }
+    if (b & 0x08) { wmem_strbuf_append(reasons, "完整性 "); }
+    if (b & 0x04) { wmem_strbuf_append(reasons, "总召唤 "); }
+    if (b & 0x02) { wmem_strbuf_append(reasons, "应用触发 "); }
+    if (wmem_strbuf_get_len(reasons) == 0) {
+        return NULL;
+    }
+    if (wmem_strbuf_get_str(reasons)[wmem_strbuf_get_len(reasons) - 1] == ' ') {
+        wmem_strbuf_truncate(reasons, wmem_strbuf_get_len(reasons) - 1);
+    }
+    return wmem_strbuf_finalize(reasons);
+}
+
 static void
 mms_store_dataset_member(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv)
 {
@@ -1574,6 +1620,8 @@ mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pin
         }
     }
     mms_priv->rpt_included_count = pop;
+    mms_priv->access_result_summary =
+        wmem_strdup_printf(pinfo->pool, "纳入位图: %u项", pop);
 }
 
 static void
@@ -1667,21 +1715,15 @@ dissect_mms_ReportedOptFlds(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned o
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if(mms_priv && parameter_tvb){
         uint16_t bits = tvb_get_ntohs(parameter_tvb, 0);
-        wmem_strbuf_t *on = wmem_strbuf_new(actx->pinfo->pool, "");
+        char *zh = mms_optflds_zh_summary(actx->pinfo->pool, bits);
 
         mms_priv->reported_optflds = bits;
-        /* High byte (IEC bit 0..7), then low byte bit 8..9 */
-        if (bits & 0x4000) { wmem_strbuf_append(on, "序号 "); }
-        if (bits & 0x2000) { wmem_strbuf_append(on, "报告时标 "); }
-        if (bits & 0x1000) { wmem_strbuf_append(on, "包含原因 "); }
-        if (bits & 0x0800) { wmem_strbuf_append(on, "数据集名 "); }
-        if (bits & 0x0400) { wmem_strbuf_append(on, "数据引用 "); }
-        if (bits & 0x0200) { wmem_strbuf_append(on, "缓冲溢出 "); }
-        if (bits & 0x0100) { wmem_strbuf_append(on, "条目标识 "); }
-        if (bits & 0x0080) { wmem_strbuf_append(on, "配置版本 "); }
-        if (bits & 0x0040) { wmem_strbuf_append(on, "分段 "); }
-        if (actx->created_item && wmem_strbuf_get_len(on) > 0) {
-            proto_item_append_text(actx->created_item, " [%s]", wmem_strbuf_get_str(on));
+        if (zh) {
+            if (actx->created_item) {
+                proto_item_append_text(actx->created_item, " [%s]", zh);
+            }
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "报告可选字段: %s", zh);
         }
     }
 
@@ -2780,6 +2822,7 @@ dissect_mms_T_structure_01(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned of
 
 static unsigned
 dissect_mms_T_boolean(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+    bool bool_val = false;
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if((mms_priv) && (mms_priv->mms_trans_p)){
         if(mms_priv->vmd_specific == IEC61850_8_1_RPT ){
@@ -2797,7 +2840,13 @@ dissect_mms_T_boolean(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
             }
         }
     }
-  offset = dissect_ber_boolean(implicit_tag, actx, tree, tvb, offset, hf_index, NULL);
+  offset = dissect_ber_boolean(implicit_tag, actx, tree, tvb, offset, hf_index, &bool_val);
+
+  if (mms_priv && mms_priv->vmd_specific == IEC61850_8_1_RPT &&
+      mms_priv->listOfAccessResult_cnt == 6) {
+      mms_priv->access_result_summary =
+          wmem_strdup_printf(actx->pinfo->pool, "缓冲溢出: %s", bool_val ? "是" : "否");
+  }
 
   mms_try_add_leaf_object_ref(actx, tree, tvb);
 
@@ -2889,32 +2938,24 @@ static int * const mms_iec61850_reason_bits[] = {
                     mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) &&
                    tvb_reported_length(parameter_tvb) >= 1) {
             uint8_t b = tvb_get_uint8(parameter_tvb, 0);
-            wmem_strbuf_t *reasons = wmem_strbuf_new(actx->pinfo->pool, "");
+            char *zh = mms_reason_zh_summary(actx->pinfo->pool, b);
+            const char *path = mms_rpt_lookup_value_path(mms_priv, actx->pinfo,
+                                                         mms_priv->rpt_phase_idx);
 
             sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_reason_code);
             proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1,
                                         mms_iec61850_reason_bits, ENC_BIG_ENDIAN);
-            if (b & 0x40) {
-                wmem_strbuf_append(reasons, "数据变化 ");
+            if (zh) {
+                proto_item_append_text(actx->created_item, " [%s]", zh);
             }
-            if (b & 0x20) {
-                wmem_strbuf_append(reasons, "品质变化 ");
-            }
-            if (b & 0x10) {
-                wmem_strbuf_append(reasons, "数据更新 ");
-            }
-            if (b & 0x08) {
-                wmem_strbuf_append(reasons, "完整性 ");
-            }
-            if (b & 0x04) {
-                wmem_strbuf_append(reasons, "总召唤 ");
-            }
-            if (b & 0x02) {
-                wmem_strbuf_append(reasons, "应用触发 ");
-            }
-            if (wmem_strbuf_get_len(reasons) > 0) {
-                proto_item_append_text(actx->created_item, " [%s]",
-                                       wmem_strbuf_get_str(reasons));
+            if (path && zh) {
+                mms_priv->access_result_summary =
+                    wmem_strdup_printf(actx->pinfo->pool, "%s: %s", path, zh);
+            } else if (path) {
+                mms_priv->access_result_summary = path;
+            } else if (zh) {
+                mms_priv->access_result_summary =
+                    wmem_strdup_printf(actx->pinfo->pool, "包含原因: %s", zh);
             }
         } else if (mms_priv->mms_trans_p) {
             if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
@@ -2974,6 +3015,7 @@ dissect_mms_T_integer(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
 
 static unsigned
 dissect_mms_T_unsigned(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+    uint32_t value = 0;
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if((mms_priv) && (mms_priv->mms_trans_p)){
         if(mms_priv->vmd_specific == IEC61850_8_1_RPT ){
@@ -2992,9 +3034,17 @@ dissect_mms_T_unsigned(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset
         }
     }
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                                NULL);
+                                                &value);
 
-
+    if (mms_priv && mms_priv->vmd_specific == IEC61850_8_1_RPT) {
+        if (mms_priv->listOfAccessResult_cnt == 3) {
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "序号: %u", value);
+        } else if (mms_priv->listOfAccessResult_cnt == 8) {
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "配置版本: %u", value);
+        }
+    }
 
   return offset;
 }
@@ -3036,6 +3086,7 @@ dissect_mms_REAL(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, 
 
 static unsigned
 dissect_mms_T_data_octet_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+    tvbuff_t *parameter_tvb = NULL;
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if((mms_priv)&& (mms_priv->mms_trans_p)){
         if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
@@ -3045,9 +3096,15 @@ dissect_mms_T_data_octet_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsign
         }
     }
       offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                       NULL);
+                                       &parameter_tvb);
 
-
+    if (mms_priv && mms_priv->vmd_specific == IEC61850_8_1_RPT &&
+        mms_priv->listOfAccessResult_cnt == 7 && parameter_tvb) {
+        mms_priv->access_result_summary =
+            wmem_strdup_printf(actx->pinfo->pool, "条目标识: %s",
+                tvb_bytes_to_str(actx->pinfo->pool, parameter_tvb, 0,
+                                 tvb_reported_length(parameter_tvb)));
+    }
 
   return offset;
 }
@@ -3079,14 +3136,22 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
         char *s = (char *)tvb_get_string_enc(actx->pinfo->pool, parameter_tvb, 0,
                 tvb_reported_length(parameter_tvb), ENC_ASCII | ENC_NA);
         if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
+            mms_priv->listOfAccessResult_cnt == 1) {
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "报告标识: %s", s);
+        } else if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
             mms_priv->listOfAccessResult_cnt == 5) {
             mms_priv->rpt_datset = mms_normalize_objref(actx->pinfo->pool, s);
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "数据集: %s",
+                                   mms_priv->rpt_datset ? mms_priv->rpt_datset : s);
         } else if (mms_priv->rpt_collecting_data_ref) {
             char *ref = mms_normalize_objref(actx->pinfo->pool, s);
             if (!mms_priv->rpt_data_refs) {
                 mms_priv->rpt_data_refs = wmem_array_new(actx->pinfo->pool, sizeof(char *));
             }
             wmem_array_append_one(mms_priv->rpt_data_refs, ref);
+            mms_priv->access_result_summary = ref;
         } else {
             mms_try_add_leaf_object_ref(actx, tree, tvb);
         }
@@ -3158,17 +3223,37 @@ dissect_mms_TimeOfDay(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
 static unsigned
 dissect_mms_T_data_binary_time(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+    bool is_timeofentry = false;
+    unsigned start = offset;
     if(mms_priv){
         if(mms_priv->vmd_specific == IEC61850_8_1_RPT ){
             if(mms_priv->listOfAccessResult_cnt == 4){
                     /* IEC 61850-8-1 TimeOfEntry */
                     hf_index = hf_mms_iec61850_timeofentry;
+                    is_timeofentry = true;
             }
         }
     }
   offset = dissect_mms_TimeOfDay(implicit_tag, tvb, offset, actx, tree, hf_index);
 
-
+    if (is_timeofentry && mms_priv) {
+        uint32_t len = tvb_reported_length_remaining(tvb, start);
+        char *label = NULL;
+        if (len == 6) {
+            uint32_t milliseconds = tvb_get_ntohl(tvb, start);
+            uint16_t days = tvb_get_ntohs(tvb, start + 4);
+            nstime_t ts;
+            ts.secs = (time_t)((days + 5113) * 86400 + milliseconds / 1000);
+            ts.nsecs = (int)((milliseconds % 1000) * 1000000U);
+            label = abs_time_to_str(actx->pinfo->pool, &ts, ABSOLUTE_TIME_UTC, true);
+        } else if (len == 4) {
+            label = signed_time_msecs_to_str(actx->pinfo->pool, tvb_get_ntohl(tvb, start));
+        }
+        if (label) {
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "报告时标: %s", label);
+        }
+    }
 
   return offset;
 }
@@ -6190,6 +6275,10 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
     bool is_rpt = mms_priv && mms_priv->vmd_specific == IEC61850_8_1_RPT;
     bool label_path = false;
 
+    if (mms_priv) {
+        mms_priv->access_result_summary = NULL;
+    }
+
     if (is_gdv_resp) {
         int idx = mms_priv->read_access_result_idx++;
         mms_priv->current_object_ref = NULL;
@@ -6319,6 +6408,8 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
 
     if (label_path) {
         mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
+    } else if (mms_priv && mms_priv->access_result_summary) {
+        mms_label_access_result_path(tree, tvb, prev_last, mms_priv->access_result_summary);
     }
 
     if (is_rpt) {
