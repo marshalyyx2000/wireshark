@@ -6,7 +6,7 @@ set "RUN_DIR=%WIRESHARK_BUILD_DIR%\run\%WIRESHARK_BUILD_CONFIG%"
 set "TSHARK=%RUN_DIR%\tshark.exe"
 set "DUMPCAP=%RUN_DIR%\dumpcap.exe"
 set "WIRESHARK=%RUN_DIR%\Wireshark.exe"
-set "INSTALLER=%WIRESHARK_BUILD_DIR%\packaging\nsis\Wireshark-4.7.4-x64.exe"
+set "INSTALLER=%WIRESHARK_BUILD_DIR%\packaging\nsis\Wireshark-4.7.5-x64.exe"
 set "FAIL=0"
 
 echo === smoke-check [%RUN_DIR%] ===

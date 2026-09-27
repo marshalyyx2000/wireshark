@@ -29,13 +29,13 @@ tools\minimal-build\build-all.bat
 产物：
 
 ```text
-C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.4-x64.exe
+C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.5-x64.exe
 ```
 
 静默安装示例：
 
 ```bat
-"C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.4-x64.exe" /S /desktopicon=yes
+"C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.5-x64.exe" /S /desktopicon=yes
 ```
 
 ## 分步脚本
@@ -143,3 +143,15 @@ cmake --build . --config RelWithDebInfo --target wireshark_nsis --parallel
 
 **与全量构建混淆**  
 务必使用独立目录 `wsbuild-min`，不要复用 `wsbuild64`。
+
+## 一键汇总整包（安装/运行/编译环境）
+
+将安装包、运行目录、源码、Qt/第三方库/NSIS、构建脚本汇总到单一目录（约 3.6 GB；VS 以引导安装器形式提供）：
+
+```powershell
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bundle.ps1
+```
+
+默认输出：`C:\Development\Wireshark-Industrial-Bundle-4.7.5\`
+
+可用环境变量 `WIRESHARK_BUNDLE_DIR` 覆盖输出路径。
