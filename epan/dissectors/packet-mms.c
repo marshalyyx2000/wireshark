@@ -1230,6 +1230,7 @@ typedef struct mms_actx_private_data_t
     char *rpt_datset;
     bool rpt_pending_inclusion;
     bool rpt_collecting_data_ref;
+    const char *rpt_first_reason_zh;                /* first ReasonForInclusion Chinese summary */
     /* Summary text appended to AccessResult parent label */
     const char *access_result_summary;
     /* Collect leaf values (exclude q/t) for AccessResult summary */
@@ -3034,6 +3035,9 @@ static int * const mms_iec61850_reason_bits[] = {
                                         mms_iec61850_reason_bits, ENC_BIG_ENDIAN);
             if (zh) {
                 proto_item_append_text(actx->created_item, " [%s]", zh);
+                if (!mms_priv->rpt_first_reason_zh) {
+                    mms_priv->rpt_first_reason_zh = zh;
+                }
             }
             if (path && zh) {
                 mms_priv->access_result_summary =
@@ -8393,6 +8397,7 @@ dissect_mms_T_listOfAccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsig
         mms_priv->rpt_inclusion_indices = NULL;
         mms_priv->rpt_datset = NULL;
         mms_priv->rpt_collecting_data_ref = false;
+        mms_priv->rpt_first_reason_zh = NULL;
         mms_priv->current_object_ref = NULL;
         mms_priv->struct_path_active = false;
         mms_priv->struct_child_idx = 0;
@@ -9162,6 +9167,19 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                         if(mms_priv->vmd_specific==IEC61850_8_1_RPT){
                             col_append_str(actx->pinfo->cinfo, COL_INFO, "Unconfirmed <RPT>");
                             proto_item_append_text(mms_priv->pdu_item, " [RPT]");
+                            if (mms_priv->rpt_datset) {
+                                col_append_fstr(actx->pinfo->cinfo, COL_INFO,
+                                                " [数据集：%s]", mms_priv->rpt_datset);
+                                proto_item_append_text(mms_priv->pdu_item,
+                                                       " [数据集：%s]", mms_priv->rpt_datset);
+                            }
+                            if (mms_priv->rpt_first_reason_zh) {
+                                col_append_fstr(actx->pinfo->cinfo, COL_INFO,
+                                                " [传送原因：%s]", mms_priv->rpt_first_reason_zh);
+                                proto_item_append_text(mms_priv->pdu_item,
+                                                       " [传送原因：%s]",
+                                                       mms_priv->rpt_first_reason_zh);
+                            }
                         }else if((mms_priv->mms_trans_p)&&(mms_priv->mms_trans_p->itemid==IEC61850_ITEM_ID_OPER)){
                             col_append_str(actx->pinfo->cinfo, COL_INFO, "Unconfirmed-CommandTermination");
                             proto_item_append_text(mms_priv->pdu_item, " [Unconfirmed-CommandTermination]");
