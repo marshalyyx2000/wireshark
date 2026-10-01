@@ -1632,10 +1632,11 @@ mms_reason_zh_summary(wmem_allocator_t *scope, uint8_t b)
 {
     wmem_strbuf_t *reasons = wmem_strbuf_new(scope, "");
 
-    if (b & 0x40) { wmem_strbuf_append(reasons, "数据变化 "); }
+    /* Substation wording: 突发性≈data-change, 周期性≈integrity period. */
+    if (b & 0x40) { wmem_strbuf_append(reasons, "突发性 "); }
     if (b & 0x20) { wmem_strbuf_append(reasons, "品质变化 "); }
     if (b & 0x10) { wmem_strbuf_append(reasons, "数据更新 "); }
-    if (b & 0x08) { wmem_strbuf_append(reasons, "完整性 "); }
+    if (b & 0x08) { wmem_strbuf_append(reasons, "周期性 "); }
     if (b & 0x04) { wmem_strbuf_append(reasons, "总召唤 "); }
     if (b & 0x02) { wmem_strbuf_append(reasons, "应用触发 "); }
     if (wmem_strbuf_get_len(reasons) == 0) {
@@ -3173,17 +3174,7 @@ static int * const mms_iec61850_chec_bits[] = {
     NULL
 };
 
-/* IEC 61850-7-2 / 8-1 ReasonForInclusion (MSB = bit 0) */
-static int * const mms_iec61850_reason_bits[] = {
-    &hf_mms_iec61850_reason_reserved,
-    &hf_mms_iec61850_reason_data_change,
-    &hf_mms_iec61850_reason_quality_change,
-    &hf_mms_iec61850_reason_data_update,
-    &hf_mms_iec61850_reason_integrity,
-    &hf_mms_iec61850_reason_general_interrogation,
-    &hf_mms_iec61850_reason_application_trigger,
-    NULL
-};
+/* IEC 61850-7-2 / 8-1 ReasonForInclusion bits added individually when set. */
     tvbuff_t *parameter_tvb = NULL;
     proto_tree *sub_tree;
 
@@ -3238,8 +3229,39 @@ static int * const mms_iec61850_reason_bits[] = {
                                                          mms_priv->rpt_phase_idx);
 
             sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_reason_code);
-            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1,
-                                        mms_iec61850_reason_bits, ENC_BIG_ENDIAN);
+            /*
+             * Only add True bits so display filters like
+             * mms.iec61850.reason.general_interrogation match "has this reason",
+             * not every RPT that merely carries a ReasonCode field.
+             */
+            if (b & 0x80) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_reserved,
+                                       parameter_tvb, 0, 1, 1);
+            }
+            if (b & 0x40) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_data_change,
+                                       parameter_tvb, 0, 1, 1);
+            }
+            if (b & 0x20) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_quality_change,
+                                       parameter_tvb, 0, 1, 1);
+            }
+            if (b & 0x10) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_data_update,
+                                       parameter_tvb, 0, 1, 1);
+            }
+            if (b & 0x08) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_integrity,
+                                       parameter_tvb, 0, 1, 1);
+            }
+            if (b & 0x04) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_general_interrogation,
+                                       parameter_tvb, 0, 1, 1);
+            }
+            if (b & 0x02) {
+                proto_tree_add_boolean(sub_tree, hf_mms_iec61850_reason_application_trigger,
+                                       parameter_tvb, 0, 1, 1);
+            }
             if (zh) {
                 proto_item_append_text(actx->created_item, " [%s]", zh);
                 if (!mms_priv->rpt_first_reason_zh) {
@@ -9729,31 +9751,31 @@ void proto_register_mms(void) {
             "IEC 61850 Reason for Inclusion", HFILL }},
         { &hf_mms_iec61850_reason_reserved,
           { "保留", "mms.iec61850.reason.reserved",
-            FT_BOOLEAN, 8, NULL, 0x80,
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
             "ReasonForInclusion reserved", HFILL }},
         { &hf_mms_iec61850_reason_data_change,
-          { "数据变化", "mms.iec61850.reason.data_change",
-            FT_BOOLEAN, 8, NULL, 0x40,
-            "ReasonForInclusion data-change", HFILL }},
+          { "突发性", "mms.iec61850.reason.data_change",
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+            "ReasonForInclusion data-change (spontaneous)", HFILL }},
         { &hf_mms_iec61850_reason_quality_change,
           { "品质变化", "mms.iec61850.reason.quality_change",
-            FT_BOOLEAN, 8, NULL, 0x20,
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
             "ReasonForInclusion quality-change", HFILL }},
         { &hf_mms_iec61850_reason_data_update,
           { "数据更新", "mms.iec61850.reason.data_update",
-            FT_BOOLEAN, 8, NULL, 0x10,
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
             "ReasonForInclusion data-update", HFILL }},
         { &hf_mms_iec61850_reason_integrity,
-          { "完整性", "mms.iec61850.reason.integrity",
-            FT_BOOLEAN, 8, NULL, 0x08,
-            "ReasonForInclusion integrity", HFILL }},
+          { "周期性", "mms.iec61850.reason.integrity",
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+            "ReasonForInclusion integrity (periodic)", HFILL }},
         { &hf_mms_iec61850_reason_general_interrogation,
           { "总召唤", "mms.iec61850.reason.general_interrogation",
-            FT_BOOLEAN, 8, NULL, 0x04,
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
             "ReasonForInclusion general-interrogation", HFILL }},
         { &hf_mms_iec61850_reason_application_trigger,
           { "应用触发", "mms.iec61850.reason.application_trigger",
-            FT_BOOLEAN, 8, NULL, 0x02,
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0,
             "ReasonForInclusion application-trigger", HFILL }},
         { &hf_mms_iec61850_ctlModel,
         { "ctlModel", "mms.iec61850.ctlmodel",
