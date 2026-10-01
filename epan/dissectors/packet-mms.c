@@ -694,6 +694,13 @@ static int hf_mms_ReportedOptFlds_buffer_overflow;
 static int hf_mms_ReportedOptFlds_entryID;
 static int hf_mms_ReportedOptFlds_conf_revision;
 static int hf_mms_ReportedOptFlds_segmentation;
+static int hf_mms_iec61850_trgops;
+static int hf_mms_TrgOps_reserved;
+static int hf_mms_TrgOps_data_change;
+static int hf_mms_TrgOps_quality_change;
+static int hf_mms_TrgOps_data_update;
+static int hf_mms_TrgOps_integrity;
+static int hf_mms_TrgOps_general_interrogation;
 static int hf_mms_ParameterSupportOptions_str1;
 static int hf_mms_ParameterSupportOptions_str2;
 static int hf_mms_ParameterSupportOptions_vnam;
@@ -805,6 +812,7 @@ static int ett_mms_iec61850_check_bitstring;
 static int ett_mms_iec61850_reason_code;
 static int ett_mms_iec61850_inclusion_bitstring;
 static int ett_mms_ReportedOptFlds;
+static int ett_mms_TrgOps;
 static int ett_mms_MMSpdu;
 static int ett_mms_Confirmed_RequestPDU;
 static int ett_mms_SEQUENCE_OF_Modifier;
@@ -1220,6 +1228,7 @@ typedef struct mms_actx_private_data_t
     char *cur_item_id;
     char *cur_vmd_or_aa;
     int read_access_result_idx;
+    int list_of_data_idx;                           /* Top-level Write listOfData index */
     const char *current_object_ref;
     /* RPT AccessResult phase / path correlation */
     mms_rpt_phase_t rpt_phase;
@@ -1391,7 +1400,10 @@ mms_store_read_variable_path(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv
     if (!mms_priv || !mms_priv->mms_trans_p) {
         return;
     }
-    if (mms_priv->mms_trans_p->conf_serv_pdu_type_req != MMS_IEC_61850_CONF_SERV_PDU_READ) {
+    /* Store for Read (Get*Values) and Write (Set*Values) so listOfData /
+     * AccessResult can bind OptFlds/TrgOps by object path. */
+    if (mms_priv->mms_trans_p->conf_serv_pdu_type_req != MMS_IEC_61850_CONF_SERV_PDU_READ &&
+        mms_priv->mms_trans_p->conf_serv_pdu_type_req != MMS_IEC_61850_CONF_SERV_PDU_WRITE) {
         return;
     }
     path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
@@ -1588,6 +1600,49 @@ mms_reason_zh_summary(wmem_allocator_t *scope, uint8_t b)
     return wmem_strbuf_finalize(reasons);
 }
 
+/* IEC 61850-7-2 TrgOps (TriggerOptions): 6 bits, MSB = bit 0. */
+static char *
+mms_trgops_zh_summary(wmem_allocator_t *scope, uint8_t b)
+{
+    wmem_strbuf_t *on = wmem_strbuf_new(scope, "");
+
+    if (b & 0x40) { wmem_strbuf_append(on, "数据变化 "); }
+    if (b & 0x20) { wmem_strbuf_append(on, "品质变化 "); }
+    if (b & 0x10) { wmem_strbuf_append(on, "数据更新 "); }
+    if (b & 0x08) { wmem_strbuf_append(on, "完整性 "); }
+    if (b & 0x04) { wmem_strbuf_append(on, "总召唤 "); }
+    if (wmem_strbuf_get_len(on) == 0) {
+        return NULL;
+    }
+    if (wmem_strbuf_get_str(on)[wmem_strbuf_get_len(on) - 1] == ' ') {
+        wmem_strbuf_truncate(on, wmem_strbuf_get_len(on) - 1);
+    }
+    return wmem_strbuf_finalize(on);
+}
+
+static bool
+mms_path_ends_with_attr(const char *path, const char *attr)
+{
+    size_t pl, al;
+
+    if (!path || !attr) {
+        return false;
+    }
+    pl = strlen(path);
+    al = strlen(attr);
+    if (pl < al) {
+        return false;
+    }
+    if (strcmp(path + pl - al, attr) != 0) {
+        return false;
+    }
+    /* Require start, '$', or '.' before the attribute name. */
+    if (pl == al) {
+        return true;
+    }
+    return path[pl - al - 1] == '$' || path[pl - al - 1] == '.';
+}
+
 static void
 mms_store_dataset_member(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv)
 {
@@ -1712,8 +1767,9 @@ mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pin
 static void
 col_append_mms_invokeid(packet_info *pinfo, mms_actx_private_data_t *mms_priv)
 {
+    /* Prepend so request/response pairs share a visible invokeID prefix. */
     if (mms_priv) {
-        col_append_fstr(pinfo->cinfo, COL_INFO, ": mms.invokeid=%u", mms_priv->invokeid);
+        col_prepend_fstr(pinfo->cinfo, COL_INFO, "mms.invokeid=%u ", mms_priv->invokeid);
     }
 }
 
@@ -1773,6 +1829,7 @@ static unsigned dissect_mms_AlternateAccess(bool implicit_tag _U_, tvbuff_t *tvb
 /* Data -> Data/array -> Data */
 /* Data -> Data/structure -> Data */
 static unsigned dissect_mms_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
+static unsigned dissect_mms_listOfData_item(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 
 
@@ -1787,6 +1844,16 @@ static int * const ReportedOptFlds_bits[] = {
   &hf_mms_ReportedOptFlds_entryID,
   &hf_mms_ReportedOptFlds_conf_revision,
   &hf_mms_ReportedOptFlds_segmentation,
+  NULL
+};
+
+static int * const TrgOps_bits[] = {
+  &hf_mms_TrgOps_reserved,
+  &hf_mms_TrgOps_data_change,
+  &hf_mms_TrgOps_quality_change,
+  &hf_mms_TrgOps_data_update,
+  &hf_mms_TrgOps_integrity,
+  &hf_mms_TrgOps_general_interrogation,
   NULL
 };
 
@@ -1814,6 +1881,31 @@ dissect_mms_ReportedOptFlds(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned o
 
 
   return offset;
+}
+
+static unsigned
+dissect_mms_TrgOps(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+    tvbuff_t *parameter_tvb = NULL;
+
+    offset = dissect_ber_bitstring(implicit_tag, actx, tree, tvb, offset,
+                                   TrgOps_bits, 6, hf_index, ett_mms_TrgOps,
+                                   &parameter_tvb);
+
+    mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+    if (mms_priv && parameter_tvb && tvb_reported_length(parameter_tvb) >= 1) {
+        uint8_t b = tvb_get_uint8(parameter_tvb, 0);
+        char *zh = mms_trgops_zh_summary(actx->pinfo->pool, b);
+
+        if (zh) {
+            if (actx->created_item) {
+                proto_item_append_text(actx->created_item, " [%s]", zh);
+            }
+            mms_priv->access_result_summary =
+                wmem_strdup_printf(actx->pinfo->pool, "触发选项: %s", zh);
+        }
+    }
+
+    return offset;
 }
 
 
@@ -2998,6 +3090,12 @@ static int * const mms_iec61850_reason_bits[] = {
                        mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
                     hf_index = hf_mms_iec61850_reason_code;
             }
+        } else if (mms_path_ends_with_attr(mms_priv->current_object_ref, "OptFlds")) {
+            return dissect_mms_ReportedOptFlds(implicit_tag, tvb, offset, actx, tree,
+                                               hf_mms_iec61850_reported_optflds);
+        } else if (mms_path_ends_with_attr(mms_priv->current_object_ref, "TrgOps")) {
+            return dissect_mms_TrgOps(implicit_tag, tvb, offset, actx, tree,
+                                      hf_mms_iec61850_trgops);
         } else if (mms_priv->mms_trans_p) {
             if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
                 hf_index = hf_mms_iec61850_quality_bitstring;
@@ -3555,14 +3653,46 @@ dissect_mms_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, 
 
 
 static const ber_sequence_t T_listOfData_sequence_of[1] = {
-  { &hf_mms_listOfData_item , BER_CLASS_ANY/*choice*/, -1/*choice*/, BER_FLAGS_NOOWNTAG|BER_FLAGS_NOTCHKTAG, dissect_mms_Data },
+  { &hf_mms_listOfData_item , BER_CLASS_ANY/*choice*/, -1/*choice*/, BER_FLAGS_NOOWNTAG|BER_FLAGS_NOTCHKTAG, dissect_mms_listOfData_item },
 };
+
+static unsigned
+dissect_mms_listOfData_item(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+    mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+    const char *saved_ref = NULL;
+    proto_item *prev_last = tree ? tree->last_child : NULL;
+
+    if (mms_priv) {
+        saved_ref = mms_priv->current_object_ref;
+        mms_priv->current_object_ref = NULL;
+        if (mms_priv->mms_trans_p && mms_priv->mms_trans_p->read_var_paths) {
+            int idx = mms_priv->list_of_data_idx++;
+            if (idx < (int)wmem_array_get_count(mms_priv->mms_trans_p->read_var_paths)) {
+                char **paths = (char **)wmem_array_get_raw(mms_priv->mms_trans_p->read_var_paths);
+                mms_priv->current_object_ref = paths[idx];
+            }
+        }
+    }
+
+    offset = dissect_mms_Data(implicit_tag, tvb, offset, actx, tree, hf_index);
+
+    if (mms_priv) {
+        if (mms_priv->current_object_ref && tree && tree->last_child &&
+            tree->last_child != prev_last) {
+            proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
+        }
+        mms_priv->current_object_ref = saved_ref;
+    }
+
+    return offset;
+}
 
 static unsigned
 dissect_mms_T_listOfData(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if(mms_priv){
         mms_priv->data_cnt = 0;
+        mms_priv->list_of_data_idx = 0;
      }
   offset = dissect_ber_sequence_of(implicit_tag, actx, tree, tvb, offset,
                                       T_listOfData_sequence_of, hf_index, ett_mms_T_listOfData);
@@ -3584,6 +3714,13 @@ static const ber_sequence_t Write_Request_sequence[] = {
 
 static unsigned
 dissect_mms_Write_Request(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
+  /* Mark as Write before VariableAccessSpecification so object paths are stored. */
+  if (mms_priv && mms_priv->mms_trans_p) {
+    mms_priv->mms_trans_p->conf_serv_pdu_type_req = MMS_IEC_61850_CONF_SERV_PDU_WRITE;
+  }
+
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    Write_Request_sequence, hf_index, ett_mms_Write_Request);
 
@@ -11937,6 +12074,34 @@ void proto_register_mms(void) {
       { "分段", "mms.ReportedOptFlds.segmentation",
         FT_BOOLEAN, 8, NULL, 0x40,
         "ReportedOptFlds segmentation", HFILL }},
+    { &hf_mms_iec61850_trgops,
+      { "触发选项", "mms.iec61850.trgops",
+        FT_BYTES, BASE_NONE, NULL, 0x0,
+        "IEC 61850 TrgOps (TriggerOptions) bit-string", HFILL }},
+    { &hf_mms_TrgOps_reserved,
+      { "保留", "mms.TrgOps.reserved",
+        FT_BOOLEAN, 8, NULL, 0x80,
+        "TrgOps reserved", HFILL }},
+    { &hf_mms_TrgOps_data_change,
+      { "数据变化", "mms.TrgOps.data.change",
+        FT_BOOLEAN, 8, NULL, 0x40,
+        "TrgOps data-change", HFILL }},
+    { &hf_mms_TrgOps_quality_change,
+      { "品质变化", "mms.TrgOps.quality.change",
+        FT_BOOLEAN, 8, NULL, 0x20,
+        "TrgOps quality-change", HFILL }},
+    { &hf_mms_TrgOps_data_update,
+      { "数据更新", "mms.TrgOps.data.update",
+        FT_BOOLEAN, 8, NULL, 0x10,
+        "TrgOps data-update", HFILL }},
+    { &hf_mms_TrgOps_integrity,
+      { "完整性", "mms.TrgOps.integrity",
+        FT_BOOLEAN, 8, NULL, 0x08,
+        "TrgOps integrity", HFILL }},
+    { &hf_mms_TrgOps_general_interrogation,
+      { "总召唤", "mms.TrgOps.general.interrogation",
+        FT_BOOLEAN, 8, NULL, 0x04,
+        "TrgOps general-interrogation", HFILL }},
     { &hf_mms_ParameterSupportOptions_str1,
       { "str1", "mms.ParameterSupportOptions.str1",
         FT_BOOLEAN, 8, NULL, 0x80,
@@ -12359,6 +12524,7 @@ void proto_register_mms(void) {
             &ett_mms_iec61850_reason_code,
             &ett_mms_iec61850_inclusion_bitstring,
     &ett_mms_ReportedOptFlds,
+    &ett_mms_TrgOps,
     &ett_mms_MMSpdu,
     &ett_mms_Confirmed_RequestPDU,
     &ett_mms_SEQUENCE_OF_Modifier,
