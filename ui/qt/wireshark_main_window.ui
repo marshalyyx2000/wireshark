@@ -506,6 +506,13 @@
     <addaction name="actionAnalyzeExpertInfo"/>
     <addaction name="actionAnalyzeSvAnalysis"/>
    </widget>
+   <widget class="QMenu" name="menuMms">
+    <property name="title">
+     <string>MMS</string>
+    </property>
+    <addaction name="actionMmsIpClassify"/>
+    <addaction name="actionMmsReportFilter"/>
+   </widget>
    <widget class="QMenu" name="menuStatistics">
     <property name="enabled">
      <bool>true</bool>
@@ -797,6 +804,7 @@
    <addaction name="menuCapture"/>
    <addaction name="menuAnalyze"/>
    <addaction name="menuStatistics"/>
+   <addaction name="menuMms"/>
    <addaction name="menuTelephony"/>
    <addaction name="menuWireless"/>
    <addaction name="menuTools"/>
@@ -2912,6 +2920,22 @@
    </property>
    <property name="toolTip">
     <string>Analyze IEC 61850 Sampled Values by APPID (RMS / waveform)</string>
+   </property>
+  </action>
+  <action name="actionMmsIpClassify">
+   <property name="text">
+    <string>按服务端分类 IP…</string>
+   </property>
+   <property name="toolTip">
+    <string>以 TCP 102 子站服务端为基准对 MMS IP 分组并过滤</string>
+   </property>
+  </action>
+  <action name="actionMmsReportFilter">
+   <property name="text">
+    <string>报告…</string>
+   </property>
+   <property name="toolTip">
+    <string>按 IEC 61850 报告字段分类过滤 RPT</string>
    </property>
   </action>
   <action name="actionDisplayFilterExpression">

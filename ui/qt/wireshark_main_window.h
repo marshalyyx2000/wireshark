@@ -1123,6 +1123,9 @@ private slots:
     /** @brief Connects Analyze menu actions to their implementation slots. */
     void connectAnalyzeMenuActions();
 
+    /** @brief Connects MMS menu actions to their implementation slots. */
+    void connectMmsMenuActions();
+
     /**
      * @brief Constructs a filter expression from the selected protocol-tree field
      *        and applies the given action and type.

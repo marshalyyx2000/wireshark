@@ -22,12 +22,16 @@
 #include <epan/expert.h>
 #include <epan/proto_data.h>
 #include <epan/conversation.h>
+#include <epan/tap.h>
 #include <wsutil/array.h>
 #include <wsutil/wmem/wmem.h>
+#include <wsutil/str_util.h>
+#include <string.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
 #include "packet-mms.h"
+#include "packet-mms-tap.h"
 
 void proto_register_mms(void);
 void proto_reg_handoff_mms(void);
@@ -36,6 +40,8 @@ static bool use_iec61850_mapping = true;
 
 /* Initialize the protocol and registered fields */
 static int proto_mms;
+static int mms_tap;
+static mms_rpt_tap_data mms_tap_data;
 
 /* Conversation */
 static int hf_mms_response_in;
@@ -1237,9 +1243,13 @@ typedef struct mms_actx_private_data_t
     wmem_array_t *rpt_data_refs;
     wmem_array_t *rpt_inclusion_indices;            /* dataset member ordinals for set bits */
     char *rpt_datset;
+    char *rpt_datset_raw;                           /* raw VisibleString for filters/tap */
+    char *rpt_rptid;
     bool rpt_pending_inclusion;
     bool rpt_collecting_data_ref;
     const char *rpt_first_reason_zh;                /* first ReasonForInclusion Chinese summary */
+    uint8_t rpt_first_reason;
+    bool rpt_has_reason;
     /* Summary text appended to AccessResult parent label */
     const char *access_result_summary;
     /* Collect leaf values (exclude q/t) for AccessResult summary */
@@ -3266,6 +3276,8 @@ static int * const mms_iec61850_chec_bits[] = {
                 proto_item_append_text(actx->created_item, " [%s]", zh);
                 if (!mms_priv->rpt_first_reason_zh) {
                     mms_priv->rpt_first_reason_zh = zh;
+                    mms_priv->rpt_first_reason = b;
+                    mms_priv->rpt_has_reason = true;
                 }
             }
             if (path && zh) {
@@ -3496,10 +3508,12 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
                 tvb_reported_length(parameter_tvb), ENC_ASCII | ENC_NA);
         if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
             mms_priv->listOfAccessResult_cnt == 1) {
+            mms_priv->rpt_rptid = s;
             mms_priv->access_result_summary =
                 wmem_strdup_printf(actx->pinfo->pool, "报告标识: %s", s);
         } else if (mms_priv->vmd_specific == IEC61850_8_1_RPT &&
             mms_priv->listOfAccessResult_cnt == 5) {
+            mms_priv->rpt_datset_raw = s;
             mms_priv->rpt_datset = mms_normalize_objref(actx->pinfo->pool, s);
             mms_priv->access_result_summary =
                 wmem_strdup_printf(actx->pinfo->pool, "数据集: %s",
@@ -8719,8 +8733,12 @@ dissect_mms_T_listOfAccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsig
         mms_priv->rpt_data_refs = NULL;
         mms_priv->rpt_inclusion_indices = NULL;
         mms_priv->rpt_datset = NULL;
+        mms_priv->rpt_datset_raw = NULL;
+        mms_priv->rpt_rptid = NULL;
         mms_priv->rpt_collecting_data_ref = false;
         mms_priv->rpt_first_reason_zh = NULL;
+        mms_priv->rpt_first_reason = 0;
+        mms_priv->rpt_has_reason = false;
         mms_priv->current_object_ref = NULL;
         mms_priv->struct_path_active = false;
         mms_priv->struct_child_idx = 0;
@@ -9502,6 +9520,23 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 proto_item_append_text(mms_priv->pdu_item,
                                                        " [传送原因：%s]",
                                                        mms_priv->rpt_first_reason_zh);
+                            }
+                            if (have_tap_listener(mms_tap)) {
+                                memset(&mms_tap_data, 0, sizeof(mms_tap_data));
+                                if (mms_priv->rpt_rptid) {
+                                    (void)g_strlcpy(mms_tap_data.rptid, mms_priv->rpt_rptid,
+                                                    sizeof(mms_tap_data.rptid));
+                                }
+                                if (mms_priv->rpt_datset_raw) {
+                                    (void)g_strlcpy(mms_tap_data.datset, mms_priv->rpt_datset_raw,
+                                                    sizeof(mms_tap_data.datset));
+                                } else if (mms_priv->rpt_datset) {
+                                    (void)g_strlcpy(mms_tap_data.datset, mms_priv->rpt_datset,
+                                                    sizeof(mms_tap_data.datset));
+                                }
+                                mms_tap_data.has_reason = mms_priv->rpt_has_reason;
+                                mms_tap_data.reason = mms_priv->rpt_first_reason;
+                                tap_queue_packet(mms_tap, actx->pinfo, &mms_tap_data);
                             }
                         }else if((mms_priv->mms_trans_p)&&(mms_priv->mms_trans_p->itemid==IEC61850_ITEM_ID_OPER)){
                             col_append_str(actx->pinfo->cinfo, COL_INFO, "Unconfirmed-CommandTermination");
@@ -12968,6 +13003,8 @@ void proto_register_mms(void) {
         "Dissect MMS as IEC-61850",
         "Enables or disables dissection as IEC-61850 on top of MMS",
         &use_iec61850_mapping);
+
+    mms_tap = register_tap("mms");
 }
 
 

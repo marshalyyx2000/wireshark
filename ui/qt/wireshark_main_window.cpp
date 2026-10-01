@@ -702,6 +702,7 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectGoMenuActions();
     connectCaptureMenuActions();
     connectAnalyzeMenuActions();
+    connectMmsMenuActions();
 #ifndef ENABLE_MINIMAL_BUILD
     connectStatisticsMenuActions();
     connectTelephonyMenuActions();
@@ -2652,6 +2653,8 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionViewResizeColumns->setEnabled(have_captured_packets);
     main_ui_->actionViewRedissect->setEnabled(have_captured_packets);
     main_ui_->actionAnalyzeSvAnalysis->setEnabled(have_captured_packets);
+    main_ui_->actionMmsIpClassify->setEnabled(have_captured_packets);
+    main_ui_->actionMmsReportFilter->setEnabled(have_captured_packets);
 
 #ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsCaptureFileProperties->setEnabled(have_captured_packets);

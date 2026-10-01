@@ -311,6 +311,8 @@ set(WIRESHARK_QT_HEADERS
 	stats_tree_dialog.h
 	strip_headers_dialog.h
 	sv_analysis_dialog.h
+	mms_ip_classify_dialog.h
+	mms_report_filter_dialog.h
 	supported_protocols_dialog.h
 	tabnav_tree_widget.h
 	tap_parameter_dialog.h
@@ -647,6 +649,8 @@ set(WIRESHARK_QT_SRC
 	tlskeylog_launcher_dialog.cpp
 	strip_headers_dialog.cpp
 	sv_analysis_dialog.cpp
+	mms_ip_classify_dialog.cpp
+	mms_report_filter_dialog.cpp
 	supported_protocols_dialog.cpp
 	tabnav_tree_widget.cpp
 	tap_parameter_dialog.cpp
@@ -802,6 +806,8 @@ set(WIRESHARK_QT_UI
 	tlskeylog_launcher_dialog.ui
 	strip_headers_dialog.ui
 	sv_analysis_dialog.ui
+	mms_ip_classify_dialog.ui
+	mms_report_filter_dialog.ui
 	supported_protocols_dialog.ui
 	tap_parameter_dialog.ui
 	tcp_stream_dialog.ui
