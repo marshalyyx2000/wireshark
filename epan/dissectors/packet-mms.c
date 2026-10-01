@@ -1546,6 +1546,26 @@ mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb _U_, proto_item *pr
     proto_item_append_text(tree->last_child, " [%s]", ref);
 }
 
+/* RPT inclusion ordinal "k/n" for value / data-ref / reason AccessResults. */
+static char *
+mms_rpt_member_ordinal(mms_actx_private_data_t *mms_priv, wmem_allocator_t *scope)
+{
+    if (!mms_priv || mms_priv->vmd_specific != IEC61850_8_1_RPT) {
+        return NULL;
+    }
+    if (mms_priv->rpt_included_count == 0) {
+        return NULL;
+    }
+    if (mms_priv->rpt_phase != MMS_RPT_PHASE_DATA_REF &&
+        mms_priv->rpt_phase != MMS_RPT_PHASE_VALUE &&
+        mms_priv->rpt_phase != MMS_RPT_PHASE_REASON) {
+        return NULL;
+    }
+    return wmem_strdup_printf(scope, "%u/%u",
+                              mms_priv->rpt_phase_idx + 1,
+                              mms_priv->rpt_included_count);
+}
+
 static void
 mms_append_value_summary(mms_actx_private_data_t *mms_priv, const char *text)
 {
@@ -3227,13 +3247,31 @@ static int * const mms_iec61850_reason_bits[] = {
                 }
             }
             if (path && zh) {
-                mms_priv->access_result_summary =
-                    wmem_strdup_printf(actx->pinfo->pool, "%s: %s", path, zh);
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                if (ord) {
+                    mms_priv->access_result_summary =
+                        wmem_strdup_printf(actx->pinfo->pool, "%s %s: %s", ord, path, zh);
+                } else {
+                    mms_priv->access_result_summary =
+                        wmem_strdup_printf(actx->pinfo->pool, "%s: %s", path, zh);
+                }
             } else if (path) {
-                mms_priv->access_result_summary = path;
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                if (ord) {
+                    mms_priv->access_result_summary =
+                        wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, path);
+                } else {
+                    mms_priv->access_result_summary = path;
+                }
             } else if (zh) {
-                mms_priv->access_result_summary =
-                    wmem_strdup_printf(actx->pinfo->pool, "包含原因: %s", zh);
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                if (ord) {
+                    mms_priv->access_result_summary =
+                        wmem_strdup_printf(actx->pinfo->pool, "%s 包含原因: %s", ord, zh);
+                } else {
+                    mms_priv->access_result_summary =
+                        wmem_strdup_printf(actx->pinfo->pool, "包含原因: %s", zh);
+                }
             }
         } else if (mms_priv->mms_trans_p) {
             if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
@@ -3446,11 +3484,18 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
                                    mms_priv->rpt_datset ? mms_priv->rpt_datset : s);
         } else if (mms_priv->rpt_collecting_data_ref) {
             char *ref = mms_normalize_objref(actx->pinfo->pool, s);
+            char *ord;
             if (!mms_priv->rpt_data_refs) {
                 mms_priv->rpt_data_refs = wmem_array_new(actx->pinfo->pool, sizeof(char *));
             }
             wmem_array_append_one(mms_priv->rpt_data_refs, ref);
-            mms_priv->access_result_summary = ref;
+            ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+            if (ord) {
+                mms_priv->access_result_summary =
+                    wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, ref);
+            } else {
+                mms_priv->access_result_summary = ref;
+            }
         } else {
             mms_append_value_summary(mms_priv,
                 wmem_strdup_printf(actx->pinfo->pool, "\"%s\"", s));
@@ -6762,8 +6807,14 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
     if (mms_priv && mms_priv->collecting_value_summary &&
         mms_priv->value_summary && mms_priv->value_summary_count > 0 &&
         tree && tree->last_child && tree->last_child != prev_last) {
-        proto_item_append_text(tree->last_child, " (%s)",
-                               wmem_strbuf_get_str(mms_priv->value_summary));
+        char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+        if (ord) {
+            proto_item_append_text(tree->last_child, " (%s: %s)",
+                                   ord, wmem_strbuf_get_str(mms_priv->value_summary));
+        } else {
+            proto_item_append_text(tree->last_child, " (%s)",
+                                   wmem_strbuf_get_str(mms_priv->value_summary));
+        }
     }
 
     /* Feed COL_INFO bracket text for GetDataValues / GetRCBValues responses. */
