@@ -1246,6 +1246,8 @@ typedef struct mms_actx_private_data_t
     bool collecting_value_summary;
     wmem_strbuf_t *value_summary;
     uint32_t value_summary_count;
+    /* Accumulated result text for COL_INFO brackets on Read/Write responses */
+    wmem_strbuf_t *col_result_buf;
     /* Nested structure path suffixes */
     bool struct_path_active;
     int struct_child_idx;
@@ -1500,6 +1502,9 @@ mms_normalize_objref(wmem_allocator_t *scope, const char *s)
     return o;
 }
 
+static bool mms_path_is_rcb(const char *path);
+static const char *mms_rcb_struct_attr_name(int idx);
+
 static char *
 mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int depth)
 {
@@ -1507,6 +1512,13 @@ mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int de
         return NULL;
     }
     if (depth == 1) {
+        const char *rcb_attr;
+
+        /* Whole-RCB read: map structure members to IEC 61850 names. */
+        rcb_attr = mms_path_is_rcb(base) ? mms_rcb_struct_attr_name(idx) : NULL;
+        if (rcb_attr) {
+            return wmem_strdup_printf(scope, "%s.%s", base, rcb_attr);
+        }
         switch (idx) {
         case 1:
             return wmem_strdup_printf(scope, "%s.mag", base);
@@ -1554,6 +1566,21 @@ mms_append_value_summary(mms_actx_private_data_t *mms_priv, const char *text)
     }
     wmem_strbuf_append(mms_priv->value_summary, text);
     mms_priv->value_summary_count++;
+}
+
+static void
+mms_col_result_append(mms_actx_private_data_t *mms_priv, packet_info *pinfo, const char *text)
+{
+    if (!mms_priv || !pinfo || !text || text[0] == '\0') {
+        return;
+    }
+    if (!mms_priv->col_result_buf) {
+        mms_priv->col_result_buf = wmem_strbuf_new(pinfo->pool, "");
+    }
+    if (wmem_strbuf_get_len(mms_priv->col_result_buf) > 0) {
+        wmem_strbuf_append(mms_priv->col_result_buf, ", ");
+    }
+    wmem_strbuf_append(mms_priv->col_result_buf, text);
 }
 
 /* IEC 61850 ReportedOptFlds: Chinese names for set bits (MSB = bit 0). */
@@ -1641,6 +1668,68 @@ mms_path_ends_with_attr(const char *path, const char *attr)
         return true;
     }
     return path[pl - al - 1] == '$' || path[pl - al - 1] == '.';
+}
+
+/* True if path refers to a BRCB/URCB (IEC 61850 report control). */
+static bool
+mms_path_is_rcb(const char *path)
+{
+    if (!path) {
+        return false;
+    }
+    if (strstr(path, "$BR$") || strstr(path, "$RP$") ||
+        strstr(path, ".BR.") || strstr(path, ".RP.")) {
+        return true;
+    }
+    /* Some stacks keep FC in the itemId without separators we expect above. */
+    if (g_strrstr(path, "brcb") || g_strrstr(path, "urcb") ||
+        g_strrstr(path, "BRCB") || g_strrstr(path, "URCB")) {
+        return true;
+    }
+    return false;
+}
+
+/*
+ * Map RCB structure component index (1-based) to IEC 61850-7-2 attribute
+ * name. OptFlds=5, TrgOps=8 for both BRCB and URCB.
+ */
+static const char *
+mms_rcb_struct_attr_name(int idx)
+{
+    switch (idx) {
+    case 1:  return "RptID";
+    case 2:  return "RptEna";
+    case 3:  return "DatSet";
+    case 4:  return "ConfRev";
+    case 5:  return "OptFlds";
+    case 6:  return "BufTm";
+    case 7:  return "SqNum";
+    case 8:  return "TrgOps";
+    case 9:  return "IntgPd";
+    case 10: return "Gi";
+    case 11: return "PurgeBuf"; /* URCB: Resv in some models */
+    case 12: return "EntryID";
+    case 13: return "TimeOfEntry";
+    default: return NULL;
+    }
+}
+
+/* OptFlds / TrgOps by leaf name or RCB structure index (.s5 / .s8). */
+static int
+mms_rcb_bitstring_kind(const char *path)
+{
+    if (!path) {
+        return 0; /* none */
+    }
+    if (mms_path_ends_with_attr(path, "OptFlds") ||
+        (mms_path_is_rcb(path) && mms_path_ends_with_attr(path, "s5"))) {
+        return 1; /* OptFlds */
+    }
+    if (mms_path_ends_with_attr(path, "TrgOps") ||
+        (mms_path_is_rcb(path) && mms_path_ends_with_attr(path, "s8"))) {
+        return 2; /* TrgOps */
+    }
+    return 0;
 }
 
 static void
@@ -3090,10 +3179,10 @@ static int * const mms_iec61850_reason_bits[] = {
                        mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
                     hf_index = hf_mms_iec61850_reason_code;
             }
-        } else if (mms_path_ends_with_attr(mms_priv->current_object_ref, "OptFlds")) {
+        } else if (mms_rcb_bitstring_kind(mms_priv->current_object_ref) == 1) {
             return dissect_mms_ReportedOptFlds(implicit_tag, tvb, offset, actx, tree,
                                                hf_mms_iec61850_reported_optflds);
-        } else if (mms_path_ends_with_attr(mms_priv->current_object_ref, "TrgOps")) {
+        } else if (mms_rcb_bitstring_kind(mms_priv->current_object_ref) == 2) {
             return dissect_mms_TrgOps(implicit_tag, tvb, offset, actx, tree,
                                       hf_mms_iec61850_trgops);
         } else if (mms_priv->mms_trans_p) {
@@ -6676,6 +6765,21 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
         proto_item_append_text(tree->last_child, " (%s)",
                                wmem_strbuf_get_str(mms_priv->value_summary));
     }
+
+    /* Feed COL_INFO bracket text for GetDataValues / GetRCBValues responses. */
+    if (mms_priv && is_gdv_resp) {
+        if (branch_taken != 1) {
+            mms_col_result_append(mms_priv, actx->pinfo, "failure");
+        } else if (mms_priv->access_result_summary) {
+            mms_col_result_append(mms_priv, actx->pinfo, mms_priv->access_result_summary);
+        } else if (mms_priv->value_summary && mms_priv->value_summary_count > 0) {
+            mms_col_result_append(mms_priv, actx->pinfo,
+                                  wmem_strbuf_get_str(mms_priv->value_summary));
+        } else {
+            mms_col_result_append(mms_priv, actx->pinfo, "success");
+        }
+    }
+
     if (mms_priv) {
         mms_priv->collecting_value_summary = false;
         mms_priv->value_summary = NULL;
@@ -6766,9 +6870,18 @@ static const ber_choice_t Write_Response_item_choice[] = {
 
 static unsigned
 dissect_mms_Write_Response_item(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  int branch_taken = -1;
+  mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
   offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  Write_Response_item_choice, hf_index, ett_mms_Write_Response_item,
-                                 NULL);
+                                 &branch_taken);
+
+  if (mms_priv) {
+      mms_priv->success = branch_taken;
+      mms_col_result_append(mms_priv, actx->pinfo,
+                            (branch_taken == 1) ? "success" : "failure");
+  }
 
   return offset;
 }
@@ -9392,18 +9505,31 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                     col_append_str(actx->pinfo->cinfo, COL_INFO, "GetDataValueResponse");
                                     proto_item_append_text(mms_priv->pdu_item, " [GetDataValueResponse ]");
                                 }
-                                if(mms_priv->success == 1){
-                                    col_append_str(actx->pinfo->cinfo, COL_INFO, " success");
-                                }else{
-                                     col_append_str(actx->pinfo->cinfo, COL_INFO, " failure");
+                                if (mms_priv->col_result_buf &&
+                                    wmem_strbuf_get_len(mms_priv->col_result_buf) > 0) {
+                                    col_append_fstr(actx->pinfo->cinfo, COL_INFO, " [%s]",
+                                                    wmem_strbuf_get_str(mms_priv->col_result_buf));
+                                } else if (mms_priv->success == 1) {
+                                    col_append_str(actx->pinfo->cinfo, COL_INFO, " [success]");
+                                } else {
+                                    col_append_str(actx->pinfo->cinfo, COL_INFO, " [failure]");
                                 }
                             } else if (mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_WRITE){
                                 if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_$BR$_OR_$RP$){
-                                    col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetRCBValuesResponse %s", private_data_get_moreCinfo(actx));
+                                    col_append_str(actx->pinfo->cinfo, COL_INFO, "SetRCBValuesResponse");
                                     proto_item_append_text(mms_priv->pdu_item, " [SetRCBValuesResponse]");
                                 }else{
-                                    col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetDataValueResponse %s", private_data_get_moreCinfo(actx));
+                                    col_append_str(actx->pinfo->cinfo, COL_INFO, "SetDataValueResponse");
                                     proto_item_append_text(mms_priv->pdu_item, " [SetDataValueResponse]");
+                                }
+                                if (mms_priv->col_result_buf &&
+                                    wmem_strbuf_get_len(mms_priv->col_result_buf) > 0) {
+                                    col_append_fstr(actx->pinfo->cinfo, COL_INFO, " [%s]",
+                                                    wmem_strbuf_get_str(mms_priv->col_result_buf));
+                                } else if (mms_priv->success == 1) {
+                                    col_append_str(actx->pinfo->cinfo, COL_INFO, " [success]");
+                                } else {
+                                    col_append_str(actx->pinfo->cinfo, COL_INFO, " [failure]");
                                 }
                             }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
                                 col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SelectWithValueResponse %s", private_data_get_moreCinfo(actx));
