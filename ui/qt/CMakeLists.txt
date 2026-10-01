@@ -885,26 +885,34 @@ if(ENABLE_MINIMAL_BUILD)
 	)
 endif()
 
-set(WIRESHARK_QT_TS
-	wireshark_ca.ts
-	wireshark_de.ts
-	wireshark_en.ts # lupdate -pluralonly
-	wireshark_es.ts
-	wireshark_fr.ts
-	wireshark_ga_IE.ts
-	wireshark_hu.ts
-	wireshark_id.ts
-	wireshark_it.ts
-	wireshark_ja_JP.ts
-	wireshark_ko.ts
-	wireshark_pl.ts
-	wireshark_pt_BR.ts
-	wireshark_ru.ts
-	wireshark_sv.ts
-	wireshark_tr_TR.ts
-	wireshark_uk.ts
-	wireshark_zh_CN.ts
-)
+if(ENABLE_MINIMAL_BUILD)
+	# Industrial package: Chinese UI only. Omitting wireshark_en.qm avoids
+	# QTranslator latching onto English when Windows lists en-US first.
+	set(WIRESHARK_QT_TS
+		wireshark_zh_CN.ts
+	)
+else()
+	set(WIRESHARK_QT_TS
+		wireshark_ca.ts
+		wireshark_de.ts
+		wireshark_en.ts # lupdate -pluralonly
+		wireshark_es.ts
+		wireshark_fr.ts
+		wireshark_ga_IE.ts
+		wireshark_hu.ts
+		wireshark_id.ts
+		wireshark_it.ts
+		wireshark_ja_JP.ts
+		wireshark_ko.ts
+		wireshark_pl.ts
+		wireshark_pt_BR.ts
+		wireshark_ru.ts
+		wireshark_sv.ts
+		wireshark_tr_TR.ts
+		wireshark_uk.ts
+		wireshark_zh_CN.ts
+	)
+endif()
 
 # Authors file
 add_custom_command(

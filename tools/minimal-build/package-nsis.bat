@@ -31,7 +31,7 @@ echo === wireshark_nsis ===
 cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target wireshark_nsis --parallel
 if errorlevel 1 exit /b 1
 
-set "INSTALLER=%WIRESHARK_BUILD_DIR%\packaging\nsis\Wireshark-4.7.5-x64.exe"
+set "INSTALLER=%WIRESHARK_BUILD_DIR%\packaging\nsis\Wireshark-4.7.6-x64.exe"
 if not exist "%INSTALLER%" (
   echo ERROR: installer not found: %INSTALLER%
   exit /b 1

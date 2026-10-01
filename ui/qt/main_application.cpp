@@ -859,7 +859,17 @@ void MainApplication::loadLanguage(const QString newLanguage)
     QLocale locale;
 
     if (newLanguage.isEmpty() || newLanguage == USE_SYSTEM_LANGUAGE) {
-        locale = QLocale::system();
+        // QLocale::system().uiLanguages() on Windows follows the user's
+        // preferred UI language list. That list often starts with en-US even
+        // when the regional locale is another language (e.g. zh-CN), so
+        // QTranslator loads wireshark_en.qm and the UI stays English.
+        // Build a locale from the system locale name so uiLanguages() stays
+        // within that language (see also Qt bug QTBUG / Wireshark #17221).
+        const QLocale sys = QLocale::system();
+        locale = QLocale(sys.name());
+        if (locale.language() == QLocale::C) {
+            locale = sys;
+        }
     } else {
         locale = QLocale(newLanguage);
     }

@@ -46,6 +46,8 @@
 #include <QDesktopServices>
 #include <QHeaderView>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
+#include <QKeySequence>
 #include <QScrollBar>
 #include <QStack>
 #include <QUrl>
@@ -63,7 +65,8 @@ ProtoTree::ProtoTree(QWidget *parent, epan_dissect_t *edt_fixed) :
     proto_tree_model_(new ProtoTreeModel(this)),
     column_resize_timer_(0),
     cap_file_(NULL),
-    edt_(edt_fixed)
+    edt_(edt_fixed),
+    select_all_for_copy_(false)
 {
     // Leave the uniformRowHeights property as-is (false) since items might have
     // have multiple lines (e.g. packet or event comments). If this slows things
@@ -253,6 +256,49 @@ void ProtoTree::ctxCopyMmsObjectReference()
                         tr("Copied MMS object reference \"%1\" to the clipboard.").arg(ref));
 }
 
+bool ProtoTree::copySelectedDescription()
+{
+    if (!selectionModel() || !selectionModel()->hasSelection()) {
+        return false;
+    }
+    QModelIndex idx = selectionModel()->selectedIndexes().first();
+    if (!idx.isValid()) {
+        return false;
+    }
+    QString clip = idx.data(Qt::DisplayRole).toString();
+    if (clip.isEmpty()) {
+        return false;
+    }
+    mainApp->clipboard()->setText(clip);
+    mainApp->pushStatus(MainApplication::TemporaryStatus,
+                        tr("Copied \"%1\" to the clipboard.").arg(clip));
+    return true;
+}
+
+bool ProtoTree::copyAllVisibleItems()
+{
+    QString clip = toString();
+    if (clip.isEmpty()) {
+        return false;
+    }
+    mainApp->clipboard()->setText(clip);
+    select_all_for_copy_ = false;
+    mainApp->pushStatus(MainApplication::TemporaryStatus,
+                        tr("Copied all visible items to the clipboard."));
+    return true;
+}
+
+void ProtoTree::ctxCopyLine()
+{
+    select_all_for_copy_ = false;
+    copySelectedDescription();
+}
+
+void ProtoTree::ctxCopyAllVisible()
+{
+    copyAllVisibleItems();
+}
+
 void ProtoTree::ctxCopySelectedInfo()
 {
     int val = -1;
@@ -260,6 +306,14 @@ void ProtoTree::ctxCopySelectedInfo()
     QAction * send = qobject_cast<QAction *>(sender());
     if (send && send->property("field_type").isValid())
         val = send->property("field_type").toInt();
+
+    if (val == ProtoTree::Description) {
+        copySelectedDescription();
+        return;
+    }
+
+    if (!selectionModel() || !selectionModel()->hasSelection())
+        return;
 
     QModelIndex idx = selectionModel()->selectedIndexes().first();
     FieldInformation finfo(proto_tree_model_->protoNodeFromIndex(idx));
@@ -270,10 +324,6 @@ void ProtoTree::ctxCopySelectedInfo()
     {
     case ProtoTree::Name:
         clip.append(finfo.headerInfo().abbreviation);
-        break;
-
-    case ProtoTree::Description:
-        clip = idx.data(Qt::DisplayRole).toString();
         break;
 
     case ProtoTree::Value:
@@ -381,6 +431,14 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
     action->setEnabled(have_subtree);
     action = ctx_menu->addAction(tr("Collapse All"), this, &ProtoTree::collapseAll);
     action->setEnabled(have_subtree);
+    ctx_menu->addSeparator();
+
+    action = ctx_menu->addAction(tr("Copy Line"), this, &ProtoTree::ctxCopyLine);
+    action->setShortcut(QKeySequence::Copy);
+    action->setShortcutVisibleInContextMenu(true);
+    action = ctx_menu->addAction(tr("Copy All Visible Items"), this, &ProtoTree::ctxCopyAllVisible);
+    action->setShortcut(QKeySequence(tr("Ctrl+A, Ctrl+C")));
+    action->setShortcutVisibleInContextMenu(true);
     ctx_menu->addSeparator();
 
     QString mms_obj_ref = findMmsObjectReference(index);
@@ -655,6 +713,29 @@ void ProtoTree::timerEvent(QTimerEvent *event)
 
 // resizeColumnToContents checks 1000 items by default. The user might
 // have scrolled to an area with a different width at this point.
+void ProtoTree::keyPressEvent(QKeyEvent *event)
+{
+    if (event->matches(QKeySequence::SelectAll)) {
+        select_all_for_copy_ = true;
+        mainApp->pushStatus(MainApplication::TemporaryStatus,
+                            tr("All visible items selected. Press Ctrl+C to copy."));
+        event->accept();
+        return;
+    }
+    if (event->matches(QKeySequence::Copy)) {
+        if (select_all_for_copy_) {
+            if (copyAllVisibleItems()) {
+                event->accept();
+                return;
+            }
+        } else if (copySelectedDescription()) {
+            event->accept();
+            return;
+        }
+    }
+    QTreeView::keyPressEvent(event);
+}
+
 void ProtoTree::keyReleaseEvent(QKeyEvent *event)
 {
     if (event->isAutoRepeat()) return;
@@ -787,6 +868,8 @@ void ProtoTree::goToHfid(int hfid)
 void ProtoTree::selectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
 {
     QTreeView::selectionChanged(selected, deselected);
+    /* Navigating/clicking cancels "select all for copy" pending state. */
+    select_all_for_copy_ = false;
     if (selected.isEmpty()) {
         emit fieldSelected(0);
         return;

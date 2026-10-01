@@ -161,7 +161,7 @@ endif()
 # Updated by tools/make-version.py
 set(PROJECT_MAJOR_VERSION 4)
 set(PROJECT_MINOR_VERSION 7)
-set(PROJECT_PATCH_VERSION 5)
+set(PROJECT_PATCH_VERSION 6)
 set(PROJECT_BUILD_VERSION 0)
 set(PROJECT_VERSION_EXTENSION "")
 
@@ -3456,8 +3456,38 @@ if(BUILD_wireshark AND QT_FOUND)
 
 	endif(QT_WINDEPLOYQT_EXECUTABLE)
 
-	if(MINGW)
+	# MinGW always needs this; ENABLE_MINIMAL_BUILD on MSVC also needs it
+	# because windeployqt is invoked with --no-translations for the NSIS
+	# manifest and stock qt_zh_CN.qm from Qt 6 is an empty stub.
+	if(MINGW OR ENABLE_MINIMAL_BUILD)
 		add_qt_default_translations(wireshark)
+	endif()
+	if(ENABLE_MINIMAL_BUILD)
+		get_target_property(_qtpaths_exe Qt6::qtpaths LOCATION)
+		execute_process(
+			COMMAND ${_qtpaths_exe} --query QT_INSTALL_TRANSLATIONS
+			OUTPUT_VARIABLE _qt_translations_dir
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+		)
+		# Stage zh_CN catalogs next to the exe for NSIS packaging.
+		add_custom_command(TARGET wireshark POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E make_directory
+				"$<TARGET_FILE_DIR:wireshark>/translations"
+				"$<TARGET_FILE_DIR:wireshark>/languages"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				"${CMAKE_BINARY_DIR}/ui/qt/wireshark_zh_CN.qm"
+				"$<TARGET_FILE_DIR:wireshark>/translations/wireshark_zh_CN.qm"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				"${CMAKE_BINARY_DIR}/ui/qt/wireshark_zh_CN.qm"
+				"$<TARGET_FILE_DIR:wireshark>/languages/wireshark_zh_CN.qm"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				"${_qt_translations_dir}/qtbase_zh_CN.qm"
+				"$<TARGET_FILE_DIR:wireshark>/translations/qtbase_zh_CN.qm"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				"${_qt_translations_dir}/qtbase_zh_CN.qm"
+				"$<TARGET_FILE_DIR:wireshark>/translations/qt_zh_CN.qm"
+			COMMENT "Staging zh_CN translations for minimal package"
+		)
 	endif()
 endif()
 

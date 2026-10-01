@@ -3,7 +3,7 @@
 # VS Build Tools is NOT copied (not relocatable); bootstrapper + install script are included.
 
 $ErrorActionPreference = 'Stop'
-$Version = '4.7.5'
+$Version = '4.7.6'
 $BundleRoot = if ($env:WIRESHARK_BUNDLE_DIR) { $env:WIRESHARK_BUNDLE_DIR } else {
     "C:\Development\Wireshark-Industrial-Bundle-$Version"
 }
@@ -52,8 +52,8 @@ if (Test-Path $usbpcap) { Copy-Item $usbpcap $d01 -Force }
 @echo off
 setlocal
 cd /d "%~dp0"
-echo Installing Wireshark 4.7.5 (silent)...
-start /wait "" "Wireshark-4.7.5-x64.exe" /S /desktopicon=yes
+echo Installing Wireshark 4.7.6 (silent)...
+start /wait "" "Wireshark-4.7.6-x64.exe" /S /desktopicon=yes
 if errorlevel 1 echo Wireshark installer exit=%ERRORLEVEL%
 if exist "npcap-1.88.exe" (
   echo.

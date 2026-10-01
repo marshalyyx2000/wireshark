@@ -29,13 +29,13 @@ tools\minimal-build\build-all.bat
 产物：
 
 ```text
-C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.5-x64.exe
+C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.6-x64.exe
 ```
 
 静默安装示例：
 
 ```bat
-"C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.5-x64.exe" /S /desktopicon=yes
+"C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.6-x64.exe" /S /desktopicon=yes
 ```
 
 ## 分步脚本
@@ -103,7 +103,7 @@ tools\minimal-build\build-all.bat
 - 协议保留清单：`epan/dissectors/minimal-dissectors.txt`
 - GUI：去掉电话 / 无线 / 工具 / **统计** 菜单及相关入口
 - 安装数据：使用 `resources/share/wireshark/colorfilters.minimal`（避免 HSRP 等缺失协议的着色告警）；默认附带 `pres_context_list`（Context Id `3` → MMS OID `1.0.9506.2.3`，无个人配置时生效）
-- NSIS：`MinimalManifest` 裁剪 Qt 冗余 DLL；翻译仅 zh_CN + en
+- NSIS：`MinimalManifest` 裁剪 Qt 冗余 DLL；翻译仅 zh_CN（安装到 `translations/` 与 `languages/`）
 
 ## 手工等价命令
 
@@ -152,6 +152,6 @@ cmake --build . --config RelWithDebInfo --target wireshark_nsis --parallel
 C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bundle.ps1
 ```
 
-默认输出：`C:\Development\Wireshark-Industrial-Bundle-4.7.5\`
+默认输出：`C:\Development\Wireshark-Industrial-Bundle-4.7.6\`
 
 可用环境变量 `WIRESHARK_BUNDLE_DIR` 覆盖输出路径。

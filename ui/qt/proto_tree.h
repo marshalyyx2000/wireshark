@@ -109,6 +109,12 @@ protected:
     virtual void timerEvent(QTimerEvent *event) override;
 
     /**
+     * @brief Handles key press events (Ctrl+C copies selected line description).
+     * @param event The key press event.
+     */
+    virtual void keyPressEvent(QKeyEvent *event) override;
+
+    /**
      * @brief Handles key release events.
      * @param event The key release event.
      */
@@ -171,6 +177,9 @@ private:
 
     /** Pointer to the epan dissection data. */
     epan_dissect_t *edt_;
+
+    /** After Ctrl+A, next Ctrl+C copies all visible items. */
+    bool select_all_for_copy_;
 
     /**
      * @brief Saves the currently selected field for later restoration.
@@ -350,6 +359,28 @@ protected slots:
      * @brief Context menu action to copy the selected information.
      */
     void ctxCopySelectedInfo();
+
+    /**
+     * @brief Copy the selected tree row's full display text (Description).
+     * @return True if text was copied to the clipboard.
+     */
+    bool copySelectedDescription();
+
+    /**
+     * @brief Copy all currently visible protocol tree items as text.
+     * @return True if text was copied to the clipboard.
+     */
+    bool copyAllVisibleItems();
+
+    /**
+     * @brief Context menu: copy the selected line's display text.
+     */
+    void ctxCopyLine();
+
+    /**
+     * @brief Context menu: select-all then copy all visible items.
+     */
+    void ctxCopyAllVisible();
 
     /**
      * @brief Context menu action to open the associated protocol wiki page.

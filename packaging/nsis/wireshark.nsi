@@ -1022,14 +1022,15 @@ Section "${PROGRAM_NAME}" SecWiresharkQt
 SetOutPath $INSTDIR
 File "${QT_DIR}\${PROGRAM_NAME_PATH}"
 !ifdef ENABLE_MINIMAL_BUILD
-; Only ship Chinese + English Qt/Wireshark translations.
+; Chinese UI only. Ship into both translations/ (Qt path) and languages/
+; (Wireshark search path / preferences language list).
+; Prefer qtbase_zh_CN as qt_zh_CN: stock qt_zh_CN.qm from Qt 6 is a stub.
 SetOutPath $INSTDIR\translations
-File /nonfatal "${QT_DIR}\translations\qt_zh_CN.qm"
-File /nonfatal "${QT_DIR}\translations\qt_en.qm"
-File /nonfatal "${QT_DIR}\translations\wireshark_zh_CN.qm"
-File /nonfatal "${QT_DIR}\translations\wireshark_en.qm"
+File /nonfatal /oname=qt_zh_CN.qm "${QT_DIR}\translations\qtbase_zh_CN.qm"
 File /nonfatal "${QT_DIR}\translations\qtbase_zh_CN.qm"
-File /nonfatal "${QT_DIR}\translations\qtbase_en.qm"
+File /nonfatal "${QT_DIR}\translations\wireshark_zh_CN.qm"
+SetOutPath $INSTDIR\languages
+File /nonfatal "${QT_DIR}\translations\wireshark_zh_CN.qm"
 SetOutPath $INSTDIR
 !else
 File /r "${QT_DIR}\translations"
