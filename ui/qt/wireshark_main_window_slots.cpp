@@ -111,6 +111,7 @@ DIAG_ON(frame-larger-than=)
 #include "distribution_dialog.h"
 #include "endpoint_dialog.h"
 #include "expert_info_dialog.h"
+#include "sv_analysis_dialog.h"
 #include "export_object_action.h"
 #include "export_object_dialog.h"
 #include "export_pdu_dialog.h"
@@ -3272,6 +3273,12 @@ void WiresharkMainWindow::connectAnalyzeMenuActions()
 
     connect(main_ui_->actionAnalyzeExpertInfo, &QAction::triggered, this, [=]() {
         statCommandExpertInfo(NULL, NULL);
+    });
+
+    connect(main_ui_->actionAnalyzeSvAnalysis, &QAction::triggered, this, [=]() {
+        SvAnalysisDialog *dlg = new SvAnalysisDialog(*this, capture_file_);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
     });
 }
 

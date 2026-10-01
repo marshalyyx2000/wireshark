@@ -172,18 +172,18 @@ dissect_PhsMeas1(bool implicit_tag, packet_info *pinfo, proto_tree *tree, tvbuff
 
 	sv_data.num_phsMeas = 0;
 	for (i = 0; i < len/8; i++) {
-		if (tree && subtree) {
-			value = tvb_get_ntohl(tvb, offset);
-			qual = tvb_get_ntohl(tvb, offset + 4);
+		value = tvb_get_ntohl(tvb, offset);
+		qual = tvb_get_ntohl(tvb, offset + 4);
 
+		if (tree && subtree) {
 			proto_tree_add_item(subtree, hf_sv_phmeas_instmag_i, tvb, offset, 4, ENC_BIG_ENDIAN);
 			proto_tree_add_bitmask(subtree, tvb, offset + 4, hf_sv_phsmeas_q, ett_phsmeas_q, q_flags, ENC_BIG_ENDIAN);
+		}
 
-			if (i < IEC61850_SV_MAX_PHSMEAS_ENTRIES) {
-				sv_data.phsMeas[i].value = value;
-				sv_data.phsMeas[i].qual = qual;
-				sv_data.num_phsMeas++;
-			}
+		if (i < IEC61850_SV_MAX_PHSMEAS_ENTRIES) {
+			sv_data.phsMeas[i].value = value;
+			sv_data.phsMeas[i].qual = qual;
+			sv_data.num_phsMeas++;
 		}
 
 		offset += 8;
@@ -221,7 +221,10 @@ dissect_sv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* dat
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "IEC61850 Sampled Values");
 	col_clear(pinfo->cinfo, COL_INFO);
 
+	memset(&sv_data, 0, sizeof(sv_data));
+
 	/* APPID */
+	sv_data.appid = tvb_get_ntohs(tvb, offset);
 	proto_tree_add_item(tree, hf_sv_appid, tvb, offset, 2, ENC_BIG_ENDIAN);
 
 	/* Length */

@@ -17,7 +17,7 @@
 #ifndef __PACKET_SV_H__
 #define __PACKET_SV_H__
 
-#define IEC61850_SV_MAX_PHSMEAS_ENTRIES 20
+#define IEC61850_SV_MAX_PHSMEAS_ENTRIES 64
 
 typedef struct _sv_phs_meas {
 	int32_t value;
@@ -25,11 +25,13 @@ typedef struct _sv_phs_meas {
 } sv_phs_meas;
 
 typedef struct _sv_frame_data {
+	uint16_t appid;
 	uint16_t smpCnt;
 	uint8_t smpSynch;
 	uint8_t num_phsMeas;
 	sv_phs_meas phsMeas[IEC61850_SV_MAX_PHSMEAS_ENTRIES];
 	uint16_t smpMod;
+	char svID[65];
 } sv_frame_data;
 
 #endif /*__PACKET_SV_H__*/

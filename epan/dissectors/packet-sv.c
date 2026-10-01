@@ -22,6 +22,8 @@
 #include <epan/expert.h>
 #include <epan/prefs.h>
 #include <epan/addr_resolv.h>
+#include <epan/exceptions.h>
+#include <epan/show_exception.h>
 #include <wsutil/array.h>
 
 #include "packet-ber.h"
@@ -125,7 +127,12 @@ static expert_field ei_sv_mal_utctime;
 static expert_field ei_sv_zero_pdu;
 static expert_field ei_sv_mal_gmidentity;
 
+#ifdef ENABLE_MINIMAL_BUILD
+/* Industrial builds: expand seqData as PhsMeas by default for SV analysis. */
+static bool sv_decode_data_as_phsmeas = true;
+#else
 static bool sv_decode_data_as_phsmeas;
+#endif
 
 static dissector_handle_t sv_handle;
 
@@ -193,18 +200,18 @@ dissect_PhsMeas1(bool implicit_tag, packet_info *pinfo, proto_tree *tree, tvbuff
 
 	sv_data.num_phsMeas = 0;
 	for (i = 0; i < len/8; i++) {
-		if (tree && subtree) {
-			value = tvb_get_ntohl(tvb, offset);
-			qual = tvb_get_ntohl(tvb, offset + 4);
+		value = tvb_get_ntohl(tvb, offset);
+		qual = tvb_get_ntohl(tvb, offset + 4);
 
+		if (tree && subtree) {
 			proto_tree_add_item(subtree, hf_sv_phmeas_instmag_i, tvb, offset, 4, ENC_BIG_ENDIAN);
 			proto_tree_add_bitmask(subtree, tvb, offset + 4, hf_sv_phsmeas_q, ett_phsmeas_q, q_flags, ENC_BIG_ENDIAN);
+		}
 
-			if (i < IEC61850_SV_MAX_PHSMEAS_ENTRIES) {
-				sv_data.phsMeas[i].value = value;
-				sv_data.phsMeas[i].qual = qual;
-				sv_data.num_phsMeas++;
-			}
+		if (i < IEC61850_SV_MAX_PHSMEAS_ENTRIES) {
+			sv_data.phsMeas[i].value = value;
+			sv_data.phsMeas[i].qual = qual;
+			sv_data.num_phsMeas++;
 		}
 
 		offset += 8;
@@ -227,9 +234,18 @@ dissect_sv_INTEGER_0_65535(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned of
 
 static unsigned
 dissect_sv_VisibleString(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  tvbuff_t *out_tvb = NULL;
   offset = dissect_ber_restricted_string(implicit_tag, BER_UNI_TAG_VisibleString,
                                             actx, tree, tvb, offset, hf_index,
-                                            NULL);
+                                            (hf_index == hf_sv_svID) ? &out_tvb : NULL);
+  if (hf_index == hf_sv_svID && out_tvb != NULL && sv_data.svID[0] == '\0') {
+    unsigned len = tvb_reported_length(out_tvb);
+    if (len >= sizeof(sv_data.svID)) {
+      len = (unsigned)sizeof(sv_data.svID) - 1;
+    }
+    tvb_memcpy(out_tvb, sv_data.svID, 0, len);
+    sv_data.svID[len] = '\0';
+  }
 
   return offset;
 }
@@ -323,10 +339,25 @@ dissect_sv_T_smpSynch(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
 
 static unsigned
 dissect_sv_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+	/*
+	 * Always decode seqData into sv_data.phsMeas for the SV tap (analysis /
+	 * tshark -z sv). Tree display still follows the preference.
+	 */
 	if (sv_decode_data_as_phsmeas) {
 		offset = dissect_PhsMeas1(implicit_tag, actx->pinfo, tree, tvb, offset, hf_index);
 	} else {
-		offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index, NULL);
+		tvbuff_t *out_tvb = NULL;
+		offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index, &out_tvb);
+		if (out_tvb != NULL) {
+			unsigned len = tvb_reported_length(out_tvb);
+			unsigned i;
+			sv_data.num_phsMeas = 0;
+			for (i = 0; i + 8 <= len && i / 8 < IEC61850_SV_MAX_PHSMEAS_ENTRIES; i += 8) {
+				sv_data.phsMeas[sv_data.num_phsMeas].value = (int32_t)tvb_get_ntohl(out_tvb, i);
+				sv_data.phsMeas[sv_data.num_phsMeas].qual = tvb_get_ntohl(out_tvb, i + 4);
+				sv_data.num_phsMeas++;
+			}
+		}
 	}
 
   return offset;
@@ -483,7 +514,10 @@ dissect_sv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* dat
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "IEC61850 Sampled Values");
 	col_clear(pinfo->cinfo, COL_INFO);
 
+	memset(&sv_data, 0, sizeof(sv_data));
+
 	/* APPID */
+	sv_data.appid = tvb_get_ntohs(tvb, offset);
 	proto_tree_add_item(tree, hf_sv_appid, tvb, offset, 2, ENC_BIG_ENDIAN);
 
 	/* Length */
@@ -499,14 +533,23 @@ dissect_sv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* dat
 
 	offset = 8;
 	set_actual_length(tvb, sv_length);
-	while (tvb_reported_length_remaining(tvb, offset) > 0) {
-		old_offset = offset;
-		offset = dissect_sv_SampledValues(false, tvb, offset, &asn1_ctx , tree, -1);
-		if (offset == old_offset) {
-			proto_tree_add_expert_remaining(tree, pinfo, &ei_sv_zero_pdu, tvb, offset);
-			break;
+	/*
+	 * BER errors must not skip the SV tap: analysis dialogs / tshark -z sv
+	 * still need APPID / samples collected so far.
+	 */
+	TRY {
+		while (tvb_reported_length_remaining(tvb, offset) > 0) {
+			old_offset = offset;
+			offset = dissect_sv_SampledValues(false, tvb, offset, &asn1_ctx , tree, -1);
+			if (offset == old_offset) {
+				proto_tree_add_expert_remaining(tree, pinfo, &ei_sv_zero_pdu, tvb, offset);
+				break;
+			}
 		}
+	} CATCH_ALL {
+		show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
 	}
+	ENDTRY;
 
 	tap_queue_packet(sv_tap, pinfo, &sv_data);
 	return tvb_captured_length(tvb);

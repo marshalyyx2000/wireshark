@@ -32,7 +32,7 @@ sv_packet(void *prs _U_, packet_info *pinfo, epan_dissect_t *edt _U_, const void
 	int i;
 	const sv_frame_data * sv_data = (const sv_frame_data *)pri;
 
-	printf("%f %u ", nstime_to_sec(&pinfo->rel_ts), sv_data->smpCnt);
+	printf("%f 0x%04x %u ", nstime_to_sec(&pinfo->rel_ts), sv_data->appid, sv_data->smpCnt);
 
 	for (i = 0; i < sv_data->num_phsMeas; i++) {
 		printf("%d ", sv_data->phsMeas[i].value);

@@ -504,6 +504,7 @@
     <addaction name="separator"/>
     <addaction name="actionAnalyzeShowPacketBytes"/>
     <addaction name="actionAnalyzeExpertInfo"/>
+    <addaction name="actionAnalyzeSvAnalysis"/>
    </widget>
    <widget class="QMenu" name="menuStatistics">
     <property name="enabled">
@@ -2903,6 +2904,14 @@
    </property>
    <property name="toolTip">
     <string>Show expert notifications</string>
+   </property>
+  </action>
+  <action name="actionAnalyzeSvAnalysis">
+   <property name="text">
+    <string>SV Analysis…</string>
+   </property>
+   <property name="toolTip">
+    <string>Analyze IEC 61850 Sampled Values by APPID (RMS / waveform)</string>
    </property>
   </action>
   <action name="actionDisplayFilterExpression">
