@@ -1,0 +1,49 @@
+; Chinese Additional Tasks page for ENABLE_MINIMAL_BUILD.
+; Based on wireshark-additional-tasks.nsdinc
+
+Var hCtl_AdditionalTasksPage
+Var hCtl_AdditionalTasksPage_ExtensionsLabel
+Var hCtl_AdditionalTasksPage_AssociateExtensionsCheckBox
+Var hCtl_AdditionalTasksPage_DesktopIconCheckBox
+Var hCtl_AdditionalTasksPage_StartMenuCheckBox
+Var hCtl_AdditionalTasksPage_FileExtensionsLabel
+Var hCtl_AdditionalTasksPage_CreateShortcutsLabel
+Var hCtl_AdditionalTasksPage_Font1
+
+Function fnc_AdditionalTasksPage_Create
+  CreateFont $hCtl_AdditionalTasksPage_Font1 "Microsoft YaHei UI" "9" "700"
+
+  nsDialogs::Create 1018
+  Pop $hCtl_AdditionalTasksPage
+  ${If} $hCtl_AdditionalTasksPage == error
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "附加任务" "创建快捷方式并关联文件扩展名。"
+
+  ${NSD_CreateLabel} 14u 93u 245u 32u "扩展名包括：5vw、acp、apc、atc、bfr、cap、enc、erf、fdc、ipfix、lcap、mplog、ntar、out、pcap、pcapng、pklg、pkt、rf5、rtp、snoop、syc、tpc、tr1、trace、trc、vwr、wpc、wpz 等。"
+  Pop $hCtl_AdditionalTasksPage_ExtensionsLabel
+
+  ${NSD_CreateCheckbox} 14u 78u 267u 9u "将抓包文件扩展名关联到 Wireshark"
+  Pop $hCtl_AdditionalTasksPage_AssociateExtensionsCheckBox
+
+  ${NSD_CreateCheckbox} 14u 33u 267u 9u "创建桌面快捷方式"
+  Pop $hCtl_AdditionalTasksPage_DesktopIconCheckBox
+
+  ${NSD_CreateCheckbox} 14u 21u 267u 9u "创建开始菜单项"
+  Pop $hCtl_AdditionalTasksPage_StartMenuCheckBox
+
+  ${NSD_CreateLabel} 8u 62u 280u 9u "关联文件扩展名"
+  Pop $hCtl_AdditionalTasksPage_FileExtensionsLabel
+  SendMessage $hCtl_AdditionalTasksPage_FileExtensionsLabel ${WM_SETFONT} $hCtl_AdditionalTasksPage_Font1 0
+
+  ${NSD_CreateLabel} 8u 6u 280u 9u "创建快捷方式"
+  Pop $hCtl_AdditionalTasksPage_CreateShortcutsLabel
+  SendMessage $hCtl_AdditionalTasksPage_CreateShortcutsLabel ${WM_SETFONT} $hCtl_AdditionalTasksPage_Font1 0
+
+  Call InitAdditionalTasksPage
+FunctionEnd
+
+Function fnc_AdditionalTasksPage_Show
+  Call fnc_AdditionalTasksPage_Create
+  nsDialogs::Show
+FunctionEnd

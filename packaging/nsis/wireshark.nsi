@@ -18,6 +18,14 @@ SetCompressorDictSize 64 ; MB
 ${StrRep}
 ${UnStrRep}
 
+!ifdef ENABLE_MINIMAL_BUILD
+!include "wireshark-minimal-zh.nsh"
+!else
+!define WS_CERT_PAGE_INI "CertificationPage.ini"
+!define WS_NPCAP_PAGE_INI "NpcapPage.ini"
+!define WS_USBPCAP_PAGE_INI "USBPcapPage.ini"
+!endif
+
 ; See https://nsis.sourceforge.io/Check_if_a_file_exists_at_compile_time for documentation
 !macro !defineifexist _VAR_NAME _FILE_NAME
   !tempfile _TEMPFILE
@@ -60,12 +68,20 @@ UninstallIcon "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
 
 !define MUI_ICON "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
 !define MUI_UNICON "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
+!ifdef ENABLE_MINIMAL_BUILD
+BrandingText "${WS_ZH_BRANDING}"
+!else
 BrandingText "Wireshark${U+00ae} Installer"
+!endif
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_WELCOMEPAGE_TITLE_3LINES
+!ifdef ENABLE_MINIMAL_BUILD
+!define MUI_WELCOMEPAGE_TEXT "${WS_ZH_WELCOME_TEXT}"
+!else
 !define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of ${PROGRAM_NAME}.$\r$\n$\r$\nBefore starting the installation, make sure ${PROGRAM_NAME} is not running.$\r$\n$\r$\nClick 'Next' to continue."
+!endif
 ;!define MUI_FINISHPAGE_LINK "Install Npcap to be able to capture packets from a network."
 ;!define MUI_FINISHPAGE_LINK_LOCATION "https://npcap.com/"
 
@@ -75,7 +91,11 @@ BrandingText "Wireshark${U+00ae} Installer"
 ; for a text file or "html" for an html README file.
 !define MUI_FINISHPAGE_TITLE_3LINES
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\Wireshark Release Notes.html"
+!ifdef ENABLE_MINIMAL_BUILD
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "${WS_ZH_FINISH_README}"
+!else
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Open the release notes"
+!endif
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 ; NSIS runs as Administrator and will run Wireshark as Administrator
 ; if these are enabled.
@@ -90,9 +110,15 @@ BrandingText "Wireshark${U+00ae} Installer"
 
 !insertmacro MUI_PAGE_WELCOME
 
+!ifdef ENABLE_MINIMAL_BUILD
+!define MUI_LICENSEPAGE_TEXT_TOP "${WS_ZH_LICENSE_TOP}"
+!define MUI_LICENSEPAGE_TEXT_BOTTOM "${WS_ZH_LICENSE_BOTTOM}"
+!define MUI_LICENSEPAGE_BUTTON "${WS_ZH_LICENSE_BUTTON}"
+!else
 !define MUI_LICENSEPAGE_TEXT_TOP "Wireshark is distributed under the GNU General Public License."
 !define MUI_LICENSEPAGE_TEXT_BOTTOM "This is not an end user license agreement (EULA). It is provided here for informational purposes only."
 !define MUI_LICENSEPAGE_BUTTON "Noted"
+!endif
 !insertmacro MUI_PAGE_LICENSE "${STAGING_DIR}\COPYING.txt"
 
 ; Page custom DisplayDonatePage
@@ -109,7 +135,11 @@ Page custom DisplayUSBPcapPage
 !insertmacro MUI_PAGE_FINISH
 
 ; Uninstall stuff (NSIS 2.08: "\r\n" don't work here)
+!ifdef ENABLE_MINIMAL_BUILD
+!define MUI_UNCONFIRMPAGE_TEXT_TOP "${WS_ZH_UNCONFIRM_TOP}"
+!else
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "The following ${PROGRAM_NAME} installation will be removed. Click 'Next' to continue."
+!endif
 ; Uninstall stuff (this text isn't used with the MODERN_UI!)
 ;UninstallText "This will uninstall ${PROGRAM_NAME}.\r\nBefore starting the uninstallation, make sure ${PROGRAM_NAME} is not running.\r\nClick 'Next' to continue."
 
@@ -127,7 +157,11 @@ Page custom DisplayUSBPcapPage
 ; MUI Languages
 ; ============================================================================
 
+!ifdef ENABLE_MINIMAL_BUILD
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!else
 !insertmacro MUI_LANGUAGE "English"
+!endif
 
 ; ============================================================================
 ; Reserve Files
@@ -140,16 +174,26 @@ Page custom DisplayUSBPcapPage
   ; To do: Upgrade to the Modern 2 UI:
   ;ReserveFile "AdditionalTasksPage.ini"
   ;ReserveFile "DonatePage.ini"
+!ifdef ENABLE_MINIMAL_BUILD
+  ReserveFile "CertificationPage-zh.ini"
+  ReserveFile "NpcapPage-zh.ini"
+  ReserveFile "USBPcapPage-zh.ini"
+!else
   ReserveFile "CertificationPage.ini"
   ReserveFile "NpcapPage.ini"
   ReserveFile "USBPcapPage.ini"
+!endif
   ReserveFile /plugin InstallOptions.dll
 
   ; Modern UI 2 / nsDialog pages.
   ; https://nsis.sourceforge.io/Docs/Modern%20UI%202/Readme.html
   ; https://nsis.sourceforge.io/Docs/nsDialogs/Readme.html
   !ifdef QT_DIR
+  !ifdef ENABLE_MINIMAL_BUILD
+  !include "wireshark-additional-tasks-zh.nsdinc"
+  !else
   !include "wireshark-additional-tasks.nsdinc"
+  !endif
   !endif
 
 ; ============================================================================
@@ -242,13 +286,21 @@ SectionEnd
 ; ============================================================================
 ; Component page configuration
 ; ============================================================================
+!ifdef ENABLE_MINIMAL_BUILD
+ComponentText "${WS_ZH_COMPONENT_TEXT}"
+!else
 ComponentText "The following components are available for installation."
+!endif
 
 ; ============================================================================
 ; Directory selection page configuration
 ; ============================================================================
 ; The text to prompt the user to enter a directory
+!ifdef ENABLE_MINIMAL_BUILD
+DirText "${WS_ZH_DIR_TEXT}"
+!else
 DirText "Choose a directory in which to install ${PROGRAM_NAME}."
+!endif
 
 ; The default installation directory
 InstallDir $PROGRAMFILES64\${PROGRAM_NAME}
@@ -425,18 +477,33 @@ FunctionEnd
 ; FunctionEnd
 
 Function DisplayCertificationPage
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro MUI_HEADER_TEXT "${WS_ZH_CERT_HEADER}" "${WS_ZH_CERT_SUBHEADER}"
+  !insertmacro INSTALLOPTIONS_DISPLAY "CertificationPage-zh.ini"
+!else
   !insertmacro MUI_HEADER_TEXT "Do you use Wireshark professionally?" "Become a Wireshark Certified analyst!"
   !insertmacro INSTALLOPTIONS_DISPLAY "CertificationPage.ini"
+!endif
 FunctionEnd
 
 Function DisplayNpcapPage
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro MUI_HEADER_TEXT "${WS_ZH_NPCAP_HEADER}" "${WS_ZH_NPCAP_SUBHEADER}"
+  !insertmacro INSTALLOPTIONS_DISPLAY "NpcapPage-zh.ini"
+!else
   !insertmacro MUI_HEADER_TEXT "Packet Capture" "Wireshark requires Npcap to capture live network data."
   !insertmacro INSTALLOPTIONS_DISPLAY "NpcapPage.ini"
+!endif
 FunctionEnd
 
 Function DisplayUSBPcapPage
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro MUI_HEADER_TEXT "${WS_ZH_USBPCAP_HEADER}" "${WS_ZH_USBPCAP_SUBHEADER}"
+  !insertmacro INSTALLOPTIONS_DISPLAY "USBPcapPage-zh.ini"
+!else
   !insertmacro MUI_HEADER_TEXT "USB Capture" "USBPcap is required to capture USB traffic. Should USBPcap be installed (experimental)?"
   !insertmacro INSTALLOPTIONS_DISPLAY "USBPcapPage.ini"
+!endif
 FunctionEnd
 
 ; ============================================================================
@@ -959,7 +1026,7 @@ ${Endif}
 IfSilent SecRequired_skip_Npcap
 
 ; Install Npcap (depending on npcap page setting)
-ReadINIStr $0 "$PLUGINSDIR\NpcapPage.ini" "Field 4" "State"
+ReadINIStr $0 "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "State"
 StrCmp $0 "0" SecRequired_skip_Npcap
 SetOutPath $INSTDIR
 File "${EXTRA_INSTALLER_DIR}\npcap-${NPCAP_PACKAGE_VERSION}.exe"
@@ -970,7 +1037,7 @@ SecRequired_skip_Npcap:
 ; If running as a silent installer, don't try to install USBPcap
 IfSilent SecRequired_skip_USBPcap
 
-ReadINIStr $0 "$PLUGINSDIR\USBPcapPage.ini" "Field 4" "State"
+ReadINIStr $0 "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 4" "State"
 StrCmp $0 "0" SecRequired_skip_USBPcap
 SetOutPath $INSTDIR
 File "${EXTRA_INSTALLER_DIR}\USBPcapSetup-${USBPCAP_PACKAGE_VERSION}.exe"
@@ -1305,6 +1372,7 @@ Function .onInit
   !endif
   !insertmacro ComponentPrevInstalled "TShark" ${SecTShark}
 
+!ifndef ENABLE_MINIMAL_BUILD
   ; Check if each extcap was previously installed
   !insertmacro ComponentPrevInstalled "Extcaps\androiddump" ${SecAndroiddump}
   !ifdef BUILD_etwdump
@@ -1316,13 +1384,22 @@ Function .onInit
     !insertmacro ComponentPrevInstalled "Extcaps\sshdump" ${SecSshdump}
   !endif
   !insertmacro ComponentPrevInstalled "Extcaps\udpdump" ${SecUdpdump}
+!endif
 
+!ifdef ENABLE_MINIMAL_BUILD
+  MessageBox MB_YESNOCANCEL|MB_ICONQUESTION \
+    "${WS_ZH_MSG_ALREADY_INSTALLED}" \
+      /SD IDYES \
+      IDYES prep_nsis_uninstaller \
+      IDNO done
+!else
   MessageBox MB_YESNOCANCEL|MB_ICONQUESTION \
     "$OLD_DISPLAYNAME is already installed.\
      $\n$\nWould you like to uninstall it first?" \
       /SD IDYES \
       IDYES prep_nsis_uninstaller \
       IDNO done
+!endif
   Abort
 
   ; Copy the uninstaller to $TEMP and run it.
@@ -1366,12 +1443,20 @@ Function .onInit
           "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$TMP_PRODUCT_GUID" \
           "UninstallString"
         StrCmp $WIX_UNINSTALLSTRING "" done
+!ifdef ENABLE_MINIMAL_BUILD
+        MessageBox MB_YESNOCANCEL|MB_ICONQUESTION \
+          "${WS_ZH_MSG_WIX_ALREADY}" \
+            /SD IDYES \
+            IDYES prep_wix_uninstaller \
+            IDNO done
+!else
         MessageBox MB_YESNOCANCEL|MB_ICONQUESTION \
           "$WIX_DISPLAYNAME $WIX_DISPLAYVERSION (msi) is already installed.\
            $\n$\nWould you like to uninstall it first?" \
             /SD IDYES \
             IDYES prep_wix_uninstaller \
             IDNO done
+!endif
         Abort
 
         ; Run the WiX-provided UninstallString.
@@ -1403,9 +1488,15 @@ Function .onInit
   ;Extract InstallOptions INI files
   ;!insertmacro INSTALLOPTIONS_EXTRACT "AdditionalTasksPage.ini"
   ;!insertmacro INSTALLOPTIONS_EXTRACT "DonatePage.ini"
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro INSTALLOPTIONS_EXTRACT "CertificationPage-zh.ini"
+  !insertmacro INSTALLOPTIONS_EXTRACT "NpcapPage-zh.ini"
+  !insertmacro INSTALLOPTIONS_EXTRACT "USBPcapPage-zh.ini"
+!else
   !insertmacro INSTALLOPTIONS_EXTRACT "CertificationPage.ini"
   !insertmacro INSTALLOPTIONS_EXTRACT "NpcapPage.ini"
   !insertmacro INSTALLOPTIONS_EXTRACT "USBPcapPage.ini"
+!endif
 FunctionEnd
 
 ; ============================================================================
@@ -1448,7 +1539,11 @@ SectionEnd
 !define EXECUTABLE_MARKER "EXECUTABLE_MARKER"
 Var EXECUTABLE
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section /o "${WS_ZH_UN_SEC_NAME_USBPCAP}" un.SecUSBPcap
+!else
 Section /o "Un.USBPcap" un.SecUSBPcap
+!endif
 ;-------------------------------------------
 SectionIn 2
 ${If} ${RunningX64}
@@ -1474,7 +1569,11 @@ ClearErrors
 SectionEnd
 
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section "${WS_ZH_UN_SEC_NAME_UNINSTALL}" un.SecUinstall
+!else
 Section "Uninstall" un.SecUinstall
+!endif
 ;-------------------------------------------
 ;
 ; UnInstall for every user
@@ -1510,8 +1609,13 @@ ${DoUntil} $EXECUTABLE == ${EXECUTABLE_MARKER}
   ; into any problems here.
   Delete "$INSTDIR\$EXECUTABLE.exe"
   IfErrors 0 deletionSuccess
+!ifdef ENABLE_MINIMAL_BUILD
+    MessageBox MB_OK "${WS_ZH_MSG_EXE_IN_USE}" /SD IDOK IDOK 0
+    Abort "${WS_ZH_MSG_EXE_IN_USE}"
+!else
     MessageBox MB_OK "$EXECUTABLE.exe could not be removed. Is it in use?" /SD IDOK IDOK 0
     Abort "$EXECUTABLE.exe could not be removed. Aborting the uninstall process."
+!endif
 
 deletionSuccess:
   Pop $EXECUTABLE
@@ -1634,7 +1738,11 @@ RMDir "$INSTDIR"
 
 SectionEnd ; "Uinstall"
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section "${WS_ZH_UN_SEC_NAME_PLUGINS}" un.SecPlugins
+!else
 Section "Un.Global Plugins" un.SecPlugins
+!endif
 ;-------------------------------------------
 SectionIn 1 2
 ;Delete "$INSTDIR\plugins\${VERSION}\*.*"
@@ -1644,13 +1752,21 @@ SectionIn 1 2
 RMDir /r "$INSTDIR\plugins"
 SectionEnd
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section "${WS_ZH_UN_SEC_NAME_PROFILES}" un.SecProfiles
+!else
 Section "Un.Global Profiles" un.SecProfiles
+!endif
 ;-------------------------------------------
 SectionIn 1 2
 RMDir /r "$INSTDIR\profiles"
 SectionEnd
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section "${WS_ZH_UN_SEC_NAME_GLOBAL}" un.SecGlobalSettings
+!else
 Section "Un.Global Settings" un.SecGlobalSettings
+!endif
 ;-------------------------------------------
 SectionIn 1 2
 Delete "$INSTDIR\cfilters"
@@ -1662,7 +1778,11 @@ Delete "$INSTDIR\smi_modules"
 RMDir "$INSTDIR"
 SectionEnd
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section /o "${WS_ZH_UN_SEC_NAME_PERSONAL}" un.SecPersonalSettings
+!else
 Section /o "Un.Personal Settings" un.SecPersonalSettings
+!endif
 ;-------------------------------------------
 SectionIn 2
 SetShellVarContext current
@@ -1673,7 +1793,11 @@ SectionEnd
 
 ;VAR un.NPCAP_UNINSTALL
 
+!ifdef ENABLE_MINIMAL_BUILD
+Section /o "${WS_ZH_UN_SEC_NAME_NPCAP}" un.SecNpcap
+!else
 Section /o "Un.Npcap" un.SecNpcap
+!endif
 ;-------------------------------------------
 SectionIn 2
 ReadRegStr $1 HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst" "UninstallString"
@@ -1695,7 +1819,11 @@ SectionIn 1 2
 
 ; this test must be done after all other things uninstalled (e.g. Global Settings)
 IfFileExists "$INSTDIR" 0 NoFinalErrorMsg
+!ifdef ENABLE_MINIMAL_BUILD
+    MessageBox MB_OK "${WS_ZH_MSG_REMOVE_FAILED}" /SD IDOK IDOK 0 ; skipped if dir doesn't exist
+!else
     MessageBox MB_OK "Unable to remove $INSTDIR." /SD IDOK IDOK 0 ; skipped if dir doesn't exist
+!endif
 NoFinalErrorMsg:
 SectionEnd
 
@@ -1710,8 +1838,15 @@ SectionEnd
 ; ============================================================================
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
 !ifdef QT_DIR
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecWiresharkQt} "${WS_ZH_SEC_WIRESHARK}"
+!else
   !insertmacro MUI_DESCRIPTION_TEXT ${SecWiresharkQt} "The main network protocol analyzer application."
 !endif
+!endif
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecTShark} "${WS_ZH_SEC_TSHARK}"
+!else
   !insertmacro MUI_DESCRIPTION_TEXT ${SecTShark} "Text based network protocol analyzer."
 
   !insertmacro MUI_DESCRIPTION_TEXT ${SecExtcapGroup} "External Capture Interfaces"
@@ -1724,10 +1859,20 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecSshdump} "Provide remote capture through SSH. (tcpdump, Cisco EPC, wifi)"
   !endif
   !insertmacro MUI_DESCRIPTION_TEXT ${SecUDPdump} "Provide capture interface to receive UDP packets streamed from network devices."
+!endif
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecUinstall} "${WS_ZH_UN_SEC_UNINSTALL}"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPlugins} "${WS_ZH_UN_SEC_PLUGINS}"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecProfiles} "${WS_ZH_UN_SEC_PROFILES}"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecGlobalSettings} "${WS_ZH_UN_SEC_GLOBAL}"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPersonalSettings} "${WS_ZH_UN_SEC_PERSONAL}"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecNpcap} "${WS_ZH_UN_SEC_NPCAP}"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecUSBPcap} "${WS_ZH_UN_SEC_USBPCAP}"
+!else
   !insertmacro MUI_DESCRIPTION_TEXT ${un.SecUinstall} "Uninstall all ${PROGRAM_NAME} components."
   !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPlugins} "Uninstall all global plugins (even from previous ${PROGRAM_NAME} versions)."
   !insertmacro MUI_DESCRIPTION_TEXT ${un.SecProfiles} "Uninstall all global configuration profiles."
@@ -1735,6 +1880,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPersonalSettings} "Delete personal configuration folder: $APPDATA\${PROGRAM_NAME}."
   !insertmacro MUI_DESCRIPTION_TEXT ${un.SecNpcap} "Call Npcap's uninstall program."
   !insertmacro MUI_DESCRIPTION_TEXT ${un.SecUSBPcap} "Call USBPcap's uninstall program."
+!endif
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END
 
 ; ============================================================================
@@ -1786,24 +1932,38 @@ Function myShowCallback
 
   ClearErrors
   ; detect if Npcap should be installed
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 4" "Text" "Install Npcap ${NPCAP_PACKAGE_VERSION}"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "Text" "${WS_ZH_NPCAP_INSTALL}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "Text" "Install Npcap ${NPCAP_PACKAGE_VERSION}"
+!endif
   ReadRegStr $NPCAP_NAME HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst" "DisplayName"
   IfErrors 0 lbl_npcap_installed
   ; check also if WinPcap is installed
   ReadRegStr $WINPCAP_NAME HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinPcapInst" "DisplayName"
   IfErrors 0 lbl_winpcap_installed ;if RegKey is available, WinPcap is already installed
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 2" "Text" "Neither of these are installed"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 2" "Flags" "DISABLED"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 5" "Text" "(Use Add/Remove Programs first to uninstall any undetected old Npcap or WinPcap versions)"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Text" "${WS_ZH_NPCAP_NONE}"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Flags" "DISABLED"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_NPCAP_NONE_HINT}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Text" "Neither of these are installed"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Flags" "DISABLED"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "(Use Add/Remove Programs first to uninstall any undetected old Npcap or WinPcap versions)"
+!endif
   Goto lbl_npcap_done
 
 lbl_npcap_installed:
   ReadRegStr $NPCAP_DISPLAY_VERSION HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst" "DisplayVersion"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 1" "Text" "Currently installed Npcap version"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 1" "Text" "${WS_ZH_NPCAP_CURRENT}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 1" "Text" "Currently installed Npcap version"
+!endif
   StrCmp $NPCAP_NAME "Npcap" 0 +3
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 2" "Text" "Npcap $NPCAP_DISPLAY_VERSION"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Text" "Npcap $NPCAP_DISPLAY_VERSION"
   Goto +2
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 2" "Text" "$NPCAP_NAME"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Text" "$NPCAP_NAME"
 
   ; Compare the installed build against the one we have.
   StrCmp $NPCAP_DISPLAY_VERSION "" lbl_npcap_do_install ; Npcap wasn't installed improperly?
@@ -1812,30 +1972,48 @@ lbl_npcap_installed:
   ${VersionCompare} $R0 $R1 $1
   StrCmp $1 "2" lbl_npcap_do_install
 
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 4" "State" "0"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 4" "Flags" "DISABLED"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 5" "Text" "If you wish to install Npcap, please uninstall $NPCAP_NAME manually first."
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 5" "Flags" "DISABLED"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "State" "0"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "Flags" "DISABLED"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_NPCAP_MANUAL_UNINSTALL}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "If you wish to install Npcap, please uninstall $NPCAP_NAME manually first."
+!endif
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Flags" "DISABLED"
   Goto lbl_npcap_done
 
 lbl_winpcap_installed:
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 2" "Text" "$WINPCAP_NAME"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 4" "State" "1"
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 5" "Text" "The currently installed $WINPCAP_NAME may be uninstalled first."
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 2" "Text" "$WINPCAP_NAME"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "State" "1"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_NPCAP_WINPCAP_HINT}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "The currently installed $WINPCAP_NAME may be uninstalled first."
+!endif
   Goto lbl_npcap_done
 
 lbl_npcap_do_install:
   ; seems to be an old version, install newer one
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 4" "State" "1"
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 4" "State" "1"
   StrCmp $NPCAP_NAME "Npcap" 0 +3
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 5" "Text" "The currently installed Npcap $NPCAP_DISPLAY_VERSION will be uninstalled first."
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_NPCAP_OLD_HINT_VER}"
   Goto +2
-  WriteINIStr "$PLUGINSDIR\NpcapPage.ini" "Field 5" "Text" "The currently installed $NPCAP_NAME will be uninstalled first."
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_NPCAP_OLD_HINT_NAME}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "The currently installed Npcap $NPCAP_DISPLAY_VERSION will be uninstalled first."
+  Goto +2
+  WriteINIStr "$PLUGINSDIR\${WS_NPCAP_PAGE_INI}" "Field 5" "Text" "The currently installed $NPCAP_NAME will be uninstalled first."
+!endif
 
 lbl_npcap_done:
 
   ; detect if USBPcap should be installed
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 4" "Text" "Install USBPcap ${USBPCAP_PACKAGE_VERSION}"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 4" "Text" "${WS_ZH_USBPCAP_INSTALL}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 4" "Text" "Install USBPcap ${USBPCAP_PACKAGE_VERSION}"
+!endif
   ${If} ${RunningX64}
       ${DisableX64FSRedirection}
       SetRegView 64
@@ -1846,17 +2024,27 @@ lbl_npcap_done:
       SetRegView 32
   ${EndIf}
   IfErrors 0 lbl_usbpcap_installed ;if RegKey is available, USBPcap is already installed
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 2" "Text" "USBPcap is currently not installed"
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 2" "Flags" "DISABLED"
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 5" "Text" "(Use Add/Remove Programs first to uninstall any undetected old USBPcap versions)"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 2" "Text" "${WS_ZH_USBPCAP_NONE}"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 2" "Flags" "DISABLED"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_USBPCAP_NONE_HINT}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 2" "Text" "USBPcap is currently not installed"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 2" "Flags" "DISABLED"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 5" "Text" "(Use Add/Remove Programs first to uninstall any undetected old USBPcap versions)"
+!endif
   Goto lbl_usbpcap_done
 
 lbl_usbpcap_installed:
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 2" "Text" "$USBPCAP_NAME"
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 4" "State" "0"
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 4" "Flags" "DISABLED"
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 5" "Text" "If you wish to install USBPcap ${USBPCAP_PACKAGE_VERSION}, please uninstall $USBPCAP_NAME manually first."
-  WriteINIStr "$PLUGINSDIR\USBPcapPage.ini" "Field 5" "Flags" "DISABLED"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 2" "Text" "$USBPCAP_NAME"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 4" "State" "0"
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 4" "Flags" "DISABLED"
+!ifdef ENABLE_MINIMAL_BUILD
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 5" "Text" "${WS_ZH_USBPCAP_MANUAL_UNINSTALL}"
+!else
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 5" "Text" "If you wish to install USBPcap ${USBPCAP_PACKAGE_VERSION}, please uninstall $USBPCAP_NAME manually first."
+!endif
+  WriteINIStr "$PLUGINSDIR\${WS_USBPCAP_PAGE_INI}" "Field 5" "Flags" "DISABLED"
   Goto lbl_usbpcap_done
 
 lbl_usbpcap_done:
