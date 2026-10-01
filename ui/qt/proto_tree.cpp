@@ -423,24 +423,6 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
 
     bool have_subtree = (fi && fi->tree_type != -1);
 
-    action = ctx_menu->addAction(tr("Expand Subtrees"), this, &ProtoTree::expandSubtrees);
-    action->setEnabled(have_subtree);
-    action = ctx_menu->addAction(tr("Collapse Subtrees"), this, &ProtoTree::collapseSubtrees);
-    action->setEnabled(have_subtree);
-    action = ctx_menu->addAction(tr("Expand All"), this, &ProtoTree::expandAll);
-    action->setEnabled(have_subtree);
-    action = ctx_menu->addAction(tr("Collapse All"), this, &ProtoTree::collapseAll);
-    action->setEnabled(have_subtree);
-    ctx_menu->addSeparator();
-
-    action = ctx_menu->addAction(tr("Copy Line"), this, &ProtoTree::ctxCopyLine);
-    action->setShortcut(QKeySequence::Copy);
-    action->setShortcutVisibleInContextMenu(true);
-    action = ctx_menu->addAction(tr("Copy All Visible Items"), this, &ProtoTree::ctxCopyAllVisible);
-    action->setShortcut(QKeySequence(tr("Ctrl+A, Ctrl+C")));
-    action->setShortcutVisibleInContextMenu(true);
-    ctx_menu->addSeparator();
-
     QString mms_obj_ref = findMmsObjectReference(index);
     if (!mms_obj_ref.isEmpty()) {
         action = ctx_menu->addAction(tr("View MMS Object Reference"),
@@ -696,6 +678,24 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
             ctx_menu->addAction(window()->findChild<QAction *>("actionContextShowLinkedPacketInNewWindow"));
         }
     }
+
+    /* High-frequency expand/collapse/copy actions at the end for quicker reach. */
+    ctx_menu->addSeparator();
+    action = ctx_menu->addAction(tr("Expand Subtrees"), this, &ProtoTree::expandSubtrees);
+    action->setEnabled(have_subtree);
+    action = ctx_menu->addAction(tr("Collapse Subtrees"), this, &ProtoTree::collapseSubtrees);
+    action->setEnabled(have_subtree);
+    action = ctx_menu->addAction(tr("Expand All"), this, &ProtoTree::expandAll);
+    action->setEnabled(have_subtree);
+    action = ctx_menu->addAction(tr("Collapse All"), this, &ProtoTree::collapseAll);
+    action->setEnabled(have_subtree);
+    ctx_menu->addSeparator();
+    action = ctx_menu->addAction(tr("Copy Line"), this, &ProtoTree::ctxCopyLine);
+    action->setShortcut(QKeySequence::Copy);
+    action->setShortcutVisibleInContextMenu(true);
+    action = ctx_menu->addAction(tr("Copy All Visible Items"), this, &ProtoTree::ctxCopyAllVisible);
+    action->setShortcut(QKeySequence(tr("Ctrl+A, Ctrl+C")));
+    action->setShortcutVisibleInContextMenu(true);
 
     ctx_menu->popup(event->globalPos());
 }

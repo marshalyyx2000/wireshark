@@ -1242,6 +1242,8 @@ typedef struct mms_actx_private_data_t
     uint32_t rpt_phase_idx;
     wmem_array_t *rpt_data_refs;
     wmem_array_t *rpt_inclusion_indices;            /* dataset member ordinals for set bits */
+    proto_item *rpt_inclusion_ar_item;              /* AccessResult item for inclusion summary */
+    wmem_array_t *rpt_data_ref_ar_items;            /* AccessResult items for data-refs (to revise k/n) */
     char *rpt_datset;
     char *rpt_datset_raw;                           /* raw VisibleString for filters/tap */
     char *rpt_rptid;
@@ -1576,6 +1578,70 @@ mms_rpt_member_ordinal(mms_actx_private_data_t *mms_priv, wmem_allocator_t *scop
                               mms_priv->rpt_included_count);
 }
 
+/*
+ * When OptFlds includes data-reference, the number of data-ref AccessResults is
+ * authoritative. Bitstring popcount can be wrong (padding / device quirks);
+ * revise included_count and refresh labels that already showed the old k/n.
+ */
+static void
+mms_revise_rpt_inclusion_count(mms_actx_private_data_t *mms_priv, packet_info *pinfo,
+                               uint32_t true_count)
+{
+    wmem_strbuf_t *idx_list;
+    uint32_t *ords;
+    uint32_t i, avail, n;
+    char **refs;
+    proto_item **items;
+
+    if (!mms_priv || true_count == 0 || true_count >= mms_priv->rpt_included_count) {
+        return;
+    }
+
+    n = true_count;
+    mms_priv->rpt_included_count = n;
+
+    idx_list = wmem_strbuf_new(pinfo->pool, "");
+    if (mms_priv->rpt_inclusion_indices) {
+        ords = (uint32_t *)wmem_array_get_raw(mms_priv->rpt_inclusion_indices);
+        avail = wmem_array_get_count(mms_priv->rpt_inclusion_indices);
+        if (n > avail) {
+            n = avail;
+            mms_priv->rpt_included_count = n;
+        }
+        for (i = 0; i < n; i++) {
+            if (i > 0) {
+                wmem_strbuf_append(idx_list, ",");
+            }
+            wmem_strbuf_append_printf(idx_list, "%u", ords[i] + 1);
+        }
+    }
+
+    if (mms_priv->rpt_inclusion_ar_item) {
+        proto_item_set_text(mms_priv->rpt_inclusion_ar_item,
+                            "AccessResult: success (1) [纳入位图: %u项 (#%s)]",
+                            mms_priv->rpt_included_count,
+                            wmem_strbuf_get_str(idx_list));
+    }
+
+    if (mms_priv->rpt_data_refs && mms_priv->rpt_data_ref_ar_items &&
+        wmem_array_get_count(mms_priv->rpt_data_refs) ==
+            wmem_array_get_count(mms_priv->rpt_data_ref_ar_items)) {
+        refs = (char **)wmem_array_get_raw(mms_priv->rpt_data_refs);
+        items = (proto_item **)wmem_array_get_raw(mms_priv->rpt_data_ref_ar_items);
+        avail = wmem_array_get_count(mms_priv->rpt_data_refs);
+        if (avail > mms_priv->rpt_included_count) {
+            avail = mms_priv->rpt_included_count;
+        }
+        for (i = 0; i < avail; i++) {
+            if (items[i] && refs[i]) {
+                proto_item_set_text(items[i],
+                                    "AccessResult: success (1) [%u/%u %s]",
+                                    i + 1, mms_priv->rpt_included_count, refs[i]);
+            }
+        }
+    }
+}
+
 static void
 mms_append_value_summary(mms_actx_private_data_t *mms_priv, const char *text)
 {
@@ -1832,6 +1898,19 @@ mms_store_rpt_inclusion_bits(mms_actx_private_data_t *mms_priv, packet_info *pin
     }
     /* parameter_tvb from dissect_ber_bitstring is packed bit data (no unused-bits prefix). */
     nbits = nbytes * 8;
+    /* Cap by known dataset size so padding bits beyond FCDA count are ignored. */
+    if (mms_priv->rpt_datset) {
+        mms_conv_info_t *cinfo = mms_get_conv_info(pinfo);
+        wmem_array_t *members = cinfo
+            ? (wmem_array_t *)wmem_map_lookup(cinfo->datasets, mms_priv->rpt_datset)
+            : NULL;
+        if (members) {
+            int ds_n = (int)wmem_array_get_count(members);
+            if (ds_n > 0 && ds_n < nbits) {
+                nbits = ds_n;
+            }
+        }
+    }
     if (!mms_priv->rpt_inclusion_indices) {
         mms_priv->rpt_inclusion_indices = wmem_array_new(pinfo->pool, sizeof(uint32_t));
     }
@@ -6838,6 +6917,19 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
         mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
     } else if (mms_priv && mms_priv->access_result_summary) {
         mms_label_access_result_path(tree, tvb, prev_last, mms_priv->access_result_summary);
+        if (is_rpt && mms_priv->listOfAccessResult_cnt == 11 &&
+            tree && tree->last_child && tree->last_child != prev_last) {
+            mms_priv->rpt_inclusion_ar_item = tree->last_child;
+        }
+        if (is_rpt && mms_priv->rpt_phase == MMS_RPT_PHASE_DATA_REF &&
+            tree && tree->last_child && tree->last_child != prev_last) {
+            proto_item *ar_item = tree->last_child;
+            if (!mms_priv->rpt_data_ref_ar_items) {
+                mms_priv->rpt_data_ref_ar_items =
+                    wmem_array_new(actx->pinfo->pool, sizeof(proto_item *));
+            }
+            wmem_array_append_one(mms_priv->rpt_data_ref_ar_items, ar_item);
+        }
     }
 
     if (mms_priv && mms_priv->collecting_value_summary &&
@@ -6887,11 +6979,56 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
                 mms_priv->rpt_data_refs = wmem_array_new(actx->pinfo->pool, sizeof(char *));
             }
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_DATA_REF) {
+            uint32_t nrefs = mms_priv->rpt_data_refs
+                                ? wmem_array_get_count(mms_priv->rpt_data_refs)
+                                : 0;
             mms_priv->rpt_collecting_data_ref = false;
-            mms_priv->rpt_phase_idx++;
-            if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+            /*
+             * If this AccessResult did not append a data-ref, the bitstring
+             * popcount was too high and values have started. Trust nrefs.
+             */
+            if (nrefs == mms_priv->rpt_phase_idx) {
+                if (nrefs > 0) {
+                    mms_revise_rpt_inclusion_count(mms_priv, actx->pinfo, nrefs);
+                } else {
+                    mms_priv->rpt_included_count = 0;
+                }
                 mms_priv->rpt_phase = MMS_RPT_PHASE_VALUE;
                 mms_priv->rpt_phase_idx = 0;
+                /* This AR is the first value — advance VALUE phase accounting. */
+                mms_priv->current_object_ref =
+                    mms_rpt_lookup_value_path(mms_priv, actx->pinfo, 0);
+                if (mms_priv->current_object_ref && tree && tree->last_child &&
+                    tree->last_child != prev_last) {
+                    char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                    if (ord) {
+                        proto_item_append_text(tree->last_child, " [%s %s]",
+                                               ord, mms_priv->current_object_ref);
+                    } else {
+                        proto_item_append_text(tree->last_child, " [%s]",
+                                               mms_priv->current_object_ref);
+                    }
+                }
+                mms_priv->rpt_phase_idx = 1;
+                if (mms_priv->rpt_included_count == 0 ||
+                    mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+                    if ((mms_priv->reported_optflds & 0x1000) == 0x1000 &&
+                        mms_priv->rpt_included_count > 0) {
+                        mms_priv->rpt_phase = MMS_RPT_PHASE_REASON;
+                    } else {
+                        mms_priv->rpt_phase = MMS_RPT_PHASE_DONE;
+                    }
+                    mms_priv->rpt_phase_idx = 0;
+                }
+            } else {
+                mms_priv->rpt_phase_idx++;
+                if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+                    if (nrefs > 0 && nrefs != mms_priv->rpt_included_count) {
+                        mms_revise_rpt_inclusion_count(mms_priv, actx->pinfo, nrefs);
+                    }
+                    mms_priv->rpt_phase = MMS_RPT_PHASE_VALUE;
+                    mms_priv->rpt_phase_idx = 0;
+                }
             }
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
             mms_priv->rpt_phase_idx++;
@@ -8732,6 +8869,8 @@ dissect_mms_T_listOfAccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsig
         mms_priv->rpt_phase_idx = 0;
         mms_priv->rpt_data_refs = NULL;
         mms_priv->rpt_inclusion_indices = NULL;
+        mms_priv->rpt_inclusion_ar_item = NULL;
+        mms_priv->rpt_data_ref_ar_items = NULL;
         mms_priv->rpt_datset = NULL;
         mms_priv->rpt_datset_raw = NULL;
         mms_priv->rpt_rptid = NULL;
