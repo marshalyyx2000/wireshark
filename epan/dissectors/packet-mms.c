@@ -1239,7 +1239,7 @@ typedef struct mms_actx_private_data_t
     /* RPT AccessResult phase / path correlation */
     mms_rpt_phase_t rpt_phase;
     uint32_t rpt_included_count;
-    uint32_t rpt_phase_idx;
+    uint32_t rpt_phase_idx;            /* index within the current phase (0-based) */
     wmem_array_t *rpt_data_refs;
     wmem_array_t *rpt_inclusion_indices;            /* dataset member ordinals for set bits */
     proto_item *rpt_inclusion_ar_item;              /* AccessResult item for inclusion summary */
@@ -1473,13 +1473,72 @@ mms_try_add_leaf_object_ref(asn1_ctx_t *actx _U_, proto_tree *tree _U_, tvbuff_t
      * Do not add a separate generated child field (avoids duplicate display). */
 }
 
+static uint32_t
+mms_rpt_dataset_member_count(mms_actx_private_data_t *mms_priv, packet_info *pinfo)
+{
+    mms_conv_info_t *cinfo;
+    wmem_array_t *members;
+
+    if (!mms_priv || !mms_priv->rpt_datset) {
+        return 0;
+    }
+    cinfo = mms_get_conv_info(pinfo);
+    if (!cinfo) {
+        return 0;
+    }
+    members = (wmem_array_t *)wmem_map_lookup(cinfo->datasets, mms_priv->rpt_datset);
+    if (!members) {
+        return 0;
+    }
+    return wmem_array_get_count(members);
+}
+
+/* Authoritative member count for phase transitions (never inflated). */
+static uint32_t
+mms_rpt_phase_limit(mms_actx_private_data_t *mms_priv)
+{
+    uint32_t nrefs;
+
+    if (!mms_priv) {
+        return 0;
+    }
+    nrefs = mms_priv->rpt_data_refs ? wmem_array_get_count(mms_priv->rpt_data_refs) : 0;
+    if (nrefs > 0) {
+        return nrefs;
+    }
+    return mms_priv->rpt_included_count;
+}
+
+static uint32_t
+mms_rpt_member_total(mms_actx_private_data_t *mms_priv, packet_info *pinfo _U_)
+{
+    uint32_t n;
+
+    if (!mms_priv) {
+        return 0;
+    }
+    n = mms_rpt_phase_limit(mms_priv);
+    if (n > 0) {
+        return n;
+    }
+    if (mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE ||
+        mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
+        return mms_priv->rpt_phase_idx + 1;
+    }
+    return 0;
+}
+
 static const char *
 mms_rpt_lookup_value_path(mms_actx_private_data_t *mms_priv, packet_info *pinfo, uint32_t idx)
 {
-    if (mms_priv->rpt_data_refs &&
-        idx < wmem_array_get_count(mms_priv->rpt_data_refs)) {
-        char **refs = (char **)wmem_array_get_raw(mms_priv->rpt_data_refs);
-        return refs[idx];
+    if (mms_priv->rpt_data_refs) {
+        uint32_t nrefs = wmem_array_get_count(mms_priv->rpt_data_refs);
+        if (nrefs > 0 && idx < nrefs) {
+            char **refs = (char **)wmem_array_get_raw(mms_priv->rpt_data_refs);
+            return refs[idx];
+        }
+        /* Do not invent datset#N past the data-reference list. */
+        return NULL;
     }
     if (mms_priv->rpt_datset && mms_priv->rpt_inclusion_indices) {
         mms_conv_info_t *cinfo = mms_get_conv_info(pinfo);
@@ -1492,7 +1551,27 @@ mms_rpt_lookup_value_path(mms_actx_private_data_t *mms_priv, packet_info *pinfo,
                 return paths[member_ord];
             }
         }
-        return wmem_strdup_printf(pinfo->pool, "%s#%u", mms_priv->rpt_datset, idx + 1);
+        if (idx < mms_priv->rpt_included_count) {
+            return wmem_strdup_printf(pinfo->pool, "%s#%u", mms_priv->rpt_datset, idx + 1);
+        }
+    }
+    /* Inclusion empty but values still present: map by sequential dataset index. */
+    if (mms_priv->rpt_datset) {
+        mms_conv_info_t *cinfo = mms_get_conv_info(pinfo);
+        wmem_array_t *members = cinfo
+            ? (wmem_array_t *)wmem_map_lookup(cinfo->datasets, mms_priv->rpt_datset)
+            : NULL;
+
+        if (members && idx < wmem_array_get_count(members)) {
+            char **paths = (char **)wmem_array_get_raw(members);
+            return paths[idx];
+        }
+        if (mms_priv->rpt_included_count == 0 &&
+            (!mms_priv->rpt_data_refs ||
+             wmem_array_get_count(mms_priv->rpt_data_refs) == 0)) {
+            return wmem_strdup_printf(pinfo->pool, "%s#%u",
+                                      mms_priv->rpt_datset, idx + 1);
+        }
     }
     return NULL;
 }
@@ -1558,14 +1637,14 @@ mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb _U_, proto_item *pr
     proto_item_append_text(tree->last_child, " [%s]", ref);
 }
 
-/* RPT inclusion ordinal "k/n" for value / data-ref / reason AccessResults. */
+/* Per-phase "k/n": data-ref, value, and reason each restart at 1/n. */
 static char *
-mms_rpt_member_ordinal(mms_actx_private_data_t *mms_priv, wmem_allocator_t *scope)
+mms_rpt_member_ordinal(mms_actx_private_data_t *mms_priv, packet_info *pinfo,
+                         wmem_allocator_t *scope)
 {
+    uint32_t n;
+
     if (!mms_priv || mms_priv->vmd_specific != IEC61850_8_1_RPT) {
-        return NULL;
-    }
-    if (mms_priv->rpt_included_count == 0) {
         return NULL;
     }
     if (mms_priv->rpt_phase != MMS_RPT_PHASE_DATA_REF &&
@@ -1573,9 +1652,12 @@ mms_rpt_member_ordinal(mms_actx_private_data_t *mms_priv, wmem_allocator_t *scop
         mms_priv->rpt_phase != MMS_RPT_PHASE_REASON) {
         return NULL;
     }
+    n = mms_rpt_member_total(mms_priv, pinfo);
+    if (n == 0) {
+        return NULL;
+    }
     return wmem_strdup_printf(scope, "%u/%u",
-                              mms_priv->rpt_phase_idx + 1,
-                              mms_priv->rpt_included_count);
+                              mms_priv->rpt_phase_idx + 1, n);
 }
 
 /*
@@ -3360,16 +3442,16 @@ static int * const mms_iec61850_chec_bits[] = {
                 }
             }
             if (path && zh) {
-                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
                 if (ord) {
                     mms_priv->access_result_summary =
-                        wmem_strdup_printf(actx->pinfo->pool, "%s %s: %s", ord, path, zh);
+                        wmem_strdup_printf(actx->pinfo->pool, "%s %s 传送原因: %s", ord, path, zh);
                 } else {
                     mms_priv->access_result_summary =
-                        wmem_strdup_printf(actx->pinfo->pool, "%s: %s", path, zh);
+                        wmem_strdup_printf(actx->pinfo->pool, "%s 传送原因: %s", path, zh);
                 }
             } else if (path) {
-                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
                 if (ord) {
                     mms_priv->access_result_summary =
                         wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, path);
@@ -3377,13 +3459,13 @@ static int * const mms_iec61850_chec_bits[] = {
                     mms_priv->access_result_summary = path;
                 }
             } else if (zh) {
-                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
                 if (ord) {
                     mms_priv->access_result_summary =
-                        wmem_strdup_printf(actx->pinfo->pool, "%s 包含原因: %s", ord, zh);
+                        wmem_strdup_printf(actx->pinfo->pool, "%s 传送原因: %s", ord, zh);
                 } else {
                     mms_priv->access_result_summary =
-                        wmem_strdup_printf(actx->pinfo->pool, "包含原因: %s", zh);
+                        wmem_strdup_printf(actx->pinfo->pool, "传送原因: %s", zh);
                 }
             }
         } else if (mms_priv->mms_trans_p) {
@@ -3604,7 +3686,7 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
                 mms_priv->rpt_data_refs = wmem_array_new(actx->pinfo->pool, sizeof(char *));
             }
             wmem_array_append_one(mms_priv->rpt_data_refs, ref);
-            ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
+            ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
             if (ord) {
                 mms_priv->access_result_summary =
                     wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, ref);
@@ -3891,7 +3973,10 @@ dissect_mms_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, 
     if (mms_priv && saved_ref) {
         /* Path only on the Data item label; leaf dissectors add the generated field once. */
         if (mms_priv->current_object_ref && tree && tree->last_child) {
-            proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
+            if (mms_priv->vmd_specific != IEC61850_8_1_RPT ||
+                mms_priv->rpt_phase != MMS_RPT_PHASE_VALUE) {
+                proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
+            }
         }
         mms_priv->current_object_ref = saved_ref;
     }
@@ -6854,14 +6939,29 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
             mms_priv->listOfAccessResult_cnt = 12;
             mms_priv->rpt_collecting_data_ref = true;
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
-            mms_priv->listOfAccessResult_cnt = 13;
-            mms_priv->current_object_ref =
-                mms_rpt_lookup_value_path(mms_priv, actx->pinfo, mms_priv->rpt_phase_idx);
-            label_path = (mms_priv->current_object_ref != NULL);
-            mms_priv->collecting_value_summary = true;
-            mms_priv->value_summary = wmem_strbuf_new(actx->pinfo->pool, "");
+            uint32_t limit = mms_rpt_phase_limit(mms_priv);
+
+            if ((mms_priv->reported_optflds & 0x1000) == 0x1000 &&
+                limit > 0 && mms_priv->rpt_phase_idx >= limit) {
+                mms_priv->rpt_phase = MMS_RPT_PHASE_REASON;
+                mms_priv->rpt_phase_idx = 0;
+            }
+            if (mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
+                mms_priv->listOfAccessResult_cnt = 14;
+                mms_priv->current_object_ref =
+                    mms_rpt_lookup_value_path(mms_priv, actx->pinfo, mms_priv->rpt_phase_idx);
+            } else {
+                mms_priv->listOfAccessResult_cnt = 13;
+                mms_priv->current_object_ref =
+                    mms_rpt_lookup_value_path(mms_priv, actx->pinfo, mms_priv->rpt_phase_idx);
+                label_path = true; /* even without path, k/n is applied below */
+                mms_priv->collecting_value_summary = true;
+                mms_priv->value_summary = wmem_strbuf_new(actx->pinfo->pool, "");
+            }
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
             mms_priv->listOfAccessResult_cnt = 14;
+            mms_priv->current_object_ref =
+                mms_rpt_lookup_value_path(mms_priv, actx->pinfo, mms_priv->rpt_phase_idx);
         }
     } else if (mms_priv) {
         /* Non-RPT / non-GDV: keep legacy linear counter (Write etc.) */
@@ -6914,7 +7014,20 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
     }
 
     if (label_path) {
-        mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
+        if (is_rpt && mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
+            char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
+            const char *ref = mms_priv->current_object_ref;
+            if (ord && ref) {
+                mms_label_access_result_path(tree, tvb, prev_last,
+                    wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, ref));
+            } else if (ord) {
+                mms_label_access_result_path(tree, tvb, prev_last, ord);
+            } else if (ref) {
+                mms_label_access_result_path(tree, tvb, prev_last, ref);
+            }
+        } else {
+            mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
+        }
     } else if (mms_priv && mms_priv->access_result_summary) {
         mms_label_access_result_path(tree, tvb, prev_last, mms_priv->access_result_summary);
         if (is_rpt && mms_priv->listOfAccessResult_cnt == 11 &&
@@ -6935,13 +7048,19 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
     if (mms_priv && mms_priv->collecting_value_summary &&
         mms_priv->value_summary && mms_priv->value_summary_count > 0 &&
         tree && tree->last_child && tree->last_child != prev_last) {
-        char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
-        if (ord) {
-            proto_item_append_text(tree->last_child, " (%s: %s)",
-                                   ord, wmem_strbuf_get_str(mms_priv->value_summary));
-        } else {
+        /* RPT value AccessResult already has k/n on the path label. */
+        if (is_rpt && mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
             proto_item_append_text(tree->last_child, " (%s)",
                                    wmem_strbuf_get_str(mms_priv->value_summary));
+        } else {
+            char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
+            if (ord) {
+                proto_item_append_text(tree->last_child, " (%s: %s)",
+                                       ord, wmem_strbuf_get_str(mms_priv->value_summary));
+            } else {
+                proto_item_append_text(tree->last_child, " (%s)",
+                                       wmem_strbuf_get_str(mms_priv->value_summary));
+            }
         }
     }
 
@@ -6984,55 +7103,68 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
                                 : 0;
             mms_priv->rpt_collecting_data_ref = false;
             /*
-             * If this AccessResult did not append a data-ref, the bitstring
-             * popcount was too high and values have started. Trust nrefs.
+             * If this AccessResult did not append a data-ref, values have
+             * started. Trust nrefs as the member count (independent of
+             * bitstring popcount).
              */
             if (nrefs == mms_priv->rpt_phase_idx) {
                 if (nrefs > 0) {
                     mms_revise_rpt_inclusion_count(mms_priv, actx->pinfo, nrefs);
+                    mms_priv->rpt_included_count = nrefs;
                 } else {
                     mms_priv->rpt_included_count = 0;
                 }
                 mms_priv->rpt_phase = MMS_RPT_PHASE_VALUE;
                 mms_priv->rpt_phase_idx = 0;
-                /* This AR is the first value — advance VALUE phase accounting. */
+                /* This AR is the first value — label with 1/n. */
                 mms_priv->current_object_ref =
                     mms_rpt_lookup_value_path(mms_priv, actx->pinfo, 0);
-                if (mms_priv->current_object_ref && tree && tree->last_child &&
-                    tree->last_child != prev_last) {
-                    char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo->pool);
-                    if (ord) {
-                        proto_item_append_text(tree->last_child, " [%s %s]",
-                                               ord, mms_priv->current_object_ref);
-                    } else {
-                        proto_item_append_text(tree->last_child, " [%s]",
-                                               mms_priv->current_object_ref);
+                if (tree && tree->last_child && tree->last_child != prev_last) {
+                    char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
+                    const char *ref = mms_priv->current_object_ref;
+                    if (ord && ref) {
+                        proto_item_append_text(tree->last_child, " [%s %s]", ord, ref);
+                    } else if (ord) {
+                        proto_item_append_text(tree->last_child, " [%s]", ord);
+                    } else if (ref) {
+                        proto_item_append_text(tree->last_child, " [%s]", ref);
                     }
                 }
                 mms_priv->rpt_phase_idx = 1;
-                if (mms_priv->rpt_included_count == 0 ||
-                    mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
-                    if ((mms_priv->reported_optflds & 0x1000) == 0x1000 &&
-                        mms_priv->rpt_included_count > 0) {
-                        mms_priv->rpt_phase = MMS_RPT_PHASE_REASON;
-                    } else {
-                        mms_priv->rpt_phase = MMS_RPT_PHASE_DONE;
-                    }
-                    mms_priv->rpt_phase_idx = 0;
+                if (nrefs == 0 && mms_priv->rpt_included_count == 0) {
+                    mms_priv->rpt_included_count = 1;
                 }
             } else {
                 mms_priv->rpt_phase_idx++;
-                if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
-                    if (nrefs > 0 && nrefs != mms_priv->rpt_included_count) {
+                if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count ||
+                    (nrefs > 0 && mms_priv->rpt_phase_idx >= nrefs &&
+                     nrefs >= mms_priv->rpt_included_count)) {
+                    if (nrefs > 0) {
                         mms_revise_rpt_inclusion_count(mms_priv, actx->pinfo, nrefs);
+                        mms_priv->rpt_included_count = nrefs;
                     }
                     mms_priv->rpt_phase = MMS_RPT_PHASE_VALUE;
                     mms_priv->rpt_phase_idx = 0;
                 }
             }
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
+            uint32_t limit;
+
             mms_priv->rpt_phase_idx++;
-            if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+            if (mms_priv->rpt_included_count == 0 &&
+                (mms_priv->rpt_data_refs == NULL ||
+                 wmem_array_get_count(mms_priv->rpt_data_refs) == 0) &&
+                mms_priv->rpt_phase_idx > mms_priv->rpt_included_count) {
+                mms_priv->rpt_included_count = mms_priv->rpt_phase_idx;
+            }
+            limit = mms_rpt_phase_limit(mms_priv);
+            if (limit == 0) {
+                limit = mms_priv->rpt_phase_idx;
+            }
+            if (limit > 0 && mms_priv->rpt_phase_idx >= limit) {
+                if (mms_priv->rpt_included_count == 0) {
+                    mms_priv->rpt_included_count = limit;
+                }
                 if ((mms_priv->reported_optflds & 0x1000) == 0x1000) {
                     mms_priv->rpt_phase = MMS_RPT_PHASE_REASON;
                 } else {
@@ -7041,9 +7173,13 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
                 mms_priv->rpt_phase_idx = 0;
             }
         } else if (mms_priv->rpt_phase == MMS_RPT_PHASE_REASON) {
+            uint32_t limit;
+
             mms_priv->rpt_phase_idx++;
-            if (mms_priv->rpt_phase_idx >= mms_priv->rpt_included_count) {
+            limit = mms_rpt_phase_limit(mms_priv);
+            if (limit > 0 && mms_priv->rpt_phase_idx >= limit) {
                 mms_priv->rpt_phase = MMS_RPT_PHASE_DONE;
+                mms_priv->rpt_phase_idx = 0;
             }
         }
     }
