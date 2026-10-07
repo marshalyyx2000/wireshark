@@ -339,6 +339,21 @@ void WiresharkMainWindow::applyFilter(QString new_filter, bool force)
     }
 }
 
+void WiresharkMainWindow::applyCaptureDisplayFilter(QString filter)
+{
+    if (!df_combo_box_) {
+        return;
+    }
+    QSignalBlocker blocker(df_combo_box_);
+    df_combo_box_->setText(filter);
+    df_combo_box_->recheck();
+    if (!df_combo_box_->checkDisplayFilter()) {
+        emit displayFilterSuccess(false);
+        return;
+    }
+    applyFilter(filter, true);
+}
+
 void WiresharkMainWindow::layoutToolbars()
 {
     Qt::ToolButtonStyle tbstyle = Qt::ToolButtonIconOnly;

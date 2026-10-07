@@ -12,6 +12,8 @@
 #include "mms_report_filter_dialog.h"
 #include <ui_mms_report_filter_dialog.h>
 
+#include "wireshark_main_window.h"
+
 #include <epan/dissectors/packet-mms-tap.h>
 
 #include <QCheckBox>
@@ -328,7 +330,13 @@ void MmsReportFilterDialog::updatePreview()
 
 void MmsReportFilterDialog::applyFilterNow()
 {
-    emit filterAction(buildFilter(), FilterAction::ActionApply, FilterAction::ActionTypePlain);
+    const QString filter = buildFilter();
+    auto *mw = qobject_cast<WiresharkMainWindow *>(parentWidget());
+    if (mw) {
+        mw->applyCaptureDisplayFilter(filter);
+        return;
+    }
+    emit filterAction(filter, FilterAction::ActionApply, FilterAction::ActionTypePlain);
 }
 
 void MmsReportFilterDialog::applyFilterIfRealtime(bool debounce)
@@ -368,13 +376,13 @@ void MmsReportFilterDialog::onScopeCriteriaChanged()
     }
     if (qobject_cast<const QLineEdit *>(sender())) {
         updatePreview();
-        scope_retap_timer_->start();
         applyFilterIfRealtime();
+        scope_retap_timer_->start();
         return;
     }
-    retap();
     updatePreview();
     applyFilterIfRealtime(false);
+    scope_retap_timer_->start();
 }
 
 void MmsReportFilterDialog::refreshDatsetComboForRptid()
@@ -422,8 +430,8 @@ void MmsReportFilterDialog::onRptidCriteriaChanged()
         return;
     }
     updatePreview();
-    id_change_timer_->start();
     applyFilterIfRealtime();
+    id_change_timer_->start();
 }
 
 void MmsReportFilterDialog::onDatsetCriteriaChanged()
@@ -442,9 +450,9 @@ void MmsReportFilterDialog::onRptidActivated(int index)
     }
     id_change_timer_->stop();
     filter_apply_timer_->stop();
-    refreshDatsetComboForRptid();
     updatePreview();
     applyFilterIfRealtime(false);
+    id_change_timer_->start();
 }
 
 void MmsReportFilterDialog::onDatsetActivated(int index)

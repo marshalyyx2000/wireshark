@@ -712,6 +712,11 @@ public slots:
      */
     void rtpStreamsDialogDeselectRtpStreams(QVector<rtpstream_id_t *> stream_ids);
 
+    /**
+     * @brief Update the display-filter bar and apply immediately (no queued slot).
+     */
+    void applyCaptureDisplayFilter(QString filter);
+
 protected slots:
     /**
      * @brief Applies a new display filter to the open capture file.
