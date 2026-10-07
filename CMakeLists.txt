@@ -181,10 +181,10 @@ include( CMakeOptions.txt )
 if(ENABLE_MINIMAL_BUILD)
 	# 宾尧 industrial release branding (installer + About/version strings).
 	set(PROJECT_MAJOR_VERSION 0)
-	set(PROJECT_MINOR_VERSION 9)
+	set(PROJECT_MINOR_VERSION 10)
 	set(PROJECT_PATCH_VERSION 0)
 	set(PROJECT_BUILD_VERSION 0)
-	set(PROJECT_VERSION "0.9.0")
+	set(PROJECT_VERSION "0.10.0")
 	set(MINIMAL_PRODUCT_NAME "宾尧")
 endif()
 
