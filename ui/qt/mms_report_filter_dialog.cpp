@@ -16,14 +16,28 @@
 
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QTimer>
 
 MmsReportFilterDialog::MmsReportFilterDialog(QWidget &parent, CaptureFile &capture_file) :
     WiresharkDialog(parent, capture_file),
     ui_(new Ui::MmsReportFilterDialog),
-    refreshing_combos_(false)
+    refreshing_combos_(false),
+    scope_retap_timer_(new QTimer(this)),
+    id_change_timer_(new QTimer(this)),
+    filter_apply_timer_(new QTimer(this))
 {
     ui_->setupUi(this);
     setWindowSubtitle(tr("报告过滤"));
+
+    scope_retap_timer_->setSingleShot(true);
+    scope_retap_timer_->setInterval(300);
+    id_change_timer_->setSingleShot(true);
+    id_change_timer_->setInterval(300);
+    filter_apply_timer_->setSingleShot(true);
+    filter_apply_timer_->setInterval(250);
+    connect(scope_retap_timer_, &QTimer::timeout, this, &MmsReportFilterDialog::onDebouncedScopeRetap);
+    connect(id_change_timer_, &QTimer::timeout, this, &MmsReportFilterDialog::onDebouncedRptidCriteriaChanged);
+    connect(filter_apply_timer_, &QTimer::timeout, this, &MmsReportFilterDialog::onDebouncedFilterApply);
 
     ui_->bufovflCombo->addItem(tr("任意"), QString());
     ui_->bufovflCombo->addItem(tr("是"), QStringLiteral("true"));
@@ -44,13 +58,21 @@ MmsReportFilterDialog::MmsReportFilterDialog(QWidget &parent, CaptureFile &captu
     connect(ui_->objRefEdit, &QLineEdit::textChanged, this, &MmsReportFilterDialog::onScopeCriteriaChanged);
 
     connect(ui_->rptidCombo, &QComboBox::currentTextChanged,
-            this, &MmsReportFilterDialog::onIdCriteriaChanged);
+            this, &MmsReportFilterDialog::onRptidCriteriaChanged);
     connect(ui_->datsetCombo, &QComboBox::currentTextChanged,
-            this, &MmsReportFilterDialog::onIdCriteriaChanged);
+            this, &MmsReportFilterDialog::onDatsetCriteriaChanged);
+    connect(ui_->rptidCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MmsReportFilterDialog::onRptidIndexChanged);
     connect(ui_->applyButton, &QPushButton::clicked, this, &MmsReportFilterDialog::onApplyClicked);
+    connect(ui_->realtimeFilterCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) {
+            applyFilterNow();
+        }
+    });
 
     retap();
     updatePreview();
+    applyFilterIfRealtime(false);
 }
 
 MmsReportFilterDialog::~MmsReportFilterDialog()
@@ -296,7 +318,24 @@ void MmsReportFilterDialog::updatePreview()
     ui_->previewLabel->setText(buildFilter());
 }
 
-void MmsReportFilterDialog::onScopeCriteriaChanged()
+void MmsReportFilterDialog::applyFilterNow()
+{
+    emit filterAction(buildFilter(), FilterAction::ActionApply, FilterAction::ActionTypePlain);
+}
+
+void MmsReportFilterDialog::applyFilterIfRealtime(bool debounce)
+{
+    if (!ui_->realtimeFilterCheck->isChecked()) {
+        return;
+    }
+    if (debounce) {
+        filter_apply_timer_->start();
+        return;
+    }
+    applyFilterNow();
+}
+
+void MmsReportFilterDialog::onDebouncedScopeRetap()
 {
     if (refreshing_combos_) {
         return;
@@ -305,53 +344,109 @@ void MmsReportFilterDialog::onScopeCriteriaChanged()
     updatePreview();
 }
 
-void MmsReportFilterDialog::onIdCriteriaChanged()
+void MmsReportFilterDialog::onDebouncedFilterApply()
+{
+    if (!ui_->realtimeFilterCheck->isChecked()) {
+        return;
+    }
+    applyFilterNow();
+}
+
+void MmsReportFilterDialog::onScopeCriteriaChanged()
 {
     if (refreshing_combos_) {
         return;
     }
-    /* Changing RptID should refresh DatSet options from matching packets. */
-    if (sender() == ui_->rptidCombo) {
-        const QString prev_datset = comboSelectedValue(ui_->datsetCombo);
-        const QSet<QString> keep_rptids = rptid_values_;
-        beginRetapPackets();
-        removeTapListeners();
-        datset_values_.clear();
-        const QByteArray datset_scope = buildScopeFilter(true).toUtf8();
-        if (registerTapListener("mms", this, datset_scope.constData(),
-                                TL_LIMIT_TO_DISPLAY_FILTER,
-                                tapReset, tapPacket, tapDraw)) {
-            cap_file_.retapPackets();
-            removeTapListeners();
-        }
-        rptid_values_ = keep_rptids;
-        endRetapPackets();
+    if (qobject_cast<const QLineEdit *>(sender())) {
+        updatePreview();
+        scope_retap_timer_->start();
+        applyFilterIfRealtime();
+        return;
+    }
+    retap();
+    updatePreview();
+    applyFilterIfRealtime(false);
+}
 
-        refreshing_combos_ = true;
-        ui_->datsetCombo->blockSignals(true);
-        ui_->datsetCombo->clear();
-        ui_->datsetCombo->addItem(tr("任意"), QString());
-        QStringList list = datset_values_.values();
-        list.sort(Qt::CaseInsensitive);
-        for (const QString &v : list) {
-            ui_->datsetCombo->addItem(v, v);
-        }
-        const int idx = ui_->datsetCombo->findData(prev_datset);
-        if (idx >= 0) {
-            ui_->datsetCombo->setCurrentIndex(idx);
-        } else if (!prev_datset.isEmpty()) {
-            ui_->datsetCombo->setCurrentIndex(0);
-            ui_->datsetCombo->setEditText(prev_datset);
-        } else {
-            ui_->datsetCombo->setCurrentIndex(0);
-        }
-        ui_->datsetCombo->blockSignals(false);
-        refreshing_combos_ = false;
+void MmsReportFilterDialog::refreshDatsetComboForRptid()
+{
+    const QString prev_datset = comboSelectedValue(ui_->datsetCombo);
+    const QSet<QString> keep_rptids = rptid_values_;
+    beginRetapPackets();
+    removeTapListeners();
+    datset_values_.clear();
+    const QByteArray datset_scope = buildScopeFilter(true).toUtf8();
+    if (registerTapListener("mms", this, datset_scope.constData(),
+                            TL_LIMIT_TO_DISPLAY_FILTER,
+                            tapReset, tapPacket, tapDraw)) {
+        cap_file_.retapPackets();
+        removeTapListeners();
+    }
+    rptid_values_ = keep_rptids;
+    endRetapPackets();
+
+    refreshing_combos_ = true;
+    ui_->datsetCombo->blockSignals(true);
+    ui_->datsetCombo->clear();
+    ui_->datsetCombo->addItem(tr("任意"), QString());
+    QStringList list = datset_values_.values();
+    list.sort(Qt::CaseInsensitive);
+    for (const QString &v : list) {
+        ui_->datsetCombo->addItem(v, v);
+    }
+    const int idx = ui_->datsetCombo->findData(prev_datset);
+    if (idx >= 0) {
+        ui_->datsetCombo->setCurrentIndex(idx);
+    } else if (!prev_datset.isEmpty()) {
+        ui_->datsetCombo->setCurrentIndex(0);
+        ui_->datsetCombo->setEditText(prev_datset);
+    } else {
+        ui_->datsetCombo->setCurrentIndex(0);
+    }
+    ui_->datsetCombo->blockSignals(false);
+    refreshing_combos_ = false;
+}
+
+void MmsReportFilterDialog::onRptidCriteriaChanged()
+{
+    if (refreshing_combos_) {
+        return;
     }
     updatePreview();
+    id_change_timer_->start();
+    applyFilterIfRealtime();
+}
+
+void MmsReportFilterDialog::onDatsetCriteriaChanged()
+{
+    if (refreshing_combos_) {
+        return;
+    }
+    updatePreview();
+    applyFilterIfRealtime();
+}
+
+void MmsReportFilterDialog::onRptidIndexChanged(int index)
+{
+    if (refreshing_combos_ || index < 0) {
+        return;
+    }
+    refreshDatsetComboForRptid();
+    updatePreview();
+    applyFilterIfRealtime(false);
+}
+
+void MmsReportFilterDialog::onDebouncedRptidCriteriaChanged()
+{
+    if (refreshing_combos_) {
+        return;
+    }
+    refreshDatsetComboForRptid();
+    updatePreview();
+    applyFilterIfRealtime(false);
 }
 
 void MmsReportFilterDialog::onApplyClicked()
 {
-    emit filterAction(buildFilter(), FilterAction::ActionApply, FilterAction::ActionTypePlain);
+    applyFilterNow();
 }

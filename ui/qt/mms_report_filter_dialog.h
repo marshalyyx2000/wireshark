@@ -21,6 +21,7 @@
 #include <QString>
 
 class QComboBox;
+class QTimer;
 
 namespace Ui {
 class MmsReportFilterDialog;
@@ -43,7 +44,12 @@ protected:
 private slots:
     void onApplyClicked();
     void onScopeCriteriaChanged();
-    void onIdCriteriaChanged();
+    void onRptidCriteriaChanged();
+    void onDatsetCriteriaChanged();
+    void onRptidIndexChanged(int index);
+    void onDebouncedScopeRetap();
+    void onDebouncedRptidCriteriaChanged();
+    void onDebouncedFilterApply();
 
 private:
     static void tapReset(void *tapdata);
@@ -57,6 +63,9 @@ private:
     QString buildScopeFilter(bool include_rptid) const;
     QString buildFilter() const;
     void updatePreview();
+    void applyFilterNow();
+    void applyFilterIfRealtime(bool debounce = true);
+    void refreshDatsetComboForRptid();
     static QString quoteFilterString(const QString &value);
     static QString comboSelectedValue(QComboBox *combo);
     /** True when current text exactly matches a dropdown item (not free-typed). */
@@ -67,6 +76,9 @@ private:
     QSet<QString> rptid_values_;
     QSet<QString> datset_values_;
     bool refreshing_combos_;
+    QTimer *scope_retap_timer_;
+    QTimer *id_change_timer_;
+    QTimer *filter_apply_timer_;
 };
 
 #endif /* MMS_REPORT_FILTER_DIALOG_H */
