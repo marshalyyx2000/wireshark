@@ -313,10 +313,9 @@ QString MmsReportFilterDialog::buildFilter() const
 
     const QString datset = comboSelectedValue(ui_->datsetCombo);
     if (!datset.isEmpty()) {
-        /* Dropdown pick → exact ==; free-typed text → contains (Wireshark has no "like"). */
-        const char *op = isComboExactSelection(ui_->datsetCombo) ? "==" : "contains";
-        parts << QStringLiteral("mms.iec61850.datset %1 %2")
-                     .arg(QLatin1String(op), quoteFilterString(datset));
+        /* DatSet paths are often partial (e.g. PCL1006); always use contains. */
+        parts << QStringLiteral("mms.iec61850.datset contains %1")
+                     .arg(quoteFilterString(datset));
     }
 
     return parts.join(QStringLiteral(" && "));
@@ -442,6 +441,7 @@ void MmsReportFilterDialog::onRptidActivated(int index)
         return;
     }
     id_change_timer_->stop();
+    filter_apply_timer_->stop();
     refreshDatsetComboForRptid();
     updatePreview();
     applyFilterIfRealtime(false);
@@ -452,6 +452,7 @@ void MmsReportFilterDialog::onDatsetActivated(int index)
     if (refreshing_combos_ || index < 0) {
         return;
     }
+    filter_apply_timer_->stop();
     updatePreview();
     applyFilterIfRealtime(false);
 }

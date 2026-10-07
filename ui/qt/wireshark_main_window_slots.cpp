@@ -195,6 +195,7 @@ DIAG_ON(frame-larger-than=)
 #include <ui/qt/interface_frame.h>
 
 #include <functional>
+#include <QSignalBlocker>
 #include <QClipboard>
 #include <QFileInfo>
 #include <QMessageBox>
@@ -512,9 +513,15 @@ void WiresharkMainWindow::queuedFilterAction(QString action_filter, FilterAction
 
     switch (action) {
     case FilterAction::ActionApply:
+    {
+        QSignalBlocker blocker(df_combo_box_);
         df_combo_box_->setText(new_filter);
-        df_combo_box_->applyDisplayFilter();
+        df_combo_box_->recheck();
+        if (df_combo_box_->checkDisplayFilter()) {
+            df_combo_box_->applyDisplayFilter();
+        }
         break;
+    }
     case FilterAction::ActionColorize:
         colorizeWithFilter(new_filter.toUtf8());
         break;

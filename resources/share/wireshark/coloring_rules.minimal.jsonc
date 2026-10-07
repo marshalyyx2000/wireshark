@@ -1,0 +1,123 @@
+// Default color rules for ENABLE_MINIMAL_BUILD (industrial protocol subset).
+[
+  {
+    "Bad TCP": {
+      "filter": "tcp.analysis.flags && !tcp.analysis.window_update && !tcp.analysis.keep_alive && !tcp.analysis.keep_alive_ack",
+      "foreground": "#f78787",
+      "background": "#12272e",
+      "enabled": true
+    }
+  },
+  {
+    "ICMP errors": {
+      "filter": "icmp.type in { 3..5, 11 } || icmpv6.type in { 1..4 }",
+      "foreground": "#b7f774",
+      "background": "#12272e",
+      "enabled": true
+    }
+  },
+  {
+    "ARP": {
+      "filter": "arp",
+      "foreground": "#12272e",
+      "background": "#faf0d7",
+      "enabled": true
+    }
+  },
+  {
+    "ICMP": {
+      "filter": "icmp || icmpv6",
+      "foreground": "#12272e",
+      "background": "#fce0ff",
+      "enabled": true
+    }
+  },
+  {
+    "TCP RST": {
+      "filter": "tcp.flags.reset eq 1",
+      "foreground": "#fffc9c",
+      "background": "#a40000",
+      "enabled": true
+    }
+  },
+  {
+    "IPv4 TTL low": {
+      "filter": "ip.ttl < 5 && ip.dst != 224.0.0.0/4",
+      "foreground": "#ecf0eb",
+      "background": "#a40000",
+      "enabled": true
+    }
+  },
+  {
+    "IPv6 hop limit low": {
+      "filter": "ipv6.hlim < 5 && ipv6.dst != ff00::/8",
+      "foreground": "#ecf0eb",
+      "background": "#a40000",
+      "enabled": true
+    }
+  },
+  {
+    "Checksum Errors": {
+      "filter": "eth.fcs.status==\"Bad\" || ip.checksum.status==\"Bad\" || tcp.checksum.status==\"Bad\" || udp.checksum.status==\"Bad\"",
+      "foreground": "#f78787",
+      "background": "#12272e",
+      "enabled": true
+    }
+  },
+  {
+    "Modbus": {
+      "filter": "mbtcp || mbrtu || mbudp || modbus",
+      "foreground": "#12272e",
+      "background": "#e4ffc7",
+      "enabled": true
+    }
+  },
+  {
+    "IEC 60870": {
+      "filter": "iec60870_104 || iec60870_101 || iec60870_5_103 || iec60870_asdu",
+      "foreground": "#12272e",
+      "background": "#e7e6ff",
+      "enabled": true
+    }
+  },
+  {
+    "IEC 61850": {
+      "filter": "mms || goose || sv || r-goose",
+      "foreground": "#12272e",
+      "background": "#fff3d6",
+      "enabled": true
+    }
+  },
+  {
+    "TCP SYN/FIN": {
+      "filter": "tcp.flags & 0x02 || tcp.flags.fin == 1",
+      "foreground": "#12272e",
+      "background": "#a0a0a0",
+      "enabled": true
+    }
+  },
+  {
+    "TCP": {
+      "filter": "tcp",
+      "foreground": "#12272e",
+      "background": "#e7e6ff",
+      "enabled": true
+    }
+  },
+  {
+    "UDP": {
+      "filter": "udp",
+      "foreground": "#12272e",
+      "background": "#daeeff",
+      "enabled": true
+    }
+  },
+  {
+    "Broadcast": {
+      "filter": "eth[0] & 1",
+      "foreground": "#babdb6",
+      "background": "#ffffff",
+      "enabled": true
+    }
+  }
+]
