@@ -13,6 +13,7 @@
 
 #include <epan/expert.h>
 #include <epan/prefs.h>
+#include <epan/tag_rules.h>
 
 #include <wsutil/filesystem.h>
 #include <wsutil/utf8_entities.h>
@@ -24,8 +25,9 @@
 #include "capture_file.h"
 #include "main_status_bar.h"
 #include "profile_dialog.h"
-#include <ui/qt/utils/stock_icon.h>
 #include <ui/qt/utils/color_utils.h>
+#include <ui/qt/utils/themes/contrast_adapt_icon.h>
+#include <ui/qt/utils/themes/themed_icon.h>
 #include <ui/qt/capture_file.h>
 #include <ui/qt/widgets/clickable_label.h>
 #include <ui/recent.h>
@@ -126,7 +128,7 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
 
     // We just want a clickable image. Using a QPushButton or QToolButton would require
     // a lot of adjustment.
-    StockIcon comment_icon("x-capture-comment-update");
+    ThemedIcon comment_icon(QStringLiteral(":/svg_icons/capture-comment.svg"), ThemeManager::PaletteText);
     comment_button_ = new QToolButton(this);
     comment_button_->setIcon(comment_icon);
     comment_button_->setIconSize(QSize(icon_size, icon_size));
@@ -211,7 +213,7 @@ void MainStatusBar::expertUpdate() {
     // <img> won't load @2x versions in Qt versions earlier than 5.4.
     // https://bugreports.qt.io/browse/QTBUG-36383
     // We might have to switch to a QPushButton.
-    QString stock_name = "x-expert-";
+    QString stock_name = "expert-";
     QString tt_text = tr(" is the highest expert information level");
 
     switch(expert_get_highest_severity()) {
@@ -240,7 +242,8 @@ void MainStatusBar::expertUpdate() {
         break;
     }
 
-    StockIcon expert_icon(stock_name);
+    ContrastAdaptIcon expert_icon(QStringLiteral(":/svg_icons/") + stock_name.toLatin1() + QStringLiteral(".svg"),
+                                  QPalette::Window);
     expert_button_->setIcon(expert_icon);
     expert_button_->setToolTip(tt_text);
     expert_button_->show();
@@ -331,7 +334,23 @@ void MainStatusBar::selectedFieldChanged(FieldInformation * finfo)
 
     if (hInfo.isValid)
     {
-        if (hInfo.description.length() > 0) {
+        /* For frame.tag items, show the rule's comment in the status bar instead of the blurb. */
+        if (hInfo.abbreviation == "frame.tag") {
+            field_info *fi = finfo->fieldInfo();
+            const char *rule_name = fi ? fvalue_get_string(fi->value) : nullptr;
+            QString comment_str;
+            if (rule_name) {
+                for (const GSList *r = tag_rules_get_list(); r; r = g_slist_next(r)) {
+                    const tag_rule_t *rule = (const tag_rule_t *)r->data;
+                    if (strcmp(rule->rule_name, rule_name) == 0) {
+                        if (rule->comment && rule->comment[0])
+                            comment_str = QString::fromUtf8(rule->comment);
+                        break;
+                    }
+                }
+            }
+            item_info.append(comment_str.isEmpty() ? hInfo.description : comment_str);
+        } else if (hInfo.description.length() > 0) {
             item_info.append(hInfo.description);
         } else {
             item_info.append(hInfo.name);

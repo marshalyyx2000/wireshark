@@ -16,11 +16,11 @@
 #include <QAbstractProxyModel>
 #include <QList>
 
-class PacketListModel;
+class PacketListProxyModel;
 
 /**
  * @brief A proxy model exposing only a chosen set of "pinned" packets from
- * a PacketListModel, packed together with no gaps, ordered to match the
+ * a PacketListProxyModel, packed together with no gaps, ordered to match the
  * source model's own current row order (i.e. whatever sort/filter is
  * currently active there).
  *
@@ -64,6 +64,21 @@ public:
     int pinnedCount() const { return static_cast<int>(pinned_frame_nums_.count()); }
 
     /**
+     * @brief The frame number pinned at the given proxy row ("strip
+     * position"), i.e. this model's own row order -- not the primary
+     * view's row numbering. Used for Shift-click range-select within the
+     * pinned-rows strip, which is scoped to the strip's own row order
+     * rather than the primary view's (so unpinned packets between two
+     * pinned ones in the main list are never implicitly included).
+     * @param proxy_row A row within this model (0..pinnedCount()-1).
+     * @return The frame number pinned there, or -1 if out of range.
+     */
+    int frameNumAtProxyRow(int proxy_row) const {
+        return (proxy_row >= 0 && proxy_row < pinned_frame_nums_.count()) ?
+            pinned_frame_nums_[proxy_row] : -1;
+    }
+
+    /**
      * @brief Re-sorts the pinned frames to match the source model's
      * current row order (i.e. whatever sort is currently applied there),
      * and re-resolves each against the current source model state (e.g.
@@ -94,7 +109,7 @@ public:
      * currently *visible* (filtered-in) rows -- a pinned packet that's
      * been filtered out has no such row, so the default would return an
      * empty QVariant for it. This instead always reads the packet's data
-     * from PacketListModel::dataForFrameNum(), which looks the packet up
+     * from the underlying PacketListModel::dataForFrameNum(), which looks the packet up
      * directly regardless of the display filter, so pinned rows keep
      * showing their data even after being filtered out.
      * @param proxy_index The index within this proxy model.
@@ -131,7 +146,7 @@ private slots:
 
 private:
     QList<int> pinned_frame_nums_;
-    PacketListModel *packet_list_model_;
+    PacketListProxyModel *packet_list_proxy_model_;
 
     /**
      * @brief The source model row currently backing the given pinned

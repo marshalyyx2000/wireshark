@@ -1401,38 +1401,6 @@ Off = logpoint only (matches the historical &quot;logpoints never pause&quot; co
         <translation>Eingabe</translation>
     </message>
     <message>
-        <source>Interface</source>
-        <translation type="vanished">Schnittstelle</translation>
-    </message>
-    <message>
-        <source>Traffic</source>
-        <translation type="vanished">Datenverkehr</translation>
-    </message>
-    <message>
-        <source>Link-layer Header</source>
-        <translation type="vanished">Link-Layer Header</translation>
-    </message>
-    <message>
-        <source>Promiscuous</source>
-        <translation type="vanished">Promiskuitiv</translation>
-    </message>
-    <message>
-        <source>Snaplen (B)</source>
-        <translation type="vanished">Mitschnittlänge (B)</translation>
-    </message>
-    <message>
-        <source>Buffer (MB)</source>
-        <translation type="vanished">Puffer (MB)</translation>
-    </message>
-    <message>
-        <source>Monitor Mode</source>
-        <translation type="vanished">Überwachungsmodus</translation>
-    </message>
-    <message>
-        <source>Capture Filter</source>
-        <translation type="vanished">Mitschnittfilter</translation>
-    </message>
-    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;You probably want to enable this. Usually a network card will only capture the traffic sent to its own network address. If you want to capture all traffic that the network card can &amp;quot;see&amp;quot;, mark this option. See the FAQ for some more details of capturing packets from a switched network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Vermutlich sollten Sie diese Option aktivieren. Normalerweise nimmt eine Netzwerkkarte nur Pakete auf, die an die eigene Adresse adressiert sind. Wenn Sie alle Pakete &amp;quot;sehen&amp;quot; wollen, sollten Sie diese Option aktivieren. In den FAQ stehen weitere Informationen zum Aufzeichnen von Paketen in einer Switch-Netzwerkumgebung.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1555,10 +1523,6 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
 Um zum Beispiel eine neue Datei zu jeder vollen Stunde zu haben, 1 Stunde angeben.</translation>
     </message>
     <message>
-        <source>Optimize</source>
-        <translation type="vanished">Optimierung</translation>
-    </message>
-    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Usually a wireless network card will only capture the traffic sent to and from its own network address, and only captures &lt;em&gt;user data&lt;/em&gt; traffic with &amp;quot;fake&amp;quot; Ethernet headers. If you want to capture all traffic that wireless network cards can &amp;quot;see&amp;quot;, or are interested in 802.11 management or control packets, or radio-layer information, mark this option. Monitor mode availability depends on the wireless card and driver. See the Wiki for some more details of capturing packets on WLAN networks.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Normalerweise erfasst eine WLAN-Netzwerkkarte nur Verkehr, der zu oder von ihrer Netzwerkadresse gesendet wird. Zudem wird nur &lt;em&gt;user data&lt;/em&gt;-Verkehr mit &amp;quot;fake&amp;quot; Ethernet-Headern aufgezeichnet. Wenn Sie den gesamten Datenverkehr, den die Netzwerkkarte &amp;quot;sehen&amp;quot; kann, aufzeichnen möchten, an 802.11 Management-/Kontrollpaketen oder Radio-Layer-Infos interessiert sind, wählen Sie diese Option an. Monitor-Mode-Verfügbarkeit hängt von der Netzwerkkarte und den Treibern ab. Schauen Sie für mehr Informationen zum Mitschneiden in WLAN-Netzwerken ins Wiki.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1601,6 +1565,22 @@ Um zum Beispiel eine neue Datei zu jeder vollen Stunde zu haben, 1 Stunde angebe
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;File index number before the date and time. This is the historic Wireshark ordering.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Datei-Indexnummer vor Datum und Uhrzeit. Dies ist die alte Wireshark Sortierung.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Create a new interface bookmark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove this interface bookmark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Processes:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executable paths, command lines and user names will be stored in the capture file. A command line can contain a password.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;After capturing has switched to the next file and the given number of files has exceeded, the oldest file will be removed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
@@ -1723,6 +1703,18 @@ Um zum Beispiel eine neue Datei zu jeder vollen Stunde zu haben, 1 Stunde angebe
         <translation>Start</translation>
     </message>
     <message>
+        <source>Don&apos;t record processes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Record process IDs and names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Record process IDs, names, paths, command lines and users</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Leave blank to use a temporary file</source>
         <translation>Leer lassen um eine temporäre Datei zu verwenden</translation>
     </message>
@@ -1735,24 +1727,16 @@ Um zum Beispiel eine neue Datei zu jeder vollen Stunde zu haben, 1 Stunde angebe
         <translation>Verzeichnis für temporäre Dateien definieren</translation>
     </message>
     <message>
-        <source>Extcap interface settings</source>
-        <translation type="vanished">Extcap-Schnittstelleneinstellungen</translation>
+        <source>Not supported on this platform.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1: %2</source>
-        <translation type="vanished">%1: %2</translation>
+        <source>Process information can only be recorded in pcapng files.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Addresses</source>
-        <translation type="vanished">Adressen</translation>
-    </message>
-    <message>
-        <source>Address</source>
-        <translation type="vanished">Adresse</translation>
-    </message>
-    <message>
-        <source>no addresses</source>
-        <translation type="vanished">keine Adressen</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Record which processes on this computer sent or received each packet, for the packets of TCP and UDP sockets. Which processes can be identified depends on your privileges, and the packets of very short-lived sockets can be missed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error</source>
@@ -1806,6 +1790,14 @@ Um zum Beispiel eine neue Datei zu jeder vollen Stunde zu haben, 1 Stunde angebe
         <translation>Pakete im pcap-ng Format mitschneiden</translation>
     </message>
     <message>
+        <source>Record the processes that packets belong to:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;What to record, in pcapng files, of the processes on this computer that sent or received each packet. Executable paths, command lines and user names can be sensitive: a command line can contain a password.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Update the list of packets while capture is in progress. This can result in dropped packets on high-speed networks.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Paketliste während dem Aufzeichnen aktualisieren. Dies kann bei einer hohen Bandbreite zu Paketverlusten führen.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1826,12 +1818,40 @@ Um zum Beispiel eine neue Datei zu jeder vollen Stunde zu haben, 1 Stunde angebe
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Intervall zwischen Aktualisierung neuer Pakete. Beeinflusst wie oft die GUI aktualisiert wird sowie die Granularität der Timer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
+        <source>Temporary directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Directory in which to write temporary capture files. Leave empty to use the system default. Overridden by the --temp-dir option.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Don&apos;t load interfaces on startup</source>
         <translation>Interfaces nicht beim Start laden</translation>
     </message>
     <message>
         <source>Disable external capture interfaces</source>
         <translation>Externe Mitschnittschnittstellen deaktivieren</translation>
+    </message>
+    <message>
+        <source>Nothing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Process IDs and names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Process IDs, names, paths, command lines and users</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Temporary Directory</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3919,8 +3939,7 @@ Relativ zur Referenz: n. v. (außerhalb des Referenzbereichs)</translation>
     </message>
     <message>
         <source>Filter Button Preferences…</source>
-        <oldsource>Filter Button Preferences...</oldsource>
-        <translation type="unfinished">Einstellungen Filterknöpfe...</translation>
+        <translation type="unfinished">Einstellungen Filterknopf</translation>
     </message>
     <message>
         <source>Manage saved filters</source>
@@ -4713,6 +4732,10 @@ Relativ zur Referenz: n. v. (außerhalb des Referenzbereichs)</translation>
     <message>
         <source>…as EBCDIC</source>
         <translation>…als EBCDIC</translation>
+    </message>
+    <message>
+        <source>…as UTF-8</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Comment: %1</source>
@@ -6234,7 +6257,7 @@ Relativ zur Referenz: n. v. (außerhalb des Referenzbereichs)</translation>
     </message>
     <message>
         <source>Optimize</source>
-        <translation type="unfinished">Optimierung</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Capture Filter</source>
@@ -6242,7 +6265,7 @@ Relativ zur Referenz: n. v. (außerhalb des Referenzbereichs)</translation>
     </message>
     <message>
         <source>Traffic</source>
-        <translation type="unfinished">Datenverkehr</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Addresses</source>
@@ -9369,6 +9392,10 @@ on an existing breakpoint, toggle its active state</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Tag Links</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Summary as Text</source>
         <translation>Zusammenfassung als Text</translation>
     </message>
@@ -10578,8 +10605,8 @@ on an existing breakpoint, toggle its active state</source>
         <translation>Alles einklappen</translation>
     </message>
     <message>
-        <source>Distribution</source>
-        <translation>Verteilung</translation>
+        <source>Distribution…</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Copy</source>
@@ -10616,6 +10643,14 @@ on an existing breakpoint, toggle its active state</source>
     <message>
         <source>Filter Field Reference</source>
         <translation>Referenz Filterfelder</translation>
+    </message>
+    <message>
+        <source>Tagging Rules...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag Links</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Coloring Rule Preferences...</source>
@@ -15171,6 +15206,176 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
 </context>
 <context>
+    <name>TaggingRulesDialog</name>
+    <message>
+        <source>Dialog</source>
+        <translation type="unfinished">Dialog</translation>
+    </message>
+    <message>
+        <source>Follow Link:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How to open a tag link in the packet list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right-click only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Emoji Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Emoji size as a percentage of the row height. Does not affect text tag labels or the separator character.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>90%</source>
+        <translation type="unfinished">90%</translation>
+    </message>
+    <message>
+        <source>80%</source>
+        <translation type="unfinished">80%</translation>
+    </message>
+    <message>
+        <source>70%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>60%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>50%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Separator:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Single character shown between tags when more than one rule matches. Leave empty for none.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save these tagging rules and open the Coloring Rules dialog with this rule&apos;s filter and name pre-filled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy to Coloring Rule</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;small&gt;&lt;i&gt;A hint.&lt;/i&gt;&lt;/small&gt;</source>
+        <translation type="unfinished">&lt;small&gt;&lt;i&gt;Hinweis&lt;/i&gt;&lt;/small&gt;</translation>
+    </message>
+    <message>
+        <source>Add a new tagging rule.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete this tagging rule.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate this tagging rule.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear all tagging rules.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tagging Rules %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift+Command+Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import…</source>
+        <translation type="unfinished">Importieren…</translation>
+    </message>
+    <message>
+        <source>Select a file and add its rules to the end of the list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export…</source>
+        <translation type="unfinished">Exportieren…</translation>
+    </message>
+    <message>
+        <source>Save rules to a file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy tagging rules from another profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open </source>
+        <translation type="unfinished">Öffnen</translation>
+    </message>
+    <message>
+        <source>(no tagrules file yet — will be created on save)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to edit. Drag to move. Sample Emojis &lt;a href=&quot;https://emojipedia.org&quot;&gt;here&lt;/a&gt;. All matching rules are applied.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Tagging Rules</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export %1 Tagging Rules</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TaggingRulesModel</name>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished">Name</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation type="unfinished">Filter</translation>
+    </message>
+    <message>
+        <source>Tag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New tagging rule</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>TapParameterDialog</name>
     <message>
         <source>Dialog</source>
@@ -17769,7 +17974,7 @@ Preferences → Protocols → TCP to use this table.</source>
     </message>
     <message>
         <source>Distribution</source>
-        <translation type="unfinished">Verteilung</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Distribution statistics</source>
@@ -18102,6 +18307,14 @@ Preferences → Protocols → TCP to use this table.</source>
     <message>
         <source>&amp;Coloring Rules…</source>
         <translation>Einfärbungsregeln...</translation>
+    </message>
+    <message>
+        <source>&amp;Tagging Rules…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit the packet tagging rules.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show Linked Packet in New Window</source>

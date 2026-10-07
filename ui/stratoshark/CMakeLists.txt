@@ -96,6 +96,7 @@ set(WIRESHARK_MANAGER_HEADERS
 set (STRATOSHARK_MANAGER_HEADERS ${WIRESHARK_MANAGER_HEADERS})
 
 set(WIRESHARK_UTILS_HEADERS
+	${CMAKE_SOURCE_DIR}/ui/qt/utils/byte_view_text_cells.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/color_utils.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/data_printer.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/field_information.h
@@ -118,6 +119,7 @@ set(WIRESHARK_UTILS_HEADERS
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/theme_stylesheet_loader.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/theme_token_handler.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/themed_icon.h
+	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/contrast_adapt_icon.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/variant_pointer.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/wireshark_mime_data.h
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/wireshark_zip_helper.h
@@ -141,6 +143,9 @@ set(WIRESHARK_MODEL_HEADERS
 	${CMAKE_SOURCE_DIR}/ui/qt/models/display_filter_validator.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/coloring_rules_delegate.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/coloring_rules_model.h
+	${CMAKE_SOURCE_DIR}/ui/qt/models/tag_column_delegate.h
+	${CMAKE_SOURCE_DIR}/ui/qt/models/tagging_rules_delegate.h
+	${CMAKE_SOURCE_DIR}/ui/qt/models/tagging_rules_model.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/column_list_model.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/decode_as_delegate.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/decode_as_model.h
@@ -159,6 +164,7 @@ set(WIRESHARK_MODEL_HEADERS
 	${CMAKE_SOURCE_DIR}/ui/qt/models/interface_tree_model.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/numeric_value_chooser_delegate.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/packet_list_model.h
+	${CMAKE_SOURCE_DIR}/ui/qt/models/packet_list_proxy_model.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/packet_list_record.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/pinned_rows_model.h
 	${CMAKE_SOURCE_DIR}/ui/qt/models/path_selection_delegate.h
@@ -197,6 +203,7 @@ set(WIRESHARK_QT_HEADERS
 	${CMAKE_SOURCE_DIR}/ui/qt/capture_options_dialog.h
 	${CMAKE_SOURCE_DIR}/ui/qt/capture_preferences_frame.h
 	${CMAKE_SOURCE_DIR}/ui/qt/coloring_rules_dialog.h
+	${CMAKE_SOURCE_DIR}/ui/qt/tagging_rules_dialog.h
 	${CMAKE_SOURCE_DIR}/ui/qt/column_editor_frame.h
 	${CMAKE_SOURCE_DIR}/ui/qt/column_preferences_frame.h
 	${CMAKE_SOURCE_DIR}/ui/qt/compiled_filter_output.h
@@ -417,6 +424,7 @@ else()
 endif()
 
 set(WIRESHARK_UTILS_SRCS
+	${CMAKE_SOURCE_DIR}/ui/qt/utils/byte_view_text_cells.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/color_utils.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/data_printer.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/field_information.cpp
@@ -436,6 +444,7 @@ set(WIRESHARK_UTILS_SRCS
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/theme_stylesheet_loader.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/theme_token_handler.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/themed_icon.cpp
+	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/contrast_adapt_icon.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/themes/system_theme_detector_common.cpp
 	${WIRESHARK_THEMES_PLATFORM_SRC}
 	${CMAKE_SOURCE_DIR}/ui/qt/utils/wireshark_mime_data.cpp
@@ -460,6 +469,9 @@ set(WIRESHARK_MODEL_SRCS
 	${CMAKE_SOURCE_DIR}/ui/qt/models/display_filter_validator.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/coloring_rules_delegate.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/coloring_rules_model.cpp
+	${CMAKE_SOURCE_DIR}/ui/qt/models/tag_column_delegate.cpp
+	${CMAKE_SOURCE_DIR}/ui/qt/models/tagging_rules_delegate.cpp
+	${CMAKE_SOURCE_DIR}/ui/qt/models/tagging_rules_model.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/column_list_model.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/decode_as_delegate.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/decode_as_model.cpp
@@ -478,6 +490,7 @@ set(WIRESHARK_MODEL_SRCS
 	${CMAKE_SOURCE_DIR}/ui/qt/models/interface_tree_model.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/numeric_value_chooser_delegate.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/packet_list_model.cpp
+	${CMAKE_SOURCE_DIR}/ui/qt/models/packet_list_proxy_model.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/packet_list_record.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/pinned_rows_model.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/models/path_selection_delegate.cpp
@@ -513,6 +526,7 @@ set(WIRESHARK_QT_SRC
 	${CMAKE_SOURCE_DIR}/ui/qt/capture_options_dialog.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/capture_preferences_frame.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/coloring_rules_dialog.cpp
+	${CMAKE_SOURCE_DIR}/ui/qt/tagging_rules_dialog.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/column_editor_frame.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/column_preferences_frame.cpp
 	${CMAKE_SOURCE_DIR}/ui/qt/compiled_filter_output.cpp
@@ -662,6 +676,7 @@ set(WIRESHARK_QT_UI
 	${CMAKE_SOURCE_DIR}/ui/qt/capture_options_dialog.ui
 	${CMAKE_SOURCE_DIR}/ui/qt/capture_preferences_frame.ui
 	${CMAKE_SOURCE_DIR}/ui/qt/coloring_rules_dialog.ui
+	${CMAKE_SOURCE_DIR}/ui/qt/tagging_rules_dialog.ui
 	${CMAKE_SOURCE_DIR}/ui/qt/column_editor_frame.ui
 	${CMAKE_SOURCE_DIR}/ui/qt/column_preferences_frame.ui
 	${CMAKE_SOURCE_DIR}/ui/qt/compiled_filter_output.ui

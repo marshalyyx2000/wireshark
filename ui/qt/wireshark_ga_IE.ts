@@ -1413,38 +1413,6 @@ As = pointe loga amháin (meaitseálann sé an coinbhinsiún stairiúil &quot;n�
         <translation>Ionchur</translation>
     </message>
     <message>
-        <source>Interface</source>
-        <translation type="vanished">Comhéadan</translation>
-    </message>
-    <message>
-        <source>Traffic</source>
-        <translation type="vanished">Trácht</translation>
-    </message>
-    <message>
-        <source>Link-layer Header</source>
-        <translation type="vanished">Ceanntásca Nasc-Chiseal</translation>
-    </message>
-    <message>
-        <source>Promiscuous</source>
-        <translation type="vanished">Promiscuous</translation>
-    </message>
-    <message>
-        <source>Snaplen (B)</source>
-        <translation type="vanished">Snaplen (B)</translation>
-    </message>
-    <message>
-        <source>Buffer (MB)</source>
-        <translation type="vanished">Maolán (MB)</translation>
-    </message>
-    <message>
-        <source>Monitor Mode</source>
-        <translation type="vanished">Mód Monatóireachta</translation>
-    </message>
-    <message>
-        <source>Capture Filter</source>
-        <translation type="vanished">Scagaire Gabhála</translation>
-    </message>
-    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;You probably want to enable this. Usually a network card will only capture the traffic sent to its own network address. If you want to capture all traffic that the network card can &amp;quot;see&amp;quot;, mark this option. See the FAQ for some more details of capturing packets from a switched network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Is dócha gur mhaith leat é seo a chumasú. De ghnáth, ní ghabhfaidh cárta líonra ach an trácht a sheoltar chuig a sheoladh líonra féin. Más mian leat gach trácht is féidir leis an gcárta líonra &amp;quot;a fheiceáil&amp;quot; a ghabháil, marcáil an rogha seo. Féach na Ceisteanna Coitianta le haghaidh roinnt sonraí breise maidir le paicéid a ghabháil ó líonra lasctha.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1567,10 +1535,6 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
 Mar shampla, bain úsáid as 1 uair an chloig chun comhad nua a chruthú gach uair an chloig ar an uair an chloig.</translation>
     </message>
     <message>
-        <source>Optimize</source>
-        <translation type="vanished">Optamaigh</translation>
-    </message>
-    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Usually a wireless network card will only capture the traffic sent to and from its own network address, and only captures &lt;em&gt;user data&lt;/em&gt; traffic with &amp;quot;fake&amp;quot; Ethernet headers. If you want to capture all traffic that wireless network cards can &amp;quot;see&amp;quot;, or are interested in 802.11 management or control packets, or radio-layer information, mark this option. Monitor mode availability depends on the wireless card and driver. See the Wiki for some more details of capturing packets on WLAN networks.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;De ghnáth, ní ghabhfaidh cárta líonra gan sreang ach an trácht a sheoltar chuig agus óna sheoladh líonra féin, agus ní ghlacann sé ach trácht &lt;em&gt;sonraí úsáideora&lt;/em&gt; le ceanntásca Ethernet &amp;quot;falsa&amp;quot;. Más mian leat a ghabháil go léir tráchta gur féidir le cártaí líonra gan sreang &amp;quot;a fheiceáil&amp;quot;, nó go bhfuil suim acu i bpaicéid bainistíochta nó rialaithe 802.11, nó faisnéis raidió-ciseal, marcáil an rogha seo. Braitheann infhaighteacht mód Monatóireacht ar an gcárta gan sreang agus ar an tiománaí. Féach ar an Wiki le haghaidh roinnt sonraí breise maidir le paicéid a ghabháil ar líonraí WLAN.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1613,6 +1577,22 @@ Mar shampla, bain úsáid as 1 uair an chloig chun comhad nua a chruthú gach ua
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;File index number before the date and time. This is the historic Wireshark ordering.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Comhad uimhir innéacs roimh an dáta agus am. Is é seo an t-ordú stairiúil Wireshark.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>Create a new interface bookmark.</source>
+        <translation>Cruthaigh leabharmharc comhéadain nua.</translation>
+    </message>
+    <message>
+        <source>Remove this interface bookmark.</source>
+        <translation>Bain an leabharmharc comhéadain seo.</translation>
+    </message>
+    <message>
+        <source>Processes:</source>
+        <translation>Próisis:</translation>
+    </message>
+    <message>
+        <source>Executable paths, command lines and user names will be stored in the capture file. A command line can contain a password.</source>
+        <translation>Stórálfar cosáin inrite, línte ordaithe agus ainmneacha úsáideora sa chomhad gabhála. Is féidir pasfhocal a bheith i líne ordaithe.</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;After capturing has switched to the next file and the given number of files has exceeded, the oldest file will be removed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
@@ -1735,6 +1715,18 @@ Mar shampla, bain úsáid as 1 uair an chloig chun comhad nua a chruthú gach ua
         <translation>Tosaigh</translation>
     </message>
     <message>
+        <source>Don&apos;t record processes</source>
+        <translation>Ná taifead próisis</translation>
+    </message>
+    <message>
+        <source>Record process IDs and names</source>
+        <translation>Taifead aitheantóirí agus ainmneacha próiseas</translation>
+    </message>
+    <message>
+        <source>Record process IDs, names, paths, command lines and users</source>
+        <translation>Taifead aitheantóirí próisis, ainmneacha, cosáin, línte ordaithe agus úsáideoirí</translation>
+    </message>
+    <message>
         <source>Leave blank to use a temporary file</source>
         <translation>Fág bán chun comhad sealadach a úsáid</translation>
     </message>
@@ -1747,24 +1739,16 @@ Mar shampla, bain úsáid as 1 uair an chloig chun comhad nua a chruthú gach ua
         <translation>Sonraigh comhadlann shealadach</translation>
     </message>
     <message>
-        <source>Extcap interface settings</source>
-        <translation type="vanished">Socruithe comhéadain Extcap</translation>
+        <source>Not supported on this platform.</source>
+        <translation>Ní thacaítear leis ar an ardán seo.</translation>
     </message>
     <message>
-        <source>%1: %2</source>
-        <translation type="vanished">%1: %2</translation>
+        <source>Process information can only be recorded in pcapng files.</source>
+        <translation>Ní féidir faisnéis phróisis a thaifeadadh ach i gcomhaid pcapng.</translation>
     </message>
     <message>
-        <source>Addresses</source>
-        <translation type="vanished">Seoltaí</translation>
-    </message>
-    <message>
-        <source>Address</source>
-        <translation type="vanished">Seoladh</translation>
-    </message>
-    <message>
-        <source>no addresses</source>
-        <translation type="vanished">gan seoltaí</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Record which processes on this computer sent or received each packet, for the packets of TCP and UDP sockets. Which processes can be identified depends on your privileges, and the packets of very short-lived sockets can be missed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Taifead cé na próisis ar an ríomhaire seo a sheol nó a fuair gach paicéad, i gcás paicéid soicéad TCP agus UDP. Braitheann sé ar do phribhléidí cé na próisis ar féidir iad a aithint, agus d’fhéadfaí paicéid ó soicéid nach maireann ach ar feadh tréimhse an-ghairid a chailleadh.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Error</source>
@@ -1818,6 +1802,14 @@ Mar shampla, bain úsáid as 1 uair an chloig chun comhad nua a chruthú gach ua
         <translation>Paicéid a ghabháil i bhformáid pcapng</translation>
     </message>
     <message>
+        <source>Record the processes that packets belong to:</source>
+        <translation>Taifead na próisis a mbaineann na paicéid leo:</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;What to record, in pcapng files, of the processes on this computer that sent or received each packet. Executable paths, command lines and user names can be sensitive: a command line can contain a password.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Cad ba cheart a thaifeadadh i gcomhaid pcapng maidir leis na próisis ar an ríomhaire seo a sheol nó a fuair gach paicéad. Is féidir le cosáin inrite, línte ordaithe agus ainmneacha úsáideora a bheith íogair: d’fhéadfadh pasfhocal a bheith i líne ordaithe.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Update the list of packets while capture is in progress. This can result in dropped packets on high-speed networks.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Nuashonraigh liosta na bpaicéad agus an ghabháil ar siúl. D&apos;fhéadfadh paicéid tite ar líonraí ardluais a bheith mar thoradh air seo.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -1838,12 +1830,40 @@ Mar shampla, bain úsáid as 1 uair an chloig chun comhad nua a chruthú gach ua
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;An t-eatramh idir nuashonruithe paicéad nua. Bíonn tionchar aige ar cé chomh minic a nuashonraíonn an GUI agus gráinneacht na n-amadóirí.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
+        <source>Temporary directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Directory in which to write temporary capture files. Leave empty to use the system default. Overridden by the --temp-dir option.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation type="unfinished">Brabhsáil…</translation>
+    </message>
+    <message>
         <source>Don&apos;t load interfaces on startup</source>
         <translation>Ná luchtaigh comhéadain ag am tosaithe</translation>
     </message>
     <message>
         <source>Disable external capture interfaces</source>
         <translation>Díchumasaigh comhéadain ghabhála sheachtracha</translation>
+    </message>
+    <message>
+        <source>Nothing</source>
+        <translation>Aon rud</translation>
+    </message>
+    <message>
+        <source>Process IDs and names</source>
+        <translation>Aitheantóirí agus ainmneacha próiseas</translation>
+    </message>
+    <message>
+        <source>Process IDs, names, paths, command lines and users</source>
+        <translation>Aitheantóirí próisis, ainmneacha, cosáin, línte ordaithe agus úsáideoirí</translation>
+    </message>
+    <message>
+        <source>Temporary Directory</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3933,8 +3953,7 @@ I gcoibhneas leis an tagairt: n/a (lasmuigh den raon tagartha)</translation>
     </message>
     <message>
         <source>Filter Button Preferences…</source>
-        <oldsource>Filter Button Preferences...</oldsource>
-        <translation type="unfinished">Roghanna Cnaipe Scagaire...</translation>
+        <translation>Rogha an Chnaipe Scagaire…</translation>
     </message>
     <message>
         <source>Manage saved filters</source>
@@ -4734,6 +4753,10 @@ I gcoibhneas leis an tagairt: n/a (lasmuigh den raon tagartha)</translation>
     <message>
         <source>…as EBCDIC</source>
         <translation>…mar EBCDIC</translation>
+    </message>
+    <message>
+        <source>…as UTF-8</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Comment: %1</source>
@@ -6288,7 +6311,7 @@ I gcoibhneas leis an tagairt: n/a (lasmuigh den raon tagartha)</translation>
     </message>
     <message>
         <source>Optimize</source>
-        <translation type="unfinished">Optamaigh</translation>
+        <translation>Optamaigh</translation>
     </message>
     <message>
         <source>Capture Filter</source>
@@ -6296,7 +6319,7 @@ I gcoibhneas leis an tagairt: n/a (lasmuigh den raon tagartha)</translation>
     </message>
     <message>
         <source>Traffic</source>
-        <translation type="unfinished">Trácht</translation>
+        <translation>Trácht</translation>
     </message>
     <message>
         <source>Addresses</source>
@@ -9441,6 +9464,10 @@ ar phointe briste atá ann cheana féin, lascraigh a staid ghníomhach</translat
         <translation>Díphionnaigh gach ró</translation>
     </message>
     <message>
+        <source>Tag Links</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Summary as Text</source>
         <translation>Achoimre mar Théacs</translation>
     </message>
@@ -10691,8 +10718,8 @@ ar phointe briste atá ann cheana féin, lascraigh a staid ghníomhach</translat
         <translation>Laghdaigh Gach Rud</translation>
     </message>
     <message>
-        <source>Distribution</source>
-        <translation>Dáileadh</translation>
+        <source>Distribution…</source>
+        <translation>Dáileadh…</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -10729,6 +10756,14 @@ ar phointe briste atá ann cheana féin, lascraigh a staid ghníomhach</translat
     <message>
         <source>Filter Field Reference</source>
         <translation>Scag Tagairt Réimse</translation>
+    </message>
+    <message>
+        <source>Tagging Rules...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag Links</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Coloring Rule Preferences...</source>
@@ -15336,6 +15371,176 @@ Atosóidh sé seo na scripteanna Lua go léir agus d&apos;fhéadfadh sé difear 
     </message>
 </context>
 <context>
+    <name>TaggingRulesDialog</name>
+    <message>
+        <source>Dialog</source>
+        <translation type="unfinished">Dialóg</translation>
+    </message>
+    <message>
+        <source>Follow Link:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How to open a tag link in the packet list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right-click only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Emoji Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Emoji size as a percentage of the row height. Does not affect text tag labels or the separator character.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>90%</source>
+        <translation type="unfinished">90%</translation>
+    </message>
+    <message>
+        <source>80%</source>
+        <translation type="unfinished">80%</translation>
+    </message>
+    <message>
+        <source>70%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>60%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>50%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Separator:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Single character shown between tags when more than one rule matches. Leave empty for none.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save these tagging rules and open the Coloring Rules dialog with this rule&apos;s filter and name pre-filled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy to Coloring Rule</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;small&gt;&lt;i&gt;A hint.&lt;/i&gt;&lt;/small&gt;</source>
+        <translation type="unfinished">&lt;small&gt;&lt;i&gt;Leid.&lt;/i&gt;&lt;/small&gt;</translation>
+    </message>
+    <message>
+        <source>Add a new tagging rule.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete this tagging rule.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate this tagging rule.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear all tagging rules.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tagging Rules %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift+Command+Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import…</source>
+        <translation type="unfinished">Iompórtáil…</translation>
+    </message>
+    <message>
+        <source>Select a file and add its rules to the end of the list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export…</source>
+        <translation type="unfinished">Easpórtáil…</translation>
+    </message>
+    <message>
+        <source>Save rules to a file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy tagging rules from another profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(no tagrules file yet — will be created on save)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to edit. Drag to move. Sample Emojis &lt;a href=&quot;https://emojipedia.org&quot;&gt;here&lt;/a&gt;. All matching rules are applied.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Tagging Rules</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export %1 Tagging Rules</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TaggingRulesModel</name>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished">Ainm</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation type="unfinished">Scagaire</translation>
+    </message>
+    <message>
+        <source>Tag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New tagging rule</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>TapParameterDialog</name>
     <message>
         <source>Dialog</source>
@@ -18269,6 +18474,14 @@ Sainroghanna → Prótacail → TCP chun an tábla seo a úsáid.</translation>
     <message>
         <source>&amp;Coloring Rules…</source>
         <translation>&amp;ampRialacha Dathúcháin…</translation>
+    </message>
+    <message>
+        <source>&amp;Tagging Rules…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit the packet tagging rules.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show Linked Packet in New Window</source>

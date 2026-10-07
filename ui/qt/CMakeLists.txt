@@ -93,6 +93,7 @@ set(WIRESHARK_MANAGER_HEADERS
 )
 
 set(WIRESHARK_UTILS_HEADERS
+	utils/byte_view_text_cells.h
 	utils/color_utils.h
 	utils/data_printer.h
 	utils/field_information.h
@@ -119,6 +120,7 @@ set(WIRESHARK_UTILS_HEADERS
 	utils/themes/theme_stylesheet_loader.h
 	utils/themes/theme_token_handler.h
 	utils/themes/themed_icon.h
+	utils/themes/contrast_adapt_icon.h
 	utils/variant_pointer.h
 	utils/wireshark_mime_data.h
 	utils/wireshark_zip_helper.h
@@ -140,6 +142,9 @@ set(WIRESHARK_MODEL_HEADERS
 	models/display_filter_validator.h
 	models/coloring_rules_delegate.h
 	models/coloring_rules_model.h
+	models/tag_column_delegate.h
+	models/tagging_rules_delegate.h
+	models/tagging_rules_model.h
 	models/column_list_model.h
 	models/credentials_model.h
 	models/decode_as_delegate.h
@@ -161,6 +166,7 @@ set(WIRESHARK_MODEL_HEADERS
 	models/manuf_table_model.h
 	models/numeric_value_chooser_delegate.h
 	models/packet_list_model.h
+	models/packet_list_proxy_model.h
 	models/packet_list_record.h
 	models/pinned_rows_model.h
 	models/path_selection_delegate.h
@@ -200,6 +206,7 @@ set(WIRESHARK_QT_HEADERS
 	capture_options_dialog.h
 	capture_preferences_frame.h
 	coloring_rules_dialog.h
+	tagging_rules_dialog.h
 	column_editor_frame.h
 	column_preferences_frame.h
 	compiled_filter_output.h
@@ -441,6 +448,7 @@ else()
 endif()
 
 set(WIRESHARK_UTILS_SRCS
+	utils/byte_view_text_cells.cpp
 	utils/color_utils.cpp
 	utils/data_printer.cpp
 	utils/field_information.cpp
@@ -464,6 +472,7 @@ set(WIRESHARK_UTILS_SRCS
 	utils/themes/theme_stylesheet_loader.cpp
 	utils/themes/theme_token_handler.cpp
 	utils/themes/themed_icon.cpp
+	utils/themes/contrast_adapt_icon.cpp
 	utils/themes/system_theme_detector_common.cpp
 	${WIRESHARK_THEMES_PLATFORM_SRC}
 	utils/wireshark_mime_data.cpp
@@ -486,6 +495,9 @@ set(WIRESHARK_MODEL_SRCS
 	models/display_filter_validator.cpp
 	models/coloring_rules_delegate.cpp
 	models/coloring_rules_model.cpp
+	models/tag_column_delegate.cpp
+	models/tagging_rules_delegate.cpp
+	models/tagging_rules_model.cpp
 	models/column_list_model.cpp
 	models/credentials_model.cpp
 	models/decode_as_delegate.cpp
@@ -508,6 +520,7 @@ set(WIRESHARK_MODEL_SRCS
 	models/manuf_table_model.cpp
 	models/numeric_value_chooser_delegate.cpp
 	models/packet_list_model.cpp
+	models/packet_list_proxy_model.cpp
 	models/packet_list_record.cpp
 	models/pinned_rows_model.cpp
 	models/path_selection_delegate.cpp
@@ -545,6 +558,7 @@ set(WIRESHARK_QT_SRC
 	capture_options_dialog.cpp
 	capture_preferences_frame.cpp
 	coloring_rules_dialog.cpp
+	tagging_rules_dialog.cpp
 	column_editor_frame.cpp
 	column_preferences_frame.cpp
 	compiled_filter_output.cpp
@@ -734,6 +748,7 @@ set(WIRESHARK_QT_UI
 	capture_options_dialog.ui
 	capture_preferences_frame.ui
 	coloring_rules_dialog.ui
+	tagging_rules_dialog.ui
 	column_editor_frame.ui
 	column_preferences_frame.ui
 	compiled_filter_output.ui

@@ -509,6 +509,8 @@ static int hf_dns_opt_zoneversion_labelcount;
 static int hf_dns_opt_zoneversion_type;
 static int hf_dns_opt_zoneversion_soa;
 static int hf_dns_opt_zoneversion_version;
+static int hf_dns_opt_mqtype;
+static int hf_dns_opt_key_tag;
 static int hf_dns_nsec3_algo;
 static int hf_dns_nsec3_flags;
 static int hf_dns_nsec3_flag_optout;
@@ -618,6 +620,7 @@ static int hf_dns_dso_tlv_keepalive_inactivity;
 static int hf_dns_dso_tlv_keepalive_interval;
 static int hf_dns_dso_tlv_retrydelay_retrydelay;
 static int hf_dns_dso_tlv_encpad_padding;
+static int hf_dns_dso_tlv_unsubscribe_id;
 
 static int hf_dns_dnscrypt;
 static int hf_dns_dnscrypt_magic;
@@ -669,6 +672,8 @@ static expert_field ei_dns_svcb_param_key_order;
 static expert_field ei_dns_svcb_param_mandatory_duplicate;
 static expert_field ei_dns_svcb_param_mandatory_missing;
 static expert_field ei_dns_svcb_param_noalpn_missing_alpn;
+static expert_field ei_dns_dso_tlv_length_mismatch;
+static expert_field ei_dns_dso_unidirectional_response;
 
 static dissector_table_t dns_tsig_dissector_table;
 
@@ -774,9 +779,12 @@ typedef struct _dns_conv_info_t {
 #define O_EDNS_TCP_KA   11              /* edns-tcp-keepalive EDNS0 Option (RFC7828) */
 #define O_PADDING       12              /* EDNS(0) Padding Option (RFC7830) */
 #define O_CHAIN         13              /* draft-ietf-dnsop-edns-chain-query */
+#define O_EDNS_KEY_TAG  14              /* Signaling Trust Anchor Knowledge in DNSSEC (RFC8145) */
 #define O_EXT_ERROR     15              /* Extended DNS Errors (RFC8914) */
 #define O_REPORT_CHANNEL 18             /* DNS Error Reporting (RFC9567) */
 #define O_ZONEVERSION   19              /* DNS Zone Version (ZONEVERSION) Option (RFC9660) */
+#define O_MQTYPE_QUERY  20              /* Multiple QTYPE Query (RFC10029) */
+#define O_MQTYPE_RESP   21              /* Multiple QTYPE Response (RFC10029) */
 
 static const true_false_string tfs_flags_response = {
   "Message is a response",
@@ -1208,9 +1216,12 @@ static const value_string edns0_opt_code_vals[] = {
   { O_EDNS_TCP_KA,       "EDNS TCP Keepalive" },
   { O_PADDING,           "PADDING" },
   { O_CHAIN,             "CHAIN" },
+  { O_EDNS_KEY_TAG,      "EDNS Key Tag" },
   { O_EXT_ERROR,         "Extended DNS Error" },
   { O_REPORT_CHANNEL,    "Report-Channel" },
   { O_ZONEVERSION,       "Zone Version" },
+  { O_MQTYPE_QUERY,      "MQTYPE-Query" },
+  { O_MQTYPE_RESP,       "MQTYPE-Response" },
   { 0,                       NULL }
  };
 /* DNS-Based Authentication of Named Entities (DANE) Parameters
@@ -2031,7 +2042,7 @@ dissect_type_bitmap_nxt(proto_tree *rr_tree, packet_info* pinfo, tvbuff_t *tvb, 
 
 /*
  * SIG, KEY, and CERT RR algorithms.
- * http://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.txt (last updated 2026-06-28)
+ * http://www.iana.org/assignments/dns-sec-alg-numbers/dns-sec-alg-numbers.txt (last updated 2026-10-02)
  */
 #define DNS_ALGO_RSAMD5               1 /* RSA/MD5 */
 #define DNS_ALGO_DH                   2 /* Diffie-Hellman */
@@ -2047,6 +2058,7 @@ dissect_type_bitmap_nxt(proto_tree *rr_tree, packet_info* pinfo, tvbuff_t *tvb, 
 #define DNS_ALGO_ED25519             15 /* Ed25519 */
 #define DNS_ALGO_ED448               16 /* Ed448 */
 #define DNS_ALGO_SM2SM3              17 /* SM2 signing with SM3 hashing */
+#define DNS_ALGO_MLDSA44             18 /* ML-DSA-44 */
 #define DNS_ALGO_ECCGOST12           23 /* GOST R 34.10-2012 */
 #define DNS_ALGO_INDIRECT           252 /* Indirect key */
 #define DNS_ALGO_PRIVATEDNS         253 /* Private, domain name  */
@@ -2067,6 +2079,7 @@ static const value_string dnssec_algo_vals[] = {
   { DNS_ALGO_ED25519,           "Ed25519" },
   { DNS_ALGO_ED448,             "Ed448" },
   { DNS_ALGO_SM2SM3,            "SM2 signing with SM3 hashing" },
+  { DNS_ALGO_MLDSA44,           "ML-DSA-44" },
   { DNS_ALGO_ECCGOST12,         "GOST R 34.10-2012" },
   { DNS_ALGO_INDIRECT,          "Indirect key" },
   { DNS_ALGO_PRIVATEDNS,        "Private, domain name" },
@@ -3596,6 +3609,17 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
           }
           break;
 
+          case O_EDNS_KEY_TAG:
+          {
+            while (optlen >= 2) {
+              proto_tree_add_item(rropt_tree, hf_dns_opt_key_tag, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+              cur_offset += 2;
+              rropt_len  -= 2;
+              optlen     -= 2;
+            }
+          }
+          break;
+
           case O_EXT_ERROR:
           {
             if (optlen >= 2) {
@@ -3653,6 +3677,19 @@ dissect_dns_answer(tvbuff_t *tvb, int offsetx, int dns_data_offset,
             }
           }
           break;
+
+          case O_MQTYPE_QUERY: /* Multiple QTYPE Query (RFC10029) */
+          case O_MQTYPE_RESP:  /* Multiple QTYPE Response (RFC10029) */
+          {
+            while (optlen >= 2) {
+              proto_tree_add_item(rropt_tree, hf_dns_opt_mqtype, tvb, cur_offset, 2, ENC_BIG_ENDIAN);
+              cur_offset += 2;
+              rropt_len  -= 2;
+              optlen     -= 2;
+            }
+          }
+          break;
+
           default:
           {
             cur_offset += optlen;
@@ -4624,15 +4661,23 @@ dissect_answer_records(tvbuff_t *tvb, int cur_off, int dns_data_offset,
 }
 
 static int
-dissect_dso_data(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *dns_tree)
+dissect_dso_data(tvbuff_t *tvb, int offset, int dns_data_offset, packet_info *pinfo, proto_tree *dns_tree)
 {
-  proto_tree *dso_tree;
-  proto_tree *dso_tlv_tree;
-  proto_item *dso_ti;
-  proto_item *dso_tlv_ti;
-  uint16_t   dso_tlv_length;
-  uint32_t   dso_tlv_type;
-  int        start_offset;
+  proto_tree  *dso_tree;
+  proto_tree  *dso_tlv_tree;
+  proto_item  *dso_ti;
+  proto_item  *dso_tlv_ti;
+  uint16_t    dso_tlv_length;
+  uint32_t    dso_tlv_type;
+  int         start_offset;
+  tvbuff_t    *tlv_tvb;
+  int         tlv_end;
+  wmem_list_t *rr_types;
+  bool        unused;
+
+  if (tvb_reported_length_remaining(tvb, offset) <= 0) {
+    return 0;
+  }
 
   start_offset = offset;
   dso_ti = proto_tree_add_item(dns_tree, hf_dns_dso, tvb, offset, -1, ENC_NA);
@@ -4650,29 +4695,50 @@ dissect_dso_data(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *
     proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_length, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
 
+    tlv_end = offset + dso_tlv_length;
+    tlv_tvb = tvb_new_subset_length(tvb, 0, tlv_end);
+
     switch(dso_tlv_type) {
       case DSO_TYPE_KEEPALIVE:
-        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_keepalive_inactivity, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_keepalive_inactivity, tlv_tvb, offset, 4, ENC_BIG_ENDIAN);
         offset += 4;
-        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_keepalive_interval, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_keepalive_interval, tlv_tvb, offset, 4, ENC_BIG_ENDIAN);
         offset += 4;
         break;
       case DSO_TYPE_RETRYDELAY:
-        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_retrydelay_retrydelay, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_retrydelay_retrydelay, tlv_tvb, offset, 4, ENC_BIG_ENDIAN);
         offset += 4;
         break;
       case DSO_TYPE_ENCPAD:
         if (dso_tlv_length > 0) {
-          proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_encpad_padding, tvb, offset, dso_tlv_length, ENC_NA);
+          proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_encpad_padding, tlv_tvb, offset, dso_tlv_length, ENC_NA);
           offset += dso_tlv_length;
+        }
+        break;
+      case DSO_TYPE_SUBSCRIBE:
+        offset += dissect_dns_query(tlv_tvb, offset, dns_data_offset, pinfo, dso_tlv_tree, false, &unused);
+        break;
+      case DSO_TYPE_UNSUBSCRIBE:
+        proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_unsubscribe_id, tlv_tvb, offset, 2, ENC_BIG_ENDIAN);
+        offset += 2;
+        break;
+      case DSO_TYPE_PUSH:
+        rr_types = wmem_list_new(pinfo->pool);
+        while (offset < tlv_end) {
+          offset += dissect_dns_answer(tlv_tvb, offset, dns_data_offset, dso_tlv_tree, pinfo, false, rr_types);
         }
         break;
       default:
         if (dso_tlv_length > 0) {
-          proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_data, tvb, offset, dso_tlv_length, ENC_NA);
+          proto_tree_add_item(dso_tlv_tree, hf_dns_dso_tlv_data, tlv_tvb, offset, dso_tlv_length, ENC_NA);
           offset += dso_tlv_length;
         }
         break;
+    }
+
+    if (offset != tlv_end) {
+      expert_add_info(pinfo, dso_tlv_ti, &ei_dns_dso_tlv_length_mismatch);
+      offset = tlv_end;
     }
   }
 
@@ -4706,6 +4772,8 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   int                name_len;
   nstime_t           delta = NSTIME_INIT_ZERO;
   bool               is_multiple_responds = false;
+  bool               is_dso_unidirectional;
+  const char        *msg_type;
 
   dns_data_offset = offset;
 
@@ -4716,6 +4784,8 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   flags = tvb_get_ntohs(tvb, offset + DNS_FLAGS);
   opcode = (uint16_t) ((flags & F_OPCODE) >> OPCODE_SHIFT);
   rcode  = (uint16_t)  (flags & F_RCODE);
+  is_dso_unidirectional = (opcode == DNS_OPCODE_DSO && id == 0);
+  msg_type = is_dso_unidirectional ? "unidirectional" : (flags & F_RESPONSE) ? "response" : "query";
 
   col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "%s%s 0x%04x",
                       val_to_str(pinfo->pool, opcode, opcode_vals, "Unknown operation (%u)"),
@@ -4736,13 +4806,13 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
   if (is_llmnr) {
     ti = proto_tree_add_protocol_format(tree, proto_llmnr, tvb, 0, -1,
-        "Link-local Multicast Name Resolution (%s)", (flags & F_RESPONSE) ? "response" : "query");
+        "Link-local Multicast Name Resolution (%s)", msg_type);
   } else if (is_mdns){
     ti = proto_tree_add_protocol_format(tree, proto_mdns, tvb, 0, -1,
-        "Multicast Domain Name System (%s)", (flags & F_RESPONSE) ? "response" : "query");
+        "Multicast Domain Name System (%s)", msg_type);
   } else {
     ti = proto_tree_add_protocol_format(tree, proto_dns, tvb, 0, -1,
-        "Domain Name System (%s)", (flags & F_RESPONSE) ? "response" : "query");
+        "Domain Name System (%s)", msg_type);
   }
 
   dns_tree = proto_item_add_subtree(ti, ett_dns);
@@ -4832,7 +4902,7 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   key[2].length = 0;
   key[2].key = NULL;
 
-  if (!pinfo->flags.in_error_pkt) {
+  if (!pinfo->flags.in_error_pkt && !is_dso_unidirectional) {
     if (!pinfo->fd->visited) {
       if (!(flags&F_RESPONSE)) {
         /* This is a request */
@@ -4920,8 +4990,11 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 val_to_str_const(rcode, rcode_vals, "Unknown error"));
   }
   field_tree = proto_item_add_subtree(tf, ett_dns_flags);
-  proto_tree_add_item(field_tree, hf_dns_flags_response,
+  ti = proto_tree_add_item(field_tree, hf_dns_flags_response,
                 tvb, offset + DNS_FLAGS, 2, ENC_BIG_ENDIAN);
+  if (is_dso_unidirectional && (flags & F_RESPONSE)) {
+    expert_add_info(pinfo, ti, &ei_dns_dso_unidirectional_response);
+  }
   proto_tree_add_item(field_tree, hf_dns_flags_opcode,
                 tvb, offset + DNS_FLAGS, 2, ENC_BIG_ENDIAN);
   if (is_llmnr) {
@@ -5003,7 +5076,7 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   if (opcode == DNS_OPCODE_DSO && quest == 0 && ans == 0 && auth == 0 && add == 0) {
     /* DSO messages differs somewhat from the traditional DNS message format.
        the four count fields (QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT) are set to zero */
-      cur_off += dissect_dso_data(tvb, cur_off, pinfo, dns_tree);
+      cur_off += dissect_dso_data(tvb, cur_off, dns_data_offset, pinfo, dns_tree);
   }
 
   rr_types = wmem_list_new(pinfo->pool);
@@ -5049,8 +5122,9 @@ dissect_dns_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   }
   col_set_fence(pinfo->cinfo, COL_INFO);
 
-  /* print state tracking in the tree */
-  if (!(flags&F_RESPONSE)) {
+  if (is_dso_unidirectional) {
+    /* This is a DSO unidirectional */
+  } else if (!(flags&F_RESPONSE)) {
     proto_item *it;
     /* This is a request */
     if ((retransmission) && (dns_trans->req_frame) && (!pinfo->flags.in_error_pkt)) {
@@ -7524,6 +7598,16 @@ proto_register_dns(void)
         FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
+    { &hf_dns_opt_mqtype,
+      { "QTYPE", "dns.opt.mqtype",
+        FT_UINT16, BASE_DEC|BASE_EXT_STRING, &dns_types_vals_ext, 0x0,
+        "Additional QTYPE (RFC10029)", HFILL }},
+
+    { &hf_dns_opt_key_tag,
+      { "Key Tag", "dns.opt.key_tag",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
+        "DNSSEC Trust Anchor Key Tag (RFC8145)", HFILL }},
+
     { &hf_dns_count_questions,
       { "Questions", "dns.count.queries",
         FT_UINT16, BASE_DEC, NULL, 0x0,
@@ -8076,6 +8160,10 @@ proto_register_dns(void)
       { "Padding", "dns.dso.tlv.encpad.padding",
         FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
+    { &hf_dns_dso_tlv_unsubscribe_id,
+      { "Subscribe Message ID", "dns.dso.tlv.unsubscribe.id",
+        FT_UINT16, BASE_HEX, NULL, 0x0,
+        NULL, HFILL }},
 
     { &hf_dns_dnscrypt,
       { "DNSCrypt", "dns.dnscrypt",
@@ -8132,6 +8220,8 @@ proto_register_dns(void)
     { &ei_dns_svcb_param_mandatory_duplicate, { "dns.svcb.param.mandatory.duplicate_key", PI_MALFORMED, PI_WARN, "Duplicate key in mandatory list", EXPFILL }},
     { &ei_dns_svcb_param_mandatory_missing, { "dns.svcb.param.mandatory.missing_key", PI_MALFORMED, PI_WARN, "mandatory references missing SvcParam key", EXPFILL }},
     { &ei_dns_svcb_param_noalpn_missing_alpn, { "dns.svcb.param.no_default_alpn_missing_alpn", PI_MALFORMED, PI_WARN, "no-default-alpn present without alpn", EXPFILL }},
+    { &ei_dns_dso_tlv_length_mismatch, { "dns.dso.tlv.length_mismatch", PI_MALFORMED, PI_ERROR, "DSO TLV length does not match its content", EXPFILL }},
+    { &ei_dns_dso_unidirectional_response, { "dns.dso.unidirectional_response", PI_PROTOCOL, PI_WARN, "DSO message with MESSAGE ID 0 must not be a response (QR=1)", EXPFILL }},
   };
 
   static int *ett[] = {

@@ -99,6 +99,7 @@ DIAG_ON(frame-larger-than=)
 #endif
 #include <ui/qt/utils/color_utils.h>
 #include "coloring_rules_dialog.h"
+#include "tagging_rules_dialog.h"
 #include "conversation_dialog.h"
 #include "conversation_colorize_action.h"
 #include "conversation_hash_tables_dialog.h"
@@ -177,6 +178,7 @@ DIAG_ON(frame-larger-than=)
 #endif
 #include "stats_tree_dialog.h"
 #include <ui/qt/utils/stock_icon.h>
+#include <ui/qt/utils/themes/themed_icon.h>
 #include "keyboard_shortcuts_dialog.h"
 #include "supported_protocols_dialog.h"
 #include "theme_debug_dialog.h"
@@ -382,12 +384,12 @@ void WiresharkMainWindow::layoutToolbars()
 
 static const char* layout_icons[] = {
     NULL,
-    "x-reset-layout_5",
-    "x-reset-layout_2",
-    "x-reset-layout_1",
-    "x-reset-layout_4",
-    "x-reset-layout_3",
-    "x-reset-layout_6"
+    "layout-reset-5",
+    "layout-reset-2",
+    "layout-reset-1",
+    "layout-reset-4",
+    "layout-reset-3",
+    "layout-reset-6"
 };
 
 void WiresharkMainWindow::updatePreferenceActions()
@@ -403,7 +405,7 @@ void WiresharkMainWindow::updatePreferenceActions()
     main_ui_->actionViewNameResolutionTransport->setChecked(gbl_resolv_flags.transport_name);
 
     if (prefs.gui_layout_type > 0)
-        main_ui_->actionViewResetLayout->setIcon(StockIcon(layout_icons[prefs.gui_layout_type]));
+        main_ui_->actionViewResetLayout->setIcon(ThemedIcon(layout_icons[prefs.gui_layout_type]));
 }
 
 void WiresharkMainWindow::updateRecentActions()
@@ -1101,9 +1103,9 @@ void WiresharkMainWindow::setEditCommentsMenu()
     QAction *action = main_ui_->menuPacketComment->addAction(tr("Add New Comment…"));
     connect(action, &QAction::triggered, this, &WiresharkMainWindow::addPacketComment);
     action->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
-    if (selectedRows().count() == 1) {
-        const int thisRow = selectedRows().first();
-        frame_data * current_frame = frameDataForRow(thisRow);
+    frame_data *hidden_frame = packet_list_->filteredOutSelectedFrame();
+    if (selectedRows().count() == 1 || hidden_frame) {
+        frame_data * current_frame = hidden_frame ? hidden_frame : frameDataForRow(selectedRows().first());
         wtap_block_t pkt_block = cf_get_packet_block(capture_file_.capFile(), current_frame);
         unsigned nComments = wtap_block_count_option(pkt_block, OPT_COMMENT);
         if (nComments > 0) {
@@ -1186,7 +1188,11 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
         if (rows.count() > 0)
             current_frame = frameDataForRow(rows.at(0));
 
-        frame_selected = rows.count() == 1;
+        frame_data *hidden_frame = packet_list_->filteredOutSelectedFrame();
+        if (rows.count() == 0 && hidden_frame)
+            current_frame = hidden_frame;
+
+        frame_selected = rows.count() == 1 || hidden_frame;
         if (packet_list_->multiSelectActive())
         {
             frame_selected = false;
@@ -1260,7 +1266,8 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
         linkTypes = capture_file_.capFile()->linktypes;
 
     bool enableEditComments = linkTypes && wtap_dump_can_write(capture_file_.capFile()->linktypes, WTAP_COMMENT_PER_PACKET);
-    main_ui_->menuPacketComment->setEnabled(enableEditComments && selectedRows().count() > 0);
+    main_ui_->menuPacketComment->setEnabled(enableEditComments &&
+            (selectedRows().count() > 0 || packet_list_->filteredOutSelectedFrame()));
     main_ui_->actionDeleteAllPacketComments->setEnabled(enableEditComments);
 
     main_ui_->actionEditIgnoreSelected->setEnabled(frame_selected || multi_selection);
@@ -1271,7 +1278,7 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
     // XXX: Should we allow frames that don't have a time stamp to be
     // set as time references? "Time" references are also used to reset
     // the "Cumulative Bytes", so it's not entirely useless.
-    main_ui_->actionEditSetTimeReference->setEnabled(frame_selected);
+    main_ui_->actionEditSetTimeReference->setEnabled(frame_selected || multi_selection);
     main_ui_->actionEditUnsetAllTimeReferences->setEnabled(have_time_ref);
     main_ui_->actionEditNextTimeReference->setEnabled(another_is_time_ref);
     main_ui_->actionEditPreviousTimeReference->setEnabled(another_is_time_ref);
@@ -2353,10 +2360,7 @@ void WiresharkMainWindow::editTimeShiftFinished(int)
 void WiresharkMainWindow::addPacketComment()
 {
     QList<int> rows = selectedRows();
-    if (rows.count() == 0)
-        return;
-
-    frame_data * fdata = frameDataForRow(rows.at(0));
+    frame_data * fdata = rows.count() > 0 ? frameDataForRow(rows.at(0)) : packet_list_->filteredOutSelectedFrame();
     if (! fdata)
         return;
 
@@ -2379,7 +2383,7 @@ void WiresharkMainWindow::addPacketCommentFinished(PacketCommentDialog* pc_dialo
 void WiresharkMainWindow::editPacketComment()
 {
     QList<int> rows = selectedRows();
-    if (rows.count() != 1)
+    if (rows.count() != 1 && !(rows.count() == 0 && packet_list_->filteredOutSelectedFrame()))
         return;
 
     QAction *ra = qobject_cast<QAction*>(sender());
@@ -2590,6 +2594,9 @@ void WiresharkMainWindow::connectViewMenuActions()
 
     connect(main_ui_->actionViewColoringRules, &QAction::triggered, this,
             [this]() { showColoringRulesDialog(); });
+
+    connect(main_ui_->actionViewTaggingRules, &QAction::triggered, this,
+            [this]() { showTaggingRulesDialog(); });
 
     connect(main_ui_->actionViewColorizeResetColorization, &QAction::triggered, this, [this]() {
         char *err_msg = NULL;
@@ -2828,6 +2835,17 @@ void WiresharkMainWindow::showColoringRulesDialog()
     coloring_rules_dialog->setWindowModality(Qt::ApplicationModal);
     coloring_rules_dialog->setAttribute(Qt::WA_DeleteOnClose);
     coloring_rules_dialog->show();
+}
+
+void WiresharkMainWindow::showTaggingRulesDialog()
+{
+    TaggingRulesDialog *tagging_rules_dialog = new TaggingRulesDialog(this);
+    PacketList *pl = packet_list_;
+    tagging_rules_dialog->setColoringAcceptedCallback([pl]() { pl->recolorPackets(); });
+
+    tagging_rules_dialog->setWindowModality(Qt::ApplicationModal);
+    tagging_rules_dialog->setAttribute(Qt::WA_DeleteOnClose);
+    tagging_rules_dialog->show();
 }
 
 // actionViewColorizeConversation1 - 10

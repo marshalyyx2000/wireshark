@@ -97,6 +97,16 @@ public slots:
 
 protected:
     /**
+     * @brief Widens this view's horizontal scroll range to the primary
+     * view's. QTreeView derives the range from its own content and
+     * viewport widths, which differ from the primary view's (frozen
+     * columns hidden here, scrollbar width), so at the far right edge
+     * this view would otherwise clamp short and stop scrolling while the
+     * primary view keeps going, misaligning the pinned rows' columns.
+     */
+    void updateGeometries() override;
+
+    /**
      * @brief Forwards mouse presses to the primary packet list so that
      * selection/marking behavior matches clicking the main view exactly.
      */
@@ -155,6 +165,27 @@ private:
     PacketList *packet_list_;
     int first_column_;
     int last_column_;
+
+    /**
+     * @brief The proxy row (this view's own row order, i.e. "strip
+     * position", not the primary view's row numbering) of the last
+     * non-Shift click, used as the range anchor for a subsequent
+     * Shift-click -- analogous to a real QAbstractItemView tracking
+     * selectionModel()->currentIndex() as its own range anchor, except
+     * scoped to this proxy's row space, since that's what "range" means
+     * for Shift-click within this strip (see mousePressEvent()). -1 if
+     * there's been no click yet to anchor from.
+     */
+    int shift_anchor_proxy_row_;
+
+    // Cell pressed with the left button, used to start a cell drag on the
+    // first mouse move within it (as PacketList does). drag_proxy_row_ is -1 when no drag is armed.
+    // drag_source_row_ is the primary view's row, or -1 if the pinned
+    // packet is filtered out there (then drag_frame_num_ is used).
+    int drag_proxy_row_ = -1;
+    int drag_column_ = -1;
+    int drag_source_row_ = -1;
+    int drag_frame_num_ = -1;
 
     /**
      * @brief Frame numbers selected in the primary view, as of the start
