@@ -2368,6 +2368,8 @@ endif()
 if(ENABLE_MINIMAL_BUILD)
 	# MMS over OSI Presentation: Context Id 3 → abstract syntax OID 1.0.9506.2.3
 	list(APPEND INSTALL_FILES resources/share/wireshark/pres_context_list)
+	# Full coloring_rules.jsonc references HSRP/HTTP/DCERPC omitted from minimal build.
+	list(REMOVE_ITEM INSTALL_FILES resources/share/wireshark/coloring_rules.jsonc)
 endif()
 
 set(DOC_FILES
@@ -2777,7 +2779,7 @@ foreach(_install_file ${INSTALL_FILES} ${DOC_FILES})
 endforeach()
 
 if(ENABLE_MINIMAL_BUILD)
-	# Ship a keep-list-compatible colorfilters (full defaults reference HSRP/HTTP/...).
+	# Ship keep-list-compatible colorfilters/coloring rules (defaults reference HSRP/HTTP/...).
 	set(_minimal_colorfilters_src "${CMAKE_SOURCE_DIR}/resources/share/wireshark/colorfilters.minimal")
 	set(_minimal_colorfilters_dst "${DATAFILE_DIR}/colorfilters")
 	add_custom_command(OUTPUT "${_minimal_colorfilters_dst}"
@@ -2789,6 +2791,18 @@ if(ENABLE_MINIMAL_BUILD)
 			"${_minimal_colorfilters_src}"
 	)
 	list(APPEND copy_data_files_depends "${_minimal_colorfilters_dst}")
+
+	set(_minimal_coloring_rules_src "${CMAKE_SOURCE_DIR}/resources/share/wireshark/coloring_rules.minimal.jsonc")
+	set(_minimal_coloring_rules_dst "${DATAFILE_DIR}/coloring_rules.jsonc")
+	add_custom_command(OUTPUT "${_minimal_coloring_rules_dst}"
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"${_minimal_coloring_rules_src}"
+			"${_minimal_coloring_rules_dst}"
+		DEPENDS
+			docs
+			"${_minimal_coloring_rules_src}"
+	)
+	list(APPEND copy_data_files_depends "${_minimal_coloring_rules_dst}")
 endif()
 
 if (BUILD_stratoshark)
@@ -4684,7 +4698,7 @@ install(
 )
 
 if(ENABLE_MINIMAL_BUILD)
-	# Full colorfilters is omitted from INSTALL_FILES; ship the keep-list subset.
+	# Full colorfilters/coloring_rules are omitted from INSTALL_FILES; ship keep-list subsets.
 	install(
 		FILES
 			resources/share/wireshark/colorfilters.minimal
@@ -4696,6 +4710,18 @@ if(ENABLE_MINIMAL_BUILD)
 			${TMP_DST_PATH}
 		RENAME
 			colorfilters
+	)
+	install(
+		FILES
+			resources/share/wireshark/coloring_rules.minimal.jsonc
+		PERMISSIONS
+			OWNER_WRITE OWNER_READ
+			GROUP_READ
+			WORLD_READ
+		DESTINATION
+			${TMP_DST_PATH}
+		RENAME
+			coloring_rules.jsonc
 	)
 endif()
 
