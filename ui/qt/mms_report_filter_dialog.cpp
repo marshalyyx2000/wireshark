@@ -51,18 +51,24 @@ MmsReportFilterDialog::MmsReportFilterDialog(QWidget &parent, CaptureFile &captu
                            ui_->hasInclusion}) {
         connect(box, &QCheckBox::toggled, this, &MmsReportFilterDialog::onScopeCriteriaChanged);
     }
+    connect(ui_->exactRefMatchCheck, &QCheckBox::toggled, this, [this]() {
+        updatePreview();
+        applyFilterIfRealtime(false);
+    });
     connect(ui_->bufovflCombo, &QComboBox::currentIndexChanged, this,
             [this](int) { onScopeCriteriaChanged(); });
     connect(ui_->confrevEdit, &QLineEdit::textChanged, this, &MmsReportFilterDialog::onScopeCriteriaChanged);
     connect(ui_->dataRefEdit, &QLineEdit::textChanged, this, &MmsReportFilterDialog::onScopeCriteriaChanged);
     connect(ui_->objRefEdit, &QLineEdit::textChanged, this, &MmsReportFilterDialog::onScopeCriteriaChanged);
 
-    connect(ui_->rptidCombo, &QComboBox::currentTextChanged,
+    connect(ui_->rptidCombo->lineEdit(), &QLineEdit::textChanged,
             this, &MmsReportFilterDialog::onRptidCriteriaChanged);
-    connect(ui_->datsetCombo, &QComboBox::currentTextChanged,
+    connect(ui_->datsetCombo->lineEdit(), &QLineEdit::textChanged,
             this, &MmsReportFilterDialog::onDatsetCriteriaChanged);
-    connect(ui_->rptidCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MmsReportFilterDialog::onRptidIndexChanged);
+    connect(ui_->rptidCombo, QOverload<int>::of(&QComboBox::activated),
+            this, &MmsReportFilterDialog::onRptidActivated);
+    connect(ui_->datsetCombo, QOverload<int>::of(&QComboBox::activated),
+            this, &MmsReportFilterDialog::onDatsetActivated);
     connect(ui_->applyButton, &QPushButton::clicked, this, &MmsReportFilterDialog::onApplyClicked);
     connect(ui_->realtimeFilterCheck, &QCheckBox::toggled, this, [this](bool checked) {
         if (checked) {
@@ -194,13 +200,16 @@ QString MmsReportFilterDialog::buildScopeFilter(bool include_rptid) const
     if (ui_->hasInclusion->isChecked()) {
         parts << QStringLiteral("mms.iec61850.inclusion_bitstring");
     }
+    const char *ref_op = ui_->exactRefMatchCheck->isChecked() ? "==" : "contains";
     const QString data_ref = ui_->dataRefEdit->text().trimmed();
     if (!data_ref.isEmpty()) {
-        parts << QStringLiteral("mms.iec61850.data_reference == %1").arg(quoteFilterString(data_ref));
+        parts << QStringLiteral("mms.iec61850.data_reference %1 %2")
+                     .arg(QLatin1String(ref_op), quoteFilterString(data_ref));
     }
     const QString obj_ref = ui_->objRefEdit->text().trimmed();
     if (!obj_ref.isEmpty()) {
-        parts << QStringLiteral("mms.iec61850.object_reference == %1").arg(quoteFilterString(obj_ref));
+        parts << QStringLiteral("mms.iec61850.object_reference %1 %2")
+                     .arg(QLatin1String(ref_op), quoteFilterString(obj_ref));
     }
 
     if (include_rptid) {
@@ -342,6 +351,7 @@ void MmsReportFilterDialog::onDebouncedScopeRetap()
     }
     retap();
     updatePreview();
+    applyFilterIfRealtime(false);
 }
 
 void MmsReportFilterDialog::onDebouncedFilterApply()
@@ -426,12 +436,22 @@ void MmsReportFilterDialog::onDatsetCriteriaChanged()
     applyFilterIfRealtime();
 }
 
-void MmsReportFilterDialog::onRptidIndexChanged(int index)
+void MmsReportFilterDialog::onRptidActivated(int index)
 {
     if (refreshing_combos_ || index < 0) {
         return;
     }
+    id_change_timer_->stop();
     refreshDatsetComboForRptid();
+    updatePreview();
+    applyFilterIfRealtime(false);
+}
+
+void MmsReportFilterDialog::onDatsetActivated(int index)
+{
+    if (refreshing_combos_ || index < 0) {
+        return;
+    }
     updatePreview();
     applyFilterIfRealtime(false);
 }

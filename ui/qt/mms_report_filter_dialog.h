@@ -46,7 +46,8 @@ private slots:
     void onScopeCriteriaChanged();
     void onRptidCriteriaChanged();
     void onDatsetCriteriaChanged();
-    void onRptidIndexChanged(int index);
+    void onRptidActivated(int index);
+    void onDatsetActivated(int index);
     void onDebouncedScopeRetap();
     void onDebouncedRptidCriteriaChanged();
     void onDebouncedFilterApply();

@@ -178,6 +178,13 @@
         </property>
        </widget>
       </item>
+      <item row="0" column="1">
+       <widget class="QCheckBox" name="exactRefMatchCheck">
+        <property name="text">
+         <string>精确匹配</string>
+        </property>
+       </widget>
+      </item>
       <item row="1" column="0">
        <widget class="QLabel" name="dataRefLabel">
         <property name="text">
@@ -188,7 +195,7 @@
       <item row="1" column="1">
        <widget class="QLineEdit" name="dataRefEdit">
         <property name="placeholderText">
-         <string>空则不参与过滤</string>
+         <string>支持模糊查询</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>
@@ -205,7 +212,7 @@
       <item row="2" column="1">
        <widget class="QLineEdit" name="objRefEdit">
         <property name="placeholderText">
-         <string>空则不参与过滤</string>
+         <string>支持模糊查询</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>
