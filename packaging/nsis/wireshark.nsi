@@ -47,7 +47,11 @@ ${UnStrRep}
 ; ============================================================================
 
 ; The file to write
+!ifdef ENABLE_MINIMAL_BUILD
+OutFile "${OUTFILE_DIR}\${BRAND_NAME}-${VERSION}-${WIRESHARK_TARGET_PLATFORM}.exe"
+!else
 OutFile "${OUTFILE_DIR}\${PROGRAM_NAME}-${VERSION}-${WIRESHARK_TARGET_PLATFORM}.exe"
+!endif
 ; Installer icon
 Icon "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
 ; Uninstaller icon
@@ -65,6 +69,11 @@ UninstallIcon "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
 !include "MUI2.nsh"
 !include "InstallOptions.nsh"
 ;!addplugindir ".\Plugins"
+
+!ifdef ENABLE_MINIMAL_BUILD
+!define MUI_FONT "华文中宋 15"
+!define MUI_UNFONT "华文中宋 15"
+!endif
 
 !define MUI_ICON "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
 !define MUI_UNICON "${TOP_SRC_DIR}\resources\icons\wireshark.ico"
@@ -304,9 +313,9 @@ DirText "Choose a directory in which to install ${PROGRAM_NAME}."
 
 ; The default installation directory
 InstallDir $PROGRAMFILES64\${PROGRAM_NAME}
+InstallDirRegKey HKEY_LOCAL_MACHINE SOFTWARE\${PROGRAM_NAME} InstallDir
 
 ; See if this is an upgrade; if so, use the old InstallDir as default
-InstallDirRegKey HKEY_LOCAL_MACHINE SOFTWARE\${PROGRAM_NAME} InstallDir
 
 
 ; ============================================================================
@@ -978,13 +987,13 @@ File "${STAGING_DIR}\trdp\iec_61375-2-3.xml"
 SetOutPath $INSTDIR
 
 ; Write the installation path into the registry for InstallDirRegKey
-WriteRegStr HKEY_LOCAL_MACHINE SOFTWARE\${PROGRAM_NAME} InstallDir "$INSTDIR"
+WriteRegStr HKEY_LOCAL_MACHINE ${PROG_REG_KEY} InstallDir "$INSTDIR"
 
 ; Write the uninstall keys for Windows
 ; https://nsis.sourceforge.io/Add_uninstall_information_to_Add/Remove_Programs
 ; https://docs.microsoft.com/en-us/previous-versions/ms954376(v=msdn.10)
 ; https://docs.microsoft.com/en-us/windows/win32/msi/uninstall-registry-key
-!define UNINSTALL_PATH "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}"
+!define UNINSTALL_PATH "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_REG_NAME}"
 
 WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "Comments" "${DISPLAY_NAME}"
 !ifdef QT_DIR
@@ -1008,7 +1017,7 @@ WriteRegStr HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "QuietUninstallString" '"$INS
 
 ; To quote https://web.archive.org/web/20150911221413/http://download.microsoft.com/download/0/4/6/046bbd36-0812-4c22-a870-41911c6487a6/WindowsUserExperience.pdf:
 ; "Do not include Readme, Help, or Uninstall entries on the Programs menu."
-Delete "$SMPROGRAMS\${PROGRAM_NAME}\Wireshark Web Site.lnk"
+Delete "$SMPROGRAMS\${MENU_FOLDER_NAME}\Wireshark Web Site.lnk"
 
 ; Create file extensions if the Associated Tasks page check box
 ; is checked.
@@ -1083,7 +1092,11 @@ SetShellVarContext all
 SectionEnd ; "Required"
 
 !ifdef QT_DIR
+!ifdef ENABLE_MINIMAL_BUILD
+Section "${BRAND_NAME}" SecWiresharkQt
+!else
 Section "${PROGRAM_NAME}" SecWiresharkQt
+!endif
 ;-------------------------------------------
 ; by default, Wireshark.exe is installed
 SetOutPath $INSTDIR
@@ -1112,11 +1125,11 @@ WriteRegStr HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Pa
 
 ; Is the Start Menu check box checked?
 ${If} $START_MENU_STATE == ${BST_CHECKED}
-  CreateShortCut "$SMPROGRAMS\${PROGRAM_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME_PATH}" "" "$INSTDIR\${PROGRAM_NAME_PATH}" 0 "" "" "${PROGRAM_FULL_NAME}"
+  CreateShortCut "$SMPROGRAMS\${MENU_FOLDER_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME_PATH}" "" "$INSTDIR\${PROGRAM_NAME_PATH}" 0 "" "" "${PROGRAM_FULL_NAME}"
 ${Endif}
 
 ${If} $DESKTOP_ICON_STATE == ${BST_CHECKED}
-  CreateShortCut "$DESKTOP\${PROGRAM_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME_PATH}" "" "$INSTDIR\${PROGRAM_NAME_PATH}" 0 "" "" "${PROGRAM_FULL_NAME}"
+  CreateShortCut "$DESKTOP\${MENU_FOLDER_NAME}.lnk" "$INSTDIR\${PROGRAM_NAME_PATH}" "" "$INSTDIR\${PROGRAM_NAME_PATH}" 0 "" "" "${PROGRAM_FULL_NAME}"
 ${Endif}
 
 SectionEnd ; "SecWiresharkQt"
@@ -1338,7 +1351,7 @@ Function .onInit
 
   ; Copied from https://nsis.sourceforge.io/Auto-uninstall_old_before_installing_new
   ReadRegStr $OLD_UNINSTALLER HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_REG_NAME}" \
     "UninstallString"
   StrCmp $OLD_UNINSTALLER "" check_wix
 
@@ -1348,7 +1361,7 @@ Function .onInit
   StrCmp $OLD_INSTDIR "" check_wix
 
   ReadRegStr $OLD_DISPLAYNAME HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_REG_NAME}" \
     "DisplayName"
   StrCmp $OLD_DISPLAYNAME "" done
 
@@ -1357,10 +1370,10 @@ Function .onInit
   ; (we use the "all users" start menu, so select it first)
   SetShellVarContext all
   ; MessageBox MB_OK|MB_ICONINFORMATION "oninit 1 sm $START_MENU_STATE di $DESKTOP_ICON_STATE"
-  ${IfNot} ${FileExists} $SMPROGRAMS\${PROGRAM_NAME}.lnk
+  ${IfNot} ${FileExists} $SMPROGRAMS\${MENU_FOLDER_NAME}.lnk
     StrCpy $START_MENU_STATE ${BST_UNCHECKED}
   ${Endif}
-  ${If} ${FileExists} $DESKTOP\${PROGRAM_NAME}.lnk
+  ${If} ${FileExists} $DESKTOP\${MENU_FOLDER_NAME}.lnk
     StrCpy $DESKTOP_ICON_STATE ${BST_CHECKED}
   ${Endif}
   ; Leave FILE_ASSOCIATE_STATE checked.
@@ -1623,8 +1636,8 @@ deletionSuccess:
 ${Loop}
 
 
-DeleteRegKey HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}"
-DeleteRegKey HKEY_LOCAL_MACHINE "Software\${PROGRAM_NAME}"
+DeleteRegKey HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_REG_NAME}"
+DeleteRegKey HKEY_LOCAL_MACHINE ${PROG_REG_KEY}
 DeleteRegKey HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME}.exe"
 
 Call un.Disassociate
@@ -1718,7 +1731,7 @@ RMDir "$INSTDIR\playlistformats"
 RMDir "$INSTDIR\printsupport"
 RMDir "$INSTDIR\styles\translations"
 RMDir "$INSTDIR\styles"
-RMDir "$SMPROGRAMS\${PROGRAM_NAME}"
+RMDir "$SMPROGRAMS\${MENU_FOLDER_NAME}"
 RMDir "$INSTDIR\help"
 RMDir "$INSTDIR\generic"
 RMDir /r "$INSTDIR\Wireshark User's Guide"
@@ -1788,7 +1801,7 @@ SectionIn 2
 SetShellVarContext current
 Delete "$APPDATA\${PROGRAM_NAME}\*.*"
 RMDir "$APPDATA\${PROGRAM_NAME}"
-DeleteRegKey HKCU "Software\${PROGRAM_NAME}"
+DeleteRegKey HKCU ${PROG_REG_KEY}
 SectionEnd
 
 ;VAR un.NPCAP_UNINSTALL

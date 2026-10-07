@@ -2,9 +2,9 @@
 REM ============================================================================
 REM Wireshark Industrial (ENABLE_MINIMAL_BUILD) - configure + build + NSIS.
 REM
-REM   Source : F:\software\temp\wireshark-industrial   (4.7.6)
+REM   Source : F:\software\temp\wireshark-industrial   (Binyao 0.9.0)
 REM   Build  : C:\Development\wsbuild-industrial
-REM   Output : C:\Development\wsbuild-industrial\packaging\nsis\Wireshark-4.7.6-x64.exe
+REM   Output : C:\Development\wsbuild-industrial\packaging\nsis\Binyao-0.9.0-x64.exe
 REM
 REM Two environment hazards are handled here:
 REM  1) The parent environment defines BOTH "NO_PROXY" and "no_proxy" (plus the

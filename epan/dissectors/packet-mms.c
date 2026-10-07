@@ -28,6 +28,8 @@
 #include <wsutil/str_util.h>
 #include <string.h>
 
+#include <epan/tfs.h>
+
 #include "packet-ber.h"
 #include "packet-acse.h"
 #include "packet-mms.h"
@@ -814,6 +816,7 @@ static int hf_mms_Transitions_any_to_deleted;
 /* Initialize the subtree pointers */
 static int ett_mms;
 static int ett_mms_iec61850_quality_bitstring;
+static int ett_mms_iec61850_utctime_quality;
 static int ett_mms_iec61850_check_bitstring;
 static int ett_mms_iec61850_reason_code;
 static int ett_mms_iec61850_inclusion_bitstring;
@@ -1279,53 +1282,55 @@ static const value_string mms_iec6150_cntmodel_vals[] = {
     {0, NULL}
 };
 
+static const true_false_string mms_zh_tf = { "是", "否" };
+
 static const value_string mms_iec6150_validity_vals[] = {
-    {0, "Good"},
-    {1, "Invalid"},
-    {2, "Reserved"},
-    {3, "Questionable"},
+    {0, "良好"},
+    {1, "无效"},
+    {2, "保留"},
+    {3, "可疑"},
     {0, NULL}
 };
 
 static const value_string mms_iec6150_source_vals[] = {
-    {0, "Process"},
-    {1, "Substituted"},
+    {0, "过程"},
+    {1, "取代"},
     {0, NULL}
 };
 
 static const value_string mms_iec6150_timeaccuracy_vals[] = {
-    {0,  "0 bits accuracy"},
-    {1,  "1 bits accuracy"},
-    {2,  "2 bits accuracy"},
-    {3,  "3 bits accuracy"},
-    {4,  "4 bits accuracy"},
-    {5,  "5 bits accuracy"},
-    {6,  "6 bits accuracy"},
-    {7,  "7 bits accuracy"},
-    {8,  "8 bits accuracy"},
-    {9,  "9 bits accuracy"},
-    {10, "10 bits accuracy"},
-    {11, "11 bits accuracy"},
-    {12, "12 bits accuracy"},
-    {13, "13 bits accuracy"},
-    {14, "14 bits accuracy"},
-    {15, "15 bits accuracy"},
-    {16, "16 bits accuracy"},
-    {17, "17 bits accuracy"},
-    {18, "18 bits accuracy"},
-    {19, "19 bits accuracy"},
-    {20, "20 bits accuracy"},
-    {21, "21 bits accuracy"},
-    {22, "22 bits accuracy"},
-    {23, "23 bits accuracy"},
-    {24, "24 bits accuracy"},
-    {25, "25 bits accuracy"},
-    {26, "26 bits accuracy"},
-    {27, "27 bits accuracy"},
-    {28, "28 bits accuracy"},
-    {29, "29 bits accuracy"},
-    {30, "Invalid"},
-    {31, "Unspecified"},
+    {0,  "0 位精度"},
+    {1,  "1 位精度"},
+    {2,  "2 位精度"},
+    {3,  "3 位精度"},
+    {4,  "4 位精度"},
+    {5,  "5 位精度"},
+    {6,  "6 位精度"},
+    {7,  "7 位精度"},
+    {8,  "8 位精度"},
+    {9,  "9 位精度"},
+    {10, "10 位精度"},
+    {11, "11 位精度"},
+    {12, "12 位精度"},
+    {13, "13 位精度"},
+    {14, "14 位精度"},
+    {15, "15 位精度"},
+    {16, "16 位精度"},
+    {17, "17 位精度"},
+    {18, "18 位精度"},
+    {19, "19 位精度"},
+    {20, "20 位精度"},
+    {21, "21 位精度"},
+    {22, "22 位精度"},
+    {23, "23 位精度"},
+    {24, "24 位精度"},
+    {25, "25 位精度"},
+    {26, "26 位精度"},
+    {27, "27 位精度"},
+    {28, "28 位精度"},
+    {29, "29 位精度"},
+    {30, "无效"},
+    {31, "未指定"},
     {0, NULL}
 };
 
@@ -3315,9 +3320,6 @@ dissect_mms_T_boolean(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
 
 
 
-static unsigned
-dissect_mms_T_data_bit_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-
 static int* const quality_field_bits_oct1[] = {
     &hf_mms_iec61850_QualityC0,
     &hf_mms_iec61850_Quality20,
@@ -3345,13 +3347,56 @@ static int * const mms_iec61850_chec_bits[] = {
     NULL
 };
 
-/* IEC 61850-7-2 / 8-1 ReasonForInclusion bits added individually when set. */
+static bool
+mms_ref_is_quality(const char *ref)
+{
+    size_t len;
+
+    if (!ref) {
+        return false;
+    }
+    len = strlen(ref);
+    if (len >= 2 && ref[len - 2] == '.' && ref[len - 1] == 'q') {
+        return true;
+    }
+    if (len >= 3 && ref[len - 2] == '$' && ref[len - 1] == 'Q') {
+        return true;
+    }
+    return false;
+}
+
+static bool
+mms_is_iec61850_quality_context(mms_actx_private_data_t *mms_priv)
+{
+    if (!mms_priv) {
+        return false;
+    }
+    if (mms_priv->mms_trans_p &&
+        mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q) {
+        return true;
+    }
+    if (mms_ref_is_quality(mms_priv->current_object_ref)) {
+        return true;
+    }
+    /* IEC 61850 CDC: member 2 of a functional-constraint structure is Quality. */
+    if (mms_priv->struct_path_active &&
+        mms_priv->object_ref_stack_depth >= 1 &&
+        mms_priv->struct_child_idx == 2) {
+        return true;
+    }
+    return false;
+}
+
+static unsigned
+dissect_mms_T_data_bit_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
     tvbuff_t *parameter_tvb = NULL;
     proto_tree *sub_tree;
 
     mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
     if (mms_priv) {
-        if (mms_priv->vmd_specific == IEC61850_8_1_RPT) {
+        if (mms_is_iec61850_quality_context(mms_priv)) {
+            hf_index = hf_mms_iec61850_quality_bitstring;
+        } else if (mms_priv->vmd_specific == IEC61850_8_1_RPT) {
             if (mms_priv->listOfAccessResult_cnt == 2) {
                     /* IEC 61850-8-1 Reported OptFlds */
                     return dissect_mms_ReportedOptFlds(implicit_tag, tvb, offset, actx, tree, hf_mms_iec61850_reported_optflds);
@@ -3368,9 +3413,7 @@ static int * const mms_iec61850_chec_bits[] = {
             return dissect_mms_TrgOps(implicit_tag, tvb, offset, actx, tree,
                                       hf_mms_iec61850_trgops);
         } else if (mms_priv->mms_trans_p) {
-            if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
-                hf_index = hf_mms_iec61850_quality_bitstring;
-            }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
+            if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
                 hf_index = hf_mms_iec61850_check_bitstring;
             }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
                 if(mms_priv->data_cnt == 10){
@@ -3468,12 +3511,12 @@ static int * const mms_iec61850_chec_bits[] = {
                         wmem_strdup_printf(actx->pinfo->pool, "传送原因: %s", zh);
                 }
             }
+        } else if (mms_is_iec61850_quality_context(mms_priv)) {
+            sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_quality_bitstring);
+            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, quality_field_bits_oct1, ENC_NA);
+            proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 1, 1, quality_field_bits_oct2, ENC_NA);
         } else if (mms_priv->mms_trans_p) {
-            if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_Q){
-                sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_quality_bitstring);
-                proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, quality_field_bits_oct1, ENC_NA);
-                proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 1, 1, quality_field_bits_oct2, ENC_NA);
-            }else if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
+            if (mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_CHECK){
                 sub_tree = proto_item_add_subtree(actx->created_item, ett_mms_iec61850_check_bitstring);
                 proto_tree_add_bitmask_list(sub_tree, parameter_tvb, 0, 1, mms_iec61850_chec_bits, ENC_NA);
             }else if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
@@ -3887,18 +3930,19 @@ dissect_mms_UtcTime(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U
 
         ptime = abs_time_to_str(actx->pinfo->pool, &ts, ABSOLUTE_TIME_UTC, true);
 
-        if(hf_index > 0)
-        {
-            mms_actx_private_data_t* mms_priv = (mms_actx_private_data_t*)actx->private_data;
-            if((mms_priv)&& (mms_priv->mms_trans_p)){
-                if(mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE){
-                    if(mms_priv->data_cnt == 8){
-                        hf_index = hf_mms_iec61850_T;
-                    }
-                }
+        if (hf_index > 0) {
+            proto_item *utc_item;
+            proto_tree *tq_tree;
+            mms_actx_private_data_t *mms_priv = (mms_actx_private_data_t *)actx->private_data;
+
+            if (mms_priv && mms_priv->mms_trans_p &&
+                mms_priv->mms_trans_p->conf_serv_pdu_type_req == MMS_IEC_61850_CONF_SERV_PDU_SELECTWITHVALUE &&
+                mms_priv->data_cnt == 8) {
+                hf_index = hf_mms_iec61850_T;
             }
-            proto_tree_add_string(tree, hf_index, tvb, offset, len, ptime);
-            proto_tree_add_bitmask_list(tree, tvb, offset+7, 1, TimeQuality_bits, ENC_BIG_ENDIAN);
+            utc_item = proto_tree_add_string(tree, hf_index, tvb, offset, len, ptime);
+            tq_tree = proto_item_add_subtree(utc_item, ett_mms_iec61850_utctime_quality);
+            proto_tree_add_bitmask_list(tq_tree, tvb, offset + 7, 1, TimeQuality_bits, ENC_BIG_ENDIAN);
         }
 
         mms_try_add_leaf_object_ref(actx, tree, tvb);
@@ -10092,71 +10136,71 @@ void proto_register_mms(void) {
             FT_UINT8, BASE_DEC, VALS(mms_iec6150_cntmodel_vals), 0,
             NULL, HFILL }},
         { &hf_mms_iec61850_QualityC0,
-        { "Validity", "mms.iec61850.validity",
+        { "有效性", "mms.iec61850.validity",
             FT_UINT8, BASE_HEX, VALS(mms_iec6150_validity_vals), 0xC0,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality20,
-        { "Overflow", "mms.iec61850.overflow",
-            FT_BOOLEAN, 8, NULL, 0x20,
+        { "溢出", "mms.iec61850.overflow",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x20,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality10,
-        { "OutofRange", "mms.iec61850.outofrange",
-            FT_BOOLEAN, 8, NULL, 0x10,
+        { "越限", "mms.iec61850.outofrange",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x10,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality8,
-        { "BadReference", "mms.iec61850.badreference",
-            FT_BOOLEAN, 8, NULL, 0x08,
+        { "坏基准值", "mms.iec61850.badreference",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x08,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality4,
-        { "Oscillatory", "mms.iec61850.oscillatory",
-            FT_BOOLEAN, 8, NULL, 0x04,
+        { "振荡", "mms.iec61850.oscillatory",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x04,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality2,
-        { "Failure", "mms.iec61850.failure",
-            FT_BOOLEAN, 8, NULL, 0x02,
+        { "故障", "mms.iec61850.failure",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x02,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality1,
-        { "OldData", "mms.iec61850.oldData",
-            FT_BOOLEAN, 8, NULL, 0x01,
+        { "旧数据", "mms.iec61850.oldData",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x01,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality0080,
-        { "Inconsistent", "mms.iec61850.inconsistent",
-            FT_BOOLEAN, 8, NULL, 0x80,
+        { "不一致", "mms.iec61850.inconsistent",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x80,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality0040,
-        { "Inaccurate", "mms.iec61850.inaccurate",
-            FT_BOOLEAN, 8, NULL, 0x40,
+        { "不准确", "mms.iec61850.inaccurate",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x40,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality0020,
-        { "Source", "mms.iec61850.source",
+        { "来源", "mms.iec61850.source",
             FT_UINT8, BASE_HEX, VALS(mms_iec6150_source_vals), 0x20,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality0010,
-        { "Test", "mms.iec61850.test",
-            FT_BOOLEAN, 8, NULL, 0x10,
+        { "测试", "mms.iec61850.test",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x10,
             NULL, HFILL }},
         { &hf_mms_iec61850_Quality0008,
-        { "OperatorBlocked", "mms.iec61850.operatorblocked",
-            FT_BOOLEAN, 8, NULL, 0x08,
+        { "操作员闭锁", "mms.iec61850.operatorblocked",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x08,
             NULL, HFILL }},
         { &hf_mms_iec61850_quality_bitstring,
-          { "Quality", "mms.iec61850.quality_bitstring",
+          { "品质", "mms.iec61850.quality_bitstring",
             FT_BYTES, BASE_NONE, NULL, 0,
             NULL, HFILL } },
         { &hf_mms_iec61850_timequality80,
-        { "Leap Second Known", "mms.iec61850.leapsecondknown",
-            FT_BOOLEAN, 8, NULL, 0x80,
+        { "闰秒已知", "mms.iec61850.leapsecondknown",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x80,
             NULL, HFILL } },
         { &hf_mms_iec61850_timequality40,
-        { "ClockFailure", "mms.iec61850.clockfailure",
-            FT_BOOLEAN, 8, NULL, 0x40,
+        { "时钟故障", "mms.iec61850.clockfailure",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x40,
             NULL, HFILL } },
         { &hf_mms_iec61850_timequality20,
-        { "Clock not synchronized", "mms.iec61850.clocknotsynchronized",
-            FT_BOOLEAN, 8, NULL, 0x20,
+        { "时钟未同步", "mms.iec61850.clocknotsynchronized",
+            FT_BOOLEAN, 8, &mms_zh_tf, 0x20,
             NULL, HFILL } },
         { &hf_mms_iec61850_timequality1F,
-        { "Time Accuracy", "mms.iec61850.timeaccuracy",
+        { "时间精度", "mms.iec61850.timeaccuracy",
             FT_UINT8, BASE_HEX, VALS(mms_iec6150_timeaccuracy_vals), 0x1F,
             NULL, HFILL } },
         { &hf_mms_iec61850_check_bitstring,
@@ -13029,6 +13073,7 @@ void proto_register_mms(void) {
     static int* ett[] = {
             &ett_mms,
             &ett_mms_iec61850_quality_bitstring,
+            &ett_mms_iec61850_utctime_quality,
             &ett_mms_iec61850_check_bitstring,
             &ett_mms_iec61850_reason_code,
             &ett_mms_iec61850_inclusion_bitstring,

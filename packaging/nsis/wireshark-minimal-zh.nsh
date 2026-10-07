@@ -1,14 +1,14 @@
 ; Chinese (Simplified) UI strings for ENABLE_MINIMAL_BUILD NSIS installer.
 ; Included from wireshark.nsi when ENABLE_MINIMAL_BUILD is defined.
 
-!define WS_ZH_BRANDING "Wireshark${U+00ae} 安装程序"
+!define WS_ZH_BRANDING "${BRAND_NAME}${VERSION} 安装程序"
 
-!define WS_ZH_WELCOME_TEXT "本向导将引导您安装 ${PROGRAM_NAME}。$\r$\n$\r$\n开始安装前，请确认 ${PROGRAM_NAME} 未在运行。$\r$\n$\r$\n单击“下一步”继续。"
-!define WS_ZH_LICENSE_TOP "Wireshark 基于 GNU 通用公共许可证（GPL）发布。"
+!define WS_ZH_WELCOME_TEXT "本向导将引导您安装 ${BRAND_NAME}。$\r$\n$\r$\n开始安装前，请确认 ${BRAND_NAME} 未在运行。$\r$\n$\r$\n单击“下一步”继续。"
+!define WS_ZH_LICENSE_TOP "${BRAND_NAME} 基于 GNU 通用公共许可证（GPL）发布。"
 !define WS_ZH_LICENSE_BOTTOM "本页不是最终用户许可协议（EULA），仅供参考。"
 !define WS_ZH_LICENSE_BUTTON "已知晓"
 !define WS_ZH_FINISH_README "打开发行说明"
-!define WS_ZH_UNCONFIRM_TOP "即将卸载以下 ${PROGRAM_NAME} 安装。单击“下一步”继续。"
+!define WS_ZH_UNCONFIRM_TOP "即将卸载以下 ${BRAND_NAME} 安装。单击“下一步”继续。"
 
 !define WS_ZH_COMPONENT_TEXT "下列组件可供安装。"
 !define WS_ZH_DIR_TEXT "请选择 ${PROGRAM_NAME} 的安装目录。"
@@ -25,7 +25,7 @@
 !define WS_ZH_SEC_WIRESHARK "主界面网络协议分析程序。"
 !define WS_ZH_SEC_TSHARK "基于文本的网络协议分析程序。"
 
-!define WS_ZH_UN_SEC_UNINSTALL "卸载全部 ${PROGRAM_NAME} 组件。"
+!define WS_ZH_UN_SEC_UNINSTALL "卸载全部 ${BRAND_NAME} 组件。"
 !define WS_ZH_UN_SEC_PLUGINS "卸载全部全局插件（包括旧版本）。"
 !define WS_ZH_UN_SEC_PROFILES "卸载全部全局配置配置文件。"
 !define WS_ZH_UN_SEC_GLOBAL "卸载全局设置，例如：$INSTDIR\cfilters"

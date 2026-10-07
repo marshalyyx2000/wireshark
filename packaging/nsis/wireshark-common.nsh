@@ -20,15 +20,27 @@ ManifestDPIAware true
 
 !include "wireshark-config.nsh"
 
+!ifdef ENABLE_MINIMAL_BUILD
+!define BRAND_NAME "${MINIMAL_PRODUCT_NAME}"
+!define DISPLAY_NAME "${BRAND_NAME}${VERSION} ${WIRESHARK_TARGET_PLATFORM}"
+!define PROGRAM_FULL_NAME "${BRAND_NAME} 网络协议分析程序"
+!endif
+!define MENU_FOLDER_NAME "${PROGRAM_NAME}"
+!define UNINSTALL_REG_NAME "${PROGRAM_NAME}"
+!ifndef ENABLE_MINIMAL_BUILD
 !define DISPLAY_NAME "${PROGRAM_NAME} ${VERSION} ${WIRESHARK_TARGET_PLATFORM}"
-Name "${DISPLAY_NAME}"
-
 !define PROGRAM_FULL_NAME "The ${PROGRAM_NAME} Network Protocol Analyzer"
+!endif ; ifndef ENABLE_MINIMAL_BUILD
+Name "${DISPLAY_NAME}"
 !define PROGRAM_NAME_PATH "${PROGRAM_NAME}.exe"
 
 !define UNINSTALLER_NAME "uninstall-wireshark.exe"
 
+!ifdef ENABLE_MINIMAL_BUILD
+VIAddVersionKey "ProductName" "${BRAND_NAME}"
+!else
 VIAddVersionKey "ProductName" "${PROGRAM_NAME}"
+!endif
 VIAddVersionKey "Comments" "It's a great product with a great story to tell. I'm pumped!"
 VIAddVersionKey "CompanyName" "${PROGRAM_NAME} development team"
 ; NSIS handles U+00a9 but not a UTF-8 encoded copyright symbol.

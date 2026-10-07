@@ -50,6 +50,9 @@ set(STRATOSHARK_NSIS_FILES
 
 # Variables required for config.nsh
 set(PROGRAM_NAME ${CMAKE_PROJECT_NAME})
+if(ENABLE_MINIMAL_BUILD)
+	set(MINIMAL_PRODUCT_NAME ${MINIMAL_PRODUCT_NAME})
+endif()
 file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}" TOP_SRC_DIR)
 # STAGING_DIR depends on the build configuration so we pass it
 # on the command line below.
