@@ -1228,6 +1228,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mausb.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mbim.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mbtcp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-yushun-modbus.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mcdata.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mc-nmf.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mcpe.c

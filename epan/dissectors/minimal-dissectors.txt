@@ -56,6 +56,7 @@ packet-iec104.c
 
 # --- Modbus ---
 packet-mbtcp.c
+packet-yushun-modbus.c
 
 # --- Infrastructure ---
 packet-data.c

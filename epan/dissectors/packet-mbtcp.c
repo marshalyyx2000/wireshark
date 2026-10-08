@@ -2271,7 +2271,9 @@ proto_register_modbus(void)
 void
 proto_reg_handoff_mbtcp(void)
 {
+#ifndef ENABLE_MINIMAL_BUILD
     dissector_add_uint_with_preference("tcp.port", PORT_MBTCP, mbtcp_handle);
+#endif
     dissector_add_uint_with_preference("udp.port", PORT_MBTCP, mbudp_handle);
 #ifndef ENABLE_MINIMAL_BUILD
     /* Needs packet-tls.c to create the tls.port table / ssl_dissector_add. */
