@@ -513,6 +513,7 @@
     </property>
     <addaction name="actionMmsIpClassify"/>
     <addaction name="actionMmsReportFilter"/>
+    <addaction name="actionMmsProcessAnalysis"/>
    </widget>
    <widget class="QMenu" name="menuModbus">
     <property name="title">
@@ -2952,6 +2953,14 @@
    </property>
    <property name="toolTip">
     <string>按 IEC 61850 报告字段分类过滤 RPT</string>
+   </property>
+  </action>
+  <action name="actionMmsProcessAnalysis">
+   <property name="text">
+    <string>站控层分析…</string>
+   </property>
+   <property name="toolTip">
+    <string>MMS 站控层报文过程分析（时序图与报告说明）</string>
    </property>
   </action>
   <action name="actionModbusYushunVoltagePlate">

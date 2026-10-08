@@ -34,6 +34,7 @@
 #include "packet-acse.h"
 #include "packet-mms.h"
 #include "packet-mms-tap.h"
+#include <epan/to_str.h>
 
 void proto_register_mms(void);
 void proto_reg_handoff_mms(void);
@@ -44,6 +45,8 @@ static bool use_iec61850_mapping = true;
 static int proto_mms;
 static int mms_tap;
 static mms_rpt_tap_data mms_tap_data;
+static int mms_process_tap;
+static mms_process_tap_data mms_process_tap_pdu;
 
 /* Conversation */
 static int hf_mms_response_in;
@@ -2095,6 +2098,85 @@ private_data_get_moreCinfo(asn1_ctx_t* actx)
 {
     mms_private_data_t* private_data = (mms_private_data_t*)mms_get_private_data(actx);
     return private_data->moreCinfo;
+}
+
+static void
+mms_process_ref_normalize(char *dst, size_t dst_len, const char *src)
+{
+    if (!dst || dst_len == 0) {
+        return;
+    }
+    dst[0] = '\0';
+    if (!src || !src[0]) {
+        return;
+    }
+    (void)g_strlcpy(dst, src, dst_len);
+    for (char *p = dst; *p; p++) {
+        if (*p == '/') {
+            *p = '$';
+        }
+    }
+}
+
+static void
+mms_process_ref_from_item(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv,
+                          char *dst, size_t dst_len)
+{
+    const char *src = NULL;
+
+    if (mms_priv && mms_priv->itemid_str &&
+        (g_strrstr(mms_priv->itemid_str, "$BR$") || g_strrstr(mms_priv->itemid_str, "$RP$"))) {
+        src = mms_priv->itemid_str;
+    } else if (mms_priv && mms_priv->itemid_str && mms_priv->itemid_str[0]) {
+        src = mms_priv->itemid_str;
+    } else {
+        char *more = private_data_get_moreCinfo(actx);
+        while (more && *more == ' ') {
+            more++;
+        }
+        if (more && *more) {
+            src = more;
+        }
+    }
+    mms_process_ref_normalize(dst, dst_len, src);
+}
+
+static void
+mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
+                       const char *arrow_label, const char *rcb_ref,
+                       const char *reason_zh)
+{
+    if (!have_tap_listener(mms_process_tap)) {
+        return;
+    }
+
+    memset(&mms_process_tap_pdu, 0, sizeof(mms_process_tap_pdu));
+    mms_process_tap_pdu.framenum = pinfo->num;
+    mms_process_tap_pdu.rel_ts = pinfo->rel_ts;
+    mms_process_tap_pdu.kind = kind;
+    if (arrow_label) {
+        (void)g_strlcpy(mms_process_tap_pdu.arrow_label, arrow_label,
+                        sizeof(mms_process_tap_pdu.arrow_label));
+    }
+    if (rcb_ref) {
+        mms_process_ref_normalize(mms_process_tap_pdu.rcb_ref,
+                                  sizeof(mms_process_tap_pdu.rcb_ref), rcb_ref);
+    }
+    if (reason_zh) {
+        (void)g_strlcpy(mms_process_tap_pdu.reason_zh, reason_zh,
+                        sizeof(mms_process_tap_pdu.reason_zh));
+    }
+
+    char *src = address_to_str(pinfo->pool, &pinfo->src);
+    char *dst = address_to_str(pinfo->pool, &pinfo->dst);
+    if (src) {
+        (void)g_strlcpy(mms_process_tap_pdu.src, src, sizeof(mms_process_tap_pdu.src));
+    }
+    if (dst) {
+        (void)g_strlcpy(mms_process_tap_pdu.dst, dst, sizeof(mms_process_tap_pdu.dst));
+    }
+
+    tap_queue_packet(mms_process_tap, pinfo, &mms_process_tap_pdu);
 }
 
 /*****************************************************************************/
@@ -9857,6 +9939,17 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 mms_tap_data.reason = mms_priv->rpt_first_reason;
                                 tap_queue_packet(mms_tap, actx->pinfo, &mms_tap_data);
                             }
+                            if (have_tap_listener(mms_process_tap)) {
+                                const char *rcb = mms_priv->rpt_rptid;
+                                if (!rcb || !rcb[0]) {
+                                    rcb = mms_priv->rpt_datset;
+                                }
+                                mms_queue_process_tap(actx->pinfo,
+                                    MMS_PROCESS_KIND_REPORT_PDU,
+                                    NULL,
+                                    rcb,
+                                    mms_priv->rpt_first_reason_zh);
+                            }
                         }else if((mms_priv->mms_trans_p)&&(mms_priv->mms_trans_p->itemid==IEC61850_ITEM_ID_OPER)){
                             col_append_str(actx->pinfo->cinfo, COL_INFO, "Unconfirmed-CommandTermination");
                             proto_item_append_text(mms_priv->pdu_item, " [Unconfirmed-CommandTermination]");
@@ -9888,6 +9981,12 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_$BR$_OR_$RP$){
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "GetRCBValuesRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [GetRCBValuesRequest]");
+                                    {
+                                        char rcb[MMS_RPT_TAP_STR_LEN];
+                                        mms_process_ref_from_item(actx, mms_priv, rcb, sizeof(rcb));
+                                        mms_queue_process_tap(actx->pinfo,
+                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL);
+                                    }
                                 }else{
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "GetDataValueRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [GetDataValueRequest]");
@@ -9896,6 +9995,12 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_$BR$_OR_$RP$){
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetRCBValuesRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [SetRCBValuesRequest]");
+                                    {
+                                        char rcb[MMS_RPT_TAP_STR_LEN];
+                                        mms_process_ref_from_item(actx, mms_priv, rcb, sizeof(rcb));
+                                        mms_queue_process_tap(actx->pinfo,
+                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL);
+                                    }
                                 }else{
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetDataValueRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [SetDataValueRequest]");
@@ -13325,6 +13430,7 @@ void proto_register_mms(void) {
         &use_iec61850_mapping);
 
     mms_tap = register_tap("mms");
+    mms_process_tap = register_tap("mms-process");
 }
 
 

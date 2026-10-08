@@ -114,6 +114,7 @@ DIAG_ON(frame-larger-than=)
 #include "expert_info_dialog.h"
 #include "sv_analysis_dialog.h"
 #include "mms_ip_classify_dialog.h"
+#include "mms_process_analysis_dialog.h"
 #include "mms_report_filter_dialog.h"
 #include "export_object_action.h"
 #include "export_object_dialog.h"
@@ -3327,6 +3328,12 @@ void WiresharkMainWindow::connectMmsMenuActions()
         MmsReportFilterDialog *dlg = new MmsReportFilterDialog(*this, capture_file_);
         dlg->setAttribute(Qt::WA_DeleteOnClose);
         connect(dlg, &MmsReportFilterDialog::filterAction, this, &WiresharkMainWindow::filterAction);
+        dlg->show();
+    });
+
+    connect(main_ui_->actionMmsProcessAnalysis, &QAction::triggered, this, [=]() {
+        MmsProcessAnalysisDialog *dlg = new MmsProcessAnalysisDialog(*this, capture_file_);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
         dlg->show();
     });
 }

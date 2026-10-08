@@ -15,27 +15,27 @@
 | Git（生成 `vcs_version.h`） | `C:\Program Files\Git\cmd` |
 | CMake ≥ 3.x、Python 3 | 已在 PATH |
 
-默认构建目录：`C:\Development\wsbuild-min`（与全量 `wsbuild64` 隔离）。
+默认构建目录：`C:\Development\wsbuild-industrial`（与全量 `wsbuild64` 隔离）。
 
 ## 一键构建并打包
 
 在 **cmd.exe** 中（不要依赖未初始化的 VS 环境，脚本会自行调用 `VsDevCmd`）：
 
 ```bat
-cd /d F:\software\temp\wireshark
-tools\minimal-build\build-all.bat
+cd /d F:\software\temp\wireshark-industrial
+tools\minimal-build\build-industrial.bat
 ```
 
 产物：
 
 ```text
-C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.6-x64.exe
+C:\Development\wsbuild-industrial\packaging\nsis\宾尧-0.10.3-x64.exe
 ```
 
 静默安装示例：
 
 ```bat
-"C:\Development\wsbuild-min\packaging\nsis\Wireshark-4.7.6-x64.exe" /S /desktopicon=yes
+"C:\Development\wsbuild-industrial\packaging\nsis\宾尧-0.10.3-x64.exe" /S /desktopicon=yes
 ```
 
 ## 分步脚本
@@ -82,7 +82,7 @@ tools\minimal-build\build-all.bat
 | 变量 | 含义 | 默认 |
 | --- | --- | --- |
 | `WIRESHARK_SRC_DIR` | 源码根目录 | 脚本所在仓库根 |
-| `WIRESHARK_BUILD_DIR` | 构建目录 | `C:\Development\wsbuild-min` |
+| `WIRESHARK_BUILD_DIR` | 构建目录 | `C:\Development\wsbuild-industrial` |
 | `WIRESHARK_BASE_DIR` | 第三方库 | `C:\Development\wireshark-third-party` |
 | `CMAKE_PREFIX_PATH` | Qt 前缀 | `C:\Development\Qt\6.10.3\msvc2022_64` |
 | `MAKENSIS_EXECUTABLE` | makensis | `C:\Development\NSIS-Tool\tools\makensis.exe` |
@@ -146,12 +146,24 @@ cmake --build . --config RelWithDebInfo --target wireshark_nsis --parallel
 
 ## 一键汇总整包（安装/运行/编译环境）
 
-将安装包、运行目录、源码、Qt/第三方库/NSIS、构建脚本汇总到单一目录（约 3.6 GB；VS 以引导安装器形式提供）：
+将安装包、运行目录、源码、Qt/第三方库/NSIS、便携 Git/Python/CMake、构建脚本汇总到单一目录（约 5 GB；VS 以引导安装器形式提供）：
 
-```powershell
-C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bundle.ps1
+```bat
+cd /d F:\software\temp\wireshark-industrial
+tools\minimal-build\create-bundle.bat
 ```
 
-默认输出：`C:\Development\Wireshark-Industrial-Bundle-4.7.6\`
+或：
 
-可用环境变量 `WIRESHARK_BUNDLE_DIR` 覆盖输出路径。
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bundle.ps1
+```
+
+默认输出：`C:\Development\Wireshark-Industrial-Bundle-0.10.3\`
+
+拷贝到目标机后：
+
+1. 双击根目录 `SETUP.bat`（首次会安装 VS Build Tools，约 10–30 分钟）
+2. 或手动：`04-compile-env\install-vs-buildtools.bat` → `05-scripts\build-all-from-bundle.bat`
+
+可用环境变量 `WIRESHARK_BUNDLE_DIR` 覆盖输出路径；`BUNDLE_GIT_SRC` / `BUNDLE_PYTHON_SRC` / `BUNDLE_CMAKE_SRC` 指定要打包的工具路径。

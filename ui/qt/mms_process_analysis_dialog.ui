@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MmsProcessAnalysisDialog</class>
+ <widget class="QDialog" name="MmsProcessAnalysisDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1100</width>
+    <height>640</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MMS报文过程分析</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QSplitter" name="mainSplitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QScrollArea" name="diagramScroll">
+      <property name="widgetResizable">
+       <bool>true</bool>
+      </property>
+      <widget class="MmsProcessDiagramWidget" name="diagramWidget"/>
+     </widget>
+     <widget class="QGroupBox" name="explainGroup">
+      <property name="title">
+       <string>说明</string>
+      </property>
+      <layout class="QVBoxLayout" name="explainLayout">
+       <item>
+        <widget class="QListWidget" name="explainList"/>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="ElidedLabel" name="hintLabel">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ElidedLabel</class>
+   <extends>QLabel</extends>
+   <header>widgets/elided_label.h</header>
+  </customwidget>
+  <customwidget>
+   <class>MmsProcessDiagramWidget</class>
+   <extends>QWidget</extends>
+   <header>mms_process_diagram_widget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

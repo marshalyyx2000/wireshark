@@ -24,16 +24,17 @@ cd /d "%WIRESHARK_BUILD_DIR%"
 if errorlevel 1 exit /b 1
 
 echo === wireshark_nsis_prep ===
-cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target wireshark_nsis_prep --parallel
+cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target wireshark_nsis_prep -- /nodeReuse:false /m:8
 if errorlevel 1 exit /b 1
 
 echo === wireshark_nsis ===
-cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target wireshark_nsis --parallel
+cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target wireshark_nsis -- /nodeReuse:false /m:8
 if errorlevel 1 exit /b 1
 
-set "INSTALLER=%WIRESHARK_BUILD_DIR%\packaging\nsis\Wireshark-4.7.6-x64.exe"
+call "%~dp0find-installer.bat"
+if errorlevel 1 exit /b 1
 if not exist "%INSTALLER%" (
-  echo ERROR: installer not found: %INSTALLER%
+  echo ERROR: installer not found under %WIRESHARK_BUILD_DIR%\packaging\nsis
   exit /b 1
 )
 

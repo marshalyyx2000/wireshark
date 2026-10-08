@@ -319,6 +319,8 @@ set(WIRESHARK_QT_HEADERS
 	strip_headers_dialog.h
 	sv_analysis_dialog.h
 	mms_ip_classify_dialog.h
+	mms_process_analysis_dialog.h
+	mms_process_diagram_widget.h
 	mms_report_filter_dialog.h
 	mms_report_filter_widget.h
 	supported_protocols_dialog.h
@@ -665,6 +667,8 @@ set(WIRESHARK_QT_SRC
 	strip_headers_dialog.cpp
 	sv_analysis_dialog.cpp
 	mms_ip_classify_dialog.cpp
+	mms_process_analysis_dialog.cpp
+	mms_process_diagram_widget.cpp
 	mms_report_filter_dialog.cpp
 	mms_report_filter_widget.cpp
 	supported_protocols_dialog.cpp
@@ -824,6 +828,7 @@ set(WIRESHARK_QT_UI
 	strip_headers_dialog.ui
 	sv_analysis_dialog.ui
 	mms_ip_classify_dialog.ui
+	mms_process_analysis_dialog.ui
 	mms_report_filter_dialog.ui
 	mms_report_filter_widget.ui
 	supported_protocols_dialog.ui

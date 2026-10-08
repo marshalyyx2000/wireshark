@@ -6,7 +6,8 @@ set "RUN_DIR=%WIRESHARK_BUILD_DIR%\run\%WIRESHARK_BUILD_CONFIG%"
 set "TSHARK=%RUN_DIR%\tshark.exe"
 set "DUMPCAP=%RUN_DIR%\dumpcap.exe"
 set "WIRESHARK=%RUN_DIR%\Wireshark.exe"
-set "INSTALLER=%WIRESHARK_BUILD_DIR%\packaging\nsis\Wireshark-4.7.6-x64.exe"
+set "INSTALLER="
+for %%F in ("%WIRESHARK_BUILD_DIR%\packaging\nsis\*.exe") do set "INSTALLER=%%~fF"
 set "FAIL=0"
 
 echo === smoke-check [%RUN_DIR%] ===
@@ -91,7 +92,7 @@ if exist "%RUN_DIR%\colorfilters" (
   )
 )
 
-if exist "%INSTALLER%" (
+if defined INSTALLER if exist "%INSTALLER%" (
   "%POWERSHELL_EXECUTABLE%" -NoProfile -Command ^
     "$i=Get-Item -LiteralPath '%INSTALLER%'; $mb=[math]::Round($i.Length/1MB,2); Write-Host ('OK: installer {0} ({1} MB)' -f $i.FullName,$mb); if ($i.Length -gt 30MB) { Write-Host 'FAIL: installer > 30 MB'; exit 1 }"
   if errorlevel 1 set "FAIL=1"
