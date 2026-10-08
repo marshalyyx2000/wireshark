@@ -27,7 +27,7 @@ MmsProcessDiagramWidget::MmsProcessDiagramWidget(QWidget *parent) :
     QWidget(parent)
 {
     setMinimumHeight(200);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMouseTracking(true);
 }
 
@@ -90,6 +90,17 @@ void MmsProcessDiagramWidget::mousePressEvent(QMouseEvent *event)
         emit eventClicked(idx);
     }
     QWidget::mousePressEvent(event);
+}
+
+void MmsProcessDiagramWidget::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    const int idx = eventAtPos(event->pos());
+    if (idx >= 0) {
+        setSelectedIndex(idx);
+        emit eventDoubleClicked(idx);
+        return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
 }
 
 void MmsProcessDiagramWidget::paintEvent(QPaintEvent *)

@@ -17,6 +17,7 @@
 
 class MmsProcessDiagramWidget;
 class QListWidgetItem;
+class QResizeEvent;
 
 namespace Ui {
 class MmsProcessAnalysisDialog;
@@ -30,13 +31,18 @@ public:
     explicit MmsProcessAnalysisDialog(QWidget &parent, CaptureFile &capture_file);
     ~MmsProcessAnalysisDialog() override;
 
+signals:
+    void goToPacket(int packet_num);
+
 protected:
     void captureFileClosing() override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void onExplainItemClicked(QListWidgetItem *item);
     void onExplainItemDoubleClicked(QListWidgetItem *item);
     void onDiagramEventClicked(int index);
+    void onDiagramEventDoubleClicked(int index);
 
 private:
     struct EventRow {
@@ -60,6 +66,8 @@ private:
     void retap();
     void rebuild();
     void selectIndex(int index);
+    void syncDiagramSize();
+    void jumpToFrame(uint32_t framenum);
     static QString arrowLabelForKind(mms_process_kind_t kind);
     static QString buildExplanation(const mms_process_tap_data *tap);
 

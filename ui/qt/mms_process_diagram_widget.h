@@ -37,10 +37,12 @@ public:
 
 signals:
     void eventClicked(int index);
+    void eventDoubleClicked(int index);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 private:
     int eventAtPos(const QPoint &pos) const;

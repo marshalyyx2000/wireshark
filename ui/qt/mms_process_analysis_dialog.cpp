@@ -18,7 +18,9 @@
 #include <QAbstractSocket>
 #include <QHostAddress>
 #include <QListWidget>
+#include <QResizeEvent>
 #include <QScrollArea>
+#include <QScrollBar>
 
 namespace {
 
@@ -57,17 +59,25 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
     setWindowSubtitle(tr("站控层分析"));
 
     diagram_ = ui_->diagramWidget;
+    ui_->verticalLayout->setStretch(0, 1);
+    ui_->verticalLayout->setStretch(1, 0);
     ui_->mainSplitter->setStretchFactor(0, 3);
     ui_->mainSplitter->setStretchFactor(1, 2);
     ui_->mainSplitter->setSizes({700, 360});
+    ui_->hintLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    ui_->hintLabel->setMaximumHeight(24);
     ui_->hintLabel->setSmallText();
 
     connect(ui_->explainList, &QListWidget::itemClicked,
             this, &MmsProcessAnalysisDialog::onExplainItemClicked);
     connect(ui_->explainList, &QListWidget::itemDoubleClicked,
             this, &MmsProcessAnalysisDialog::onExplainItemDoubleClicked);
+    connect(ui_->explainList, &QListWidget::itemActivated,
+            this, &MmsProcessAnalysisDialog::onExplainItemDoubleClicked);
     connect(diagram_, &MmsProcessDiagramWidget::eventClicked,
             this, &MmsProcessAnalysisDialog::onDiagramEventClicked);
+    connect(diagram_, &MmsProcessDiagramWidget::eventDoubleClicked,
+            this, &MmsProcessAnalysisDialog::onDiagramEventDoubleClicked);
 
     retap();
 }
@@ -81,6 +91,12 @@ void MmsProcessAnalysisDialog::captureFileClosing()
 {
     removeTapListeners();
     WiresharkDialog::captureFileClosing();
+}
+
+void MmsProcessAnalysisDialog::resizeEvent(QResizeEvent *event)
+{
+    WiresharkDialog::resizeEvent(event);
+    syncDiagramSize();
 }
 
 QString MmsProcessAnalysisDialog::arrowLabelForKind(mms_process_kind_t kind)
@@ -223,16 +239,40 @@ void MmsProcessAnalysisDialog::rebuild()
 
     diagram_->setColumns(columns_);
     diagram_->setEvents(diagram_events);
-    diagram_->setMinimumHeight(qMax(200, rows_.size() * 26 + 40));
-    diagram_->updateGeometry();
+    syncDiagramSize();
 
     if (rows_.isEmpty()) {
         ui_->hintLabel->setText(tr("当前抓包中未找到 MMS 站控层报告事件。"));
     } else {
-        ui_->hintLabel->setText(tr("共 %1 条事件，%2 个 IP。双击说明行可跳转到对应报文。")
+        ui_->hintLabel->setText(tr("共 %1 条事件，%2 个 IP。双击说明行或时序图可跳转到对应报文。")
                                     .arg(rows_.size())
                                     .arg(columns_.size()));
     }
+}
+
+void MmsProcessAnalysisDialog::syncDiagramSize()
+{
+    if (!diagram_ || !ui_ || !ui_->diagramScroll) {
+        return;
+    }
+
+    const QSize hint = diagram_->sizeHint();
+    const int viewport_w = ui_->diagramScroll->viewport()->width();
+    const int w = qMax(hint.width(), qMax(1, viewport_w));
+    const int h = qMax(200, hint.height());
+    if (diagram_->width() != w || diagram_->height() != h) {
+        diagram_->setFixedSize(w, h);
+    }
+}
+
+void MmsProcessAnalysisDialog::jumpToFrame(uint32_t framenum)
+{
+    if (framenum == 0) {
+        return;
+    }
+    emit goToPacket(static_cast<int>(framenum));
+    // Fallback for callers that did not connect goToPacket.
+    mainApp->gotoFrame(static_cast<int>(framenum));
 }
 
 void MmsProcessAnalysisDialog::selectIndex(int index)
@@ -242,6 +282,18 @@ void MmsProcessAnalysisDialog::selectIndex(int index)
     }
     diagram_->setSelectedIndex(index);
     ui_->explainList->setCurrentRow(index);
+    if (QListWidgetItem *item = ui_->explainList->item(index)) {
+        ui_->explainList->scrollToItem(item);
+    }
+
+    const int row_top = 28 + index * 26;
+    if (QScrollBar *vbar = ui_->diagramScroll->verticalScrollBar()) {
+        const int view_h = ui_->diagramScroll->viewport()->height();
+        if (row_top < vbar->value() || row_top + 26 > vbar->value() + view_h) {
+            vbar->setValue(qMax(0, row_top - view_h / 3));
+        }
+    }
+
     ui_->hintLabel->setText(tr("帧 %1 — 双击可跳转").arg(rows_.at(index).framenum));
 }
 
@@ -263,10 +315,19 @@ void MmsProcessAnalysisDialog::onExplainItemDoubleClicked(QListWidgetItem *item)
         return;
     }
     selectIndex(index);
-    mainApp->gotoFrame(static_cast<int>(rows_.at(index).framenum));
+    jumpToFrame(rows_.at(index).framenum);
 }
 
 void MmsProcessAnalysisDialog::onDiagramEventClicked(int index)
 {
     selectIndex(index);
+}
+
+void MmsProcessAnalysisDialog::onDiagramEventDoubleClicked(int index)
+{
+    if (index < 0 || index >= rows_.size()) {
+        return;
+    }
+    selectIndex(index);
+    jumpToFrame(rows_.at(index).framenum);
 }

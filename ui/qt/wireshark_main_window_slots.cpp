@@ -3334,6 +3334,8 @@ void WiresharkMainWindow::connectMmsMenuActions()
     connect(main_ui_->actionMmsProcessAnalysis, &QAction::triggered, this, [=]() {
         MmsProcessAnalysisDialog *dlg = new MmsProcessAnalysisDialog(*this, capture_file_);
         dlg->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dlg, &MmsProcessAnalysisDialog::goToPacket, this,
+                [=](int packet_num) { packet_list_->goToPacket(packet_num); });
         dlg->show();
     });
 }
