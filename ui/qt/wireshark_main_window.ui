@@ -2941,10 +2941,10 @@
   </action>
   <action name="actionMmsIpClassify">
    <property name="text">
-    <string>按服务端分类 IP…</string>
+    <string>协议分类…</string>
    </property>
    <property name="toolTip">
-    <string>以 TCP 102 子站服务端为基准对 MMS IP 分组并过滤</string>
+    <string>打开智能变电站网络协议分类面板（按协议与地址过滤）</string>
    </property>
   </action>
   <action name="actionMmsReportFilter">

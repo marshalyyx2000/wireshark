@@ -77,6 +77,7 @@ class DataSourceTab;
 class CaptureOptionsDialog;
 class DisStreamDialog;
 class InPacketSearch;
+class IndustrialProtocolClassifyPanel;
 class PrintDialog;
 class FileSetDialog;
 class FilterDialog;
@@ -94,6 +95,7 @@ class WiresharkApplication;
 
 class QAction;
 class QActionGroup;
+class QDockWidget;
 
 namespace Ui {
     class WiresharkMainWindow;
@@ -255,6 +257,8 @@ private:
     };
 
     Ui::WiresharkMainWindow   *main_ui_;              /**< Qt Designer-generated UI object. */
+    IndustrialProtocolClassifyPanel *proto_classify_panel_; /**< Left-dock industrial protocol tree. */
+    QDockWidget               *proto_classify_dock_;   /**< Dock hosting proto_classify_panel_. */
     QFont                      mono_font_;             /**< Monospace font used for hex/byte displays. */
 #if defined(HAVE_LIBNL) && defined(HAVE_NL80211)
     WirelessFrame             *wireless_frame_;        /**< Wireless toolbar frame for 802.11 channel control. */

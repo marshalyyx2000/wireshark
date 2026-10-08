@@ -318,6 +318,7 @@ set(WIRESHARK_QT_HEADERS
 	stats_tree_dialog.h
 	strip_headers_dialog.h
 	sv_analysis_dialog.h
+	industrial_protocol_classify_panel.h
 	mms_ip_classify_dialog.h
 	mms_process_analysis_dialog.h
 	mms_process_diagram_widget.h
@@ -667,6 +668,7 @@ set(WIRESHARK_QT_SRC
 	tlskeylog_launcher_dialog.cpp
 	strip_headers_dialog.cpp
 	sv_analysis_dialog.cpp
+	industrial_protocol_classify_panel.cpp
 	mms_ip_classify_dialog.cpp
 	mms_process_analysis_dialog.cpp
 	mms_process_diagram_widget.cpp
@@ -829,6 +831,7 @@ set(WIRESHARK_QT_UI
 	tlskeylog_launcher_dialog.ui
 	strip_headers_dialog.ui
 	sv_analysis_dialog.ui
+	industrial_protocol_classify_panel.ui
 	mms_ip_classify_dialog.ui
 	mms_process_analysis_dialog.ui
 	mms_report_filter_dialog.ui

@@ -66,6 +66,7 @@ DIAG_ON(frame-larger-than=)
 #endif
 #include "import_text_dialog.h"
 #include "interface_toolbar.h"
+#include "industrial_protocol_classify_panel.h"
 #include "packet_diagram.h"
 #include "packet_list.h"
 #include <ui/qt/widgets/packet_list_pane.h>
@@ -91,6 +92,7 @@ DIAG_ON(frame-larger-than=)
 
 #include <QAction>
 #include <QActionGroup>
+#include <QDockWidget>
 #include <QIntValidator>
 #include <QKeyEvent>
 #include <QList>
@@ -349,6 +351,8 @@ QMenu* WiresharkMainWindow::findOrAddMenubar(const QString menu_text) {
 WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     MainWindow(parent),
     main_ui_(new Ui::WiresharkMainWindow),
+    proto_classify_panel_(nullptr),
+    proto_classify_dock_(nullptr),
     previous_focus_(NULL),
     file_set_dialog_(NULL),
     show_hide_actions_(NULL),
@@ -474,6 +478,20 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connect(mainApp, &MainApplication::preferencesChanged, this, &WiresharkMainWindow::updateTitlebar);
     connect(mainApp, &MainApplication::preferencesChanged, this, &WiresharkMainWindow::updateAggregationView);
     connect(mainApp, &MainApplication::aggregationChanged, this, &WiresharkMainWindow::updateAggregationView);
+
+    /* Left dock: smart-substation protocol classification tree. */
+    proto_classify_panel_ = new IndustrialProtocolClassifyPanel(*this, capture_file_);
+    proto_classify_dock_ = new QDockWidget(tr("智能变电站网络协议分类"), this);
+    proto_classify_dock_->setObjectName(QStringLiteral("IndustrialProtocolClassifyDock"));
+    proto_classify_dock_->setWidget(proto_classify_panel_);
+    proto_classify_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    proto_classify_dock_->setMinimumWidth(260);
+    addDockWidget(Qt::LeftDockWidgetArea, proto_classify_dock_);
+    QAction *toggle_proto_classify = proto_classify_dock_->toggleViewAction();
+    toggle_proto_classify->setText(tr("协议分类面板"));
+    toggle_proto_classify->setToolTip(tr("显示或隐藏智能变电站网络协议分类面板"));
+    main_ui_->menuView->insertAction(main_ui_->actionViewPacketList, toggle_proto_classify);
+    main_ui_->menuView->insertSeparator(main_ui_->actionViewPacketList);
 
     connect(WorkspaceState::instance(), &WorkspaceState::recentCaptureFilesChanged, this, &WiresharkMainWindow::updateRecentCaptures);
     connect(WorkspaceState::instance(), &WorkspaceState::recentFileStatusChanged, this, &WiresharkMainWindow::updateRecentCaptures);

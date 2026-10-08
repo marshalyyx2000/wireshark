@@ -113,6 +113,7 @@ DIAG_ON(frame-larger-than=)
 #include "endpoint_dialog.h"
 #include "expert_info_dialog.h"
 #include "sv_analysis_dialog.h"
+#include "industrial_protocol_classify_panel.h"
 #include "mms_ip_classify_dialog.h"
 #include "mms_process_analysis_dialog.h"
 #include "mms_report_filter_dialog.h"
@@ -3318,10 +3319,12 @@ void WiresharkMainWindow::connectAnalyzeMenuActions()
 void WiresharkMainWindow::connectMmsMenuActions()
 {
     connect(main_ui_->actionMmsIpClassify, &QAction::triggered, this, [=]() {
-        MmsIpClassifyDialog *dlg = new MmsIpClassifyDialog(*this, capture_file_);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        connect(dlg, &MmsIpClassifyDialog::filterAction, this, &WiresharkMainWindow::filterAction);
-        dlg->show();
+        if (!proto_classify_dock_ || !proto_classify_panel_) {
+            return;
+        }
+        proto_classify_dock_->show();
+        proto_classify_dock_->raise();
+        proto_classify_panel_->showProtocolTree();
     });
 
     connect(main_ui_->actionMmsReportFilter, &QAction::triggered, this, [=]() {
