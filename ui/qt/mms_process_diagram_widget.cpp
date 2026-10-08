@@ -14,7 +14,7 @@
 
 namespace {
 
-constexpr int kLeftMargin = 56;
+constexpr int kLeftMargin = 8;
 constexpr int kTopMargin = 28;
 constexpr int kRightMargin = 12;
 constexpr int kBottomMargin = 12;
@@ -29,6 +29,16 @@ MmsProcessDiagramWidget::MmsProcessDiagramWidget(QWidget *parent) :
     setMinimumHeight(200);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMouseTracking(true);
+}
+
+int MmsProcessDiagramWidget::topMargin()
+{
+    return kTopMargin;
+}
+
+int MmsProcessDiagramWidget::rowHeight()
+{
+    return kRowHeight;
 }
 
 void MmsProcessDiagramWidget::setColumns(const QStringList &columns)
@@ -54,10 +64,19 @@ void MmsProcessDiagramWidget::setSelectedIndex(int index)
     update();
 }
 
+void MmsProcessDiagramWidget::setBackgroundColor(const QColor &color)
+{
+    if (!color.isValid() || background_ == color) {
+        return;
+    }
+    background_ = color;
+    update();
+}
+
 QSize MmsProcessDiagramWidget::minimumSizeHint() const
 {
-    const int w = kLeftMargin + kRightMargin + columns_.size() * kColMinWidth;
-    const int h = kTopMargin + kBottomMargin + qMax(1, events_.size()) * kRowHeight;
+    const int w = kLeftMargin + kRightMargin + qMax(1, columns_.size()) * kColMinWidth;
+    const int h = kTopMargin + kBottomMargin + qMax(1, static_cast<int>(events_.size())) * kRowHeight;
     return {w, h};
 }
 
@@ -106,7 +125,7 @@ void MmsProcessDiagramWidget::mouseDoubleClickEvent(QMouseEvent *event)
 void MmsProcessDiagramWidget::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
-    painter.fillRect(rect(), QColor(0xE8, 0xF5, 0xE9));
+    painter.fillRect(rect(), background_);
 
     if (columns_.isEmpty()) {
         painter.drawText(rect(), Qt::AlignCenter, tr("无 MMS 站控层事件"));
@@ -151,11 +170,6 @@ void MmsProcessDiagramWidget::paintEvent(QPaintEvent *)
                              QColor(0xBB, 0xDE, 0xFB));
         }
 
-        painter.setPen(QPen(Qt::black));
-        painter.drawText(QRect(4, kTopMargin + row * kRowHeight, kLeftMargin - 8, kRowHeight),
-                         Qt::AlignRight | Qt::AlignVCenter,
-                         QString::asprintf("%.3f", ev.rel_secs));
-
         QPen arrow_pen(ev.index == selected_index_ ? QColor(0x15, 0x65, 0xC0) : QColor(0x2E, 0x7D, 0x32),
                        ev.index == selected_index_ ? 2 : 1);
         painter.setPen(arrow_pen);
@@ -170,7 +184,7 @@ void MmsProcessDiagramWidget::paintEvent(QPaintEvent *)
         const QString label = ev.arrow_label;
         const int label_w = fm.horizontalAdvance(label) + 8;
         const int lx = (x1 + x2) / 2 - label_w / 2;
-        painter.fillRect(lx, y - 9, label_w, 18, QColor(0xE8, 0xF5, 0xE9));
+        painter.fillRect(lx, y - 9, label_w, 18, background_);
         painter.setPen(QPen(Qt::black));
         painter.drawText(QRect(lx, y - 9, label_w, 18), Qt::AlignCenter, label);
     }

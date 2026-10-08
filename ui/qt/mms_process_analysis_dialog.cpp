@@ -9,6 +9,7 @@
 #include <ui_mms_process_analysis_dialog.h>
 
 #include "mms_process_diagram_widget.h"
+#include "mms_process_time_column_widget.h"
 #include "main_application.h"
 
 #include <epan/packet_info.h>
@@ -16,13 +17,21 @@
 #include <algorithm>
 
 #include <QAbstractSocket>
+#include <QColorDialog>
+#include <QComboBox>
+#include <QFrame>
 #include <QHostAddress>
 #include <QListWidget>
+#include <QPalette>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSettings>
+#include <QSignalBlocker>
 
 namespace {
+
+constexpr char kBgColorSettingKey[] = "MmsProcessAnalysis/backgroundColor";
 
 bool ipLessThan(const QString &a, const QString &b)
 {
@@ -48,25 +57,52 @@ double nstimeToSeconds(const nstime_t &ts)
     return static_cast<double>(ts.secs) + static_cast<double>(ts.nsecs) / 1e9;
 }
 
+struct NamedColor {
+    const char *name;
+    QRgb rgb;
+};
+
+const NamedColor kPresetColors[] = {
+    {"浅绿", qRgb(0xE8, 0xF5, 0xE9)},
+    {"白色", qRgb(0xFF, 0xFF, 0xFF)},
+    {"浅黄", qRgb(0xFF, 0xF8, 0xE1)},
+    {"浅蓝", qRgb(0xE3, 0xF2, 0xFD)},
+    {"浅灰", qRgb(0xF5, 0xF5, 0xF5)},
+    {"米色", qRgb(0xFA, 0xF0, 0xE6)},
+};
+
 } // namespace
 
 MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile &capture_file) :
     WiresharkDialog(parent, capture_file),
     ui_(new Ui::MmsProcessAnalysisDialog),
-    diagram_(nullptr)
+    diagram_(nullptr),
+    time_column_(nullptr),
+    background_color_(0xE8, 0xF5, 0xE9)
 {
     ui_->setupUi(this);
     setWindowSubtitle(tr("站控层分析"));
 
     diagram_ = ui_->diagramWidget;
-    ui_->verticalLayout->setStretch(0, 1);
-    ui_->verticalLayout->setStretch(1, 0);
+    time_column_ = ui_->timeColumn;
+
+    ui_->verticalLayout->setStretch(0, 0);
+    ui_->verticalLayout->setStretch(1, 1);
+    ui_->verticalLayout->setStretch(2, 0);
     ui_->mainSplitter->setStretchFactor(0, 3);
     ui_->mainSplitter->setStretchFactor(1, 2);
     ui_->mainSplitter->setSizes({700, 360});
     ui_->hintLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     ui_->hintLabel->setMaximumHeight(24);
     ui_->hintLabel->setSmallText();
+
+    ui_->diagramPanelLayout->setStretch(0, 0);
+    ui_->diagramPanelLayout->setStretch(1, 1);
+    ui_->timeVScroll->setFixedWidth(MmsProcessTimeColumnWidget::preferredWidth());
+    ui_->timeVScroll->setWidget(time_column_);
+    ui_->diagramScroll->setWidget(diagram_);
+
+    initBackgroundColorCombo();
 
     connect(ui_->explainList, &QListWidget::itemClicked,
             this, &MmsProcessAnalysisDialog::onExplainItemClicked);
@@ -78,6 +114,14 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
             this, &MmsProcessAnalysisDialog::onDiagramEventClicked);
     connect(diagram_, &MmsProcessDiagramWidget::eventDoubleClicked,
             this, &MmsProcessAnalysisDialog::onDiagramEventDoubleClicked);
+    connect(ui_->bgColorCombo, QOverload<int>::of(&QComboBox::activated),
+            this, &MmsProcessAnalysisDialog::onBackgroundColorChanged);
+
+    /* Keep time column vertically aligned with the diagram; only the diagram scrolls horizontally. */
+    connect(ui_->diagramScroll->verticalScrollBar(), &QScrollBar::valueChanged,
+            ui_->timeVScroll->verticalScrollBar(), &QScrollBar::setValue);
+    connect(ui_->timeVScroll->verticalScrollBar(), &QScrollBar::valueChanged,
+            ui_->diagramScroll->verticalScrollBar(), &QScrollBar::setValue);
 
     retap();
 }
@@ -85,6 +129,96 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
 MmsProcessAnalysisDialog::~MmsProcessAnalysisDialog()
 {
     delete ui_;
+}
+
+void MmsProcessAnalysisDialog::initBackgroundColorCombo()
+{
+    QSettings settings;
+    const QString saved = settings.value(kBgColorSettingKey).toString();
+    if (!saved.isEmpty()) {
+        const QColor c(saved);
+        if (c.isValid()) {
+            background_color_ = c;
+        }
+    }
+
+    {
+        QSignalBlocker blocker(ui_->bgColorCombo);
+        ui_->bgColorCombo->clear();
+        int select = 0;
+        const int preset_count = static_cast<int>(sizeof(kPresetColors) / sizeof(kPresetColors[0]));
+        for (int i = 0; i < preset_count; i++) {
+            const QColor c(kPresetColors[i].rgb);
+            ui_->bgColorCombo->addItem(QString::fromUtf8(kPresetColors[i].name), c);
+            if (c == background_color_) {
+                select = i;
+            }
+        }
+        ui_->bgColorCombo->addItem(tr("自定义…"), QVariant());
+        bool matched = false;
+        for (int i = 0; i < preset_count; i++) {
+            if (QColor(kPresetColors[i].rgb) == background_color_) {
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            const int custom_idx = ui_->bgColorCombo->count() - 1;
+            ui_->bgColorCombo->insertItem(custom_idx, tr("当前自定义"), background_color_);
+            select = custom_idx;
+        }
+        ui_->bgColorCombo->setCurrentIndex(select);
+    }
+
+    applyBackgroundColor(background_color_, false);
+}
+
+void MmsProcessAnalysisDialog::applyBackgroundColor(const QColor &color, bool persist)
+{
+    if (!color.isValid()) {
+        return;
+    }
+    background_color_ = color;
+    if (diagram_) {
+        diagram_->setBackgroundColor(color);
+    }
+    if (time_column_) {
+        time_column_->setBackgroundColor(color);
+    }
+    if (ui_) {
+        for (QScrollArea *area : {ui_->timeVScroll, ui_->diagramScroll}) {
+            if (!area || !area->viewport()) {
+                continue;
+            }
+            area->viewport()->setAutoFillBackground(true);
+            QPalette pal = area->viewport()->palette();
+            pal.setColor(QPalette::Window, color);
+            area->viewport()->setPalette(pal);
+        }
+    }
+    if (persist) {
+        QSettings settings;
+        settings.setValue(kBgColorSettingKey, color.name(QColor::HexRgb));
+    }
+}
+
+void MmsProcessAnalysisDialog::onBackgroundColorChanged(int index)
+{
+    if (index < 0) {
+        return;
+    }
+    const QVariant data = ui_->bgColorCombo->itemData(index);
+    if (!data.isValid()) {
+        const QColor picked = QColorDialog::getColor(background_color_, this, tr("选择背景色"));
+        if (!picked.isValid()) {
+            initBackgroundColorCombo();
+            return;
+        }
+        applyBackgroundColor(picked, true);
+        initBackgroundColorCombo();
+        return;
+    }
+    applyBackgroundColor(data.value<QColor>(), true);
 }
 
 void MmsProcessAnalysisDialog::captureFileClosing()
@@ -121,8 +255,26 @@ QString MmsProcessAnalysisDialog::buildExplanation(const mms_process_tap_data *t
     } else {
         text = QObject::tr("报告控制块:(未知)");
     }
-    if (tap->reason_zh[0] != '\0') {
-        text += QObject::tr(" 上送原因:%1").arg(QString::fromUtf8(tap->reason_zh));
+    const QString reason = QString::fromUtf8(tap->reason_zh).trimmed();
+    if (!reason.isEmpty()) {
+        text += QObject::tr(" 上送原因:%1").arg(reason);
+    }
+    /* Enumerate leaf values for spontaneous (data-change) reports: [0.5,0.7] */
+    if (reason.contains(QStringLiteral("突发性")) && tap->values[0] != '\0') {
+        QString vals = QString::fromUtf8(tap->values).trimmed();
+        vals.replace(QStringLiteral(", "), QStringLiteral(","));
+        while (vals.contains(QStringLiteral(",,"))) {
+            vals.replace(QStringLiteral(",,"), QStringLiteral(","));
+        }
+        if (vals.startsWith(QLatin1Char(','))) {
+            vals.remove(0, 1);
+        }
+        if (vals.endsWith(QLatin1Char(','))) {
+            vals.chop(1);
+        }
+        if (!vals.isEmpty()) {
+            text += QStringLiteral(" [%1]").arg(vals);
+        }
     }
     return text;
 }
@@ -239,6 +391,7 @@ void MmsProcessAnalysisDialog::rebuild()
 
     diagram_->setColumns(columns_);
     diagram_->setEvents(diagram_events);
+    time_column_->setEvents(diagram_events);
     syncDiagramSize();
 
     if (rows_.isEmpty()) {
@@ -252,16 +405,39 @@ void MmsProcessAnalysisDialog::rebuild()
 
 void MmsProcessAnalysisDialog::syncDiagramSize()
 {
-    if (!diagram_ || !ui_ || !ui_->diagramScroll) {
+    if (!diagram_ || !time_column_ || !ui_) {
         return;
     }
 
-    const QSize hint = diagram_->sizeHint();
-    const int viewport_w = ui_->diagramScroll->viewport()->width();
-    const int w = qMax(hint.width(), qMax(1, viewport_w));
-    const int h = qMax(200, hint.height());
-    if (diagram_->width() != w || diagram_->height() != h) {
-        diagram_->setFixedSize(w, h);
+    const int time_w = MmsProcessTimeColumnWidget::preferredWidth();
+    const int diagram_view_w = qMax(1, ui_->diagramScroll->viewport()->width());
+    const int diagram_view_h = qMax(1, ui_->diagramScroll->viewport()->height());
+
+    const QSize diagram_hint = diagram_->sizeHint();
+    const int content_h = qMax(200, diagram_hint.height());
+    /* Fill viewport when few events, so no white gap below the sequence. */
+    const int h = qMax(content_h, diagram_view_h);
+    const int diagram_w = qMax(diagram_hint.width(), diagram_view_w);
+
+    time_column_->setFixedSize(time_w, h);
+    diagram_->setFixedSize(diagram_w, h);
+    ui_->timeVScroll->setFixedWidth(time_w);
+
+    if (ui_->timeVScroll->widget() != time_column_) {
+        ui_->timeVScroll->setWidget(time_column_);
+    }
+    if (ui_->diagramScroll->widget() != diagram_) {
+        ui_->diagramScroll->setWidget(diagram_);
+    }
+
+    /* Keep vertical scroll ranges in sync. */
+    QScrollBar *dv = ui_->diagramScroll->verticalScrollBar();
+    QScrollBar *tv = ui_->timeVScroll->verticalScrollBar();
+    if (dv && tv) {
+        tv->setRange(dv->minimum(), dv->maximum());
+        tv->setPageStep(dv->pageStep());
+        tv->setSingleStep(dv->singleStep());
+        tv->setValue(dv->value());
     }
 }
 
@@ -271,7 +447,6 @@ void MmsProcessAnalysisDialog::jumpToFrame(uint32_t framenum)
         return;
     }
     emit goToPacket(static_cast<int>(framenum));
-    // Fallback for callers that did not connect goToPacket.
     mainApp->gotoFrame(static_cast<int>(framenum));
 }
 
@@ -281,15 +456,18 @@ void MmsProcessAnalysisDialog::selectIndex(int index)
         return;
     }
     diagram_->setSelectedIndex(index);
+    time_column_->setSelectedIndex(index);
     ui_->explainList->setCurrentRow(index);
     if (QListWidgetItem *item = ui_->explainList->item(index)) {
         ui_->explainList->scrollToItem(item);
     }
 
-    const int row_top = 28 + index * 26;
+    const int row_top = MmsProcessDiagramWidget::topMargin() +
+                        index * MmsProcessDiagramWidget::rowHeight();
     if (QScrollBar *vbar = ui_->diagramScroll->verticalScrollBar()) {
         const int view_h = ui_->diagramScroll->viewport()->height();
-        if (row_top < vbar->value() || row_top + 26 > vbar->value() + view_h) {
+        if (row_top < vbar->value() ||
+            row_top + MmsProcessDiagramWidget::rowHeight() > vbar->value() + view_h) {
             vbar->setValue(qMax(0, row_top - view_h / 3));
         }
     }

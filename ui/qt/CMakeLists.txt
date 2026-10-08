@@ -321,6 +321,7 @@ set(WIRESHARK_QT_HEADERS
 	mms_ip_classify_dialog.h
 	mms_process_analysis_dialog.h
 	mms_process_diagram_widget.h
+	mms_process_time_column_widget.h
 	mms_report_filter_dialog.h
 	mms_report_filter_widget.h
 	supported_protocols_dialog.h
@@ -669,6 +670,7 @@ set(WIRESHARK_QT_SRC
 	mms_ip_classify_dialog.cpp
 	mms_process_analysis_dialog.cpp
 	mms_process_diagram_widget.cpp
+	mms_process_time_column_widget.cpp
 	mms_report_filter_dialog.cpp
 	mms_report_filter_widget.cpp
 	supported_protocols_dialog.cpp

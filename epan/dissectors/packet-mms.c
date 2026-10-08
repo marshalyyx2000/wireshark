@@ -1258,6 +1258,9 @@ typedef struct mms_actx_private_data_t
     const char *rpt_first_reason_zh;                /* first ReasonForInclusion Chinese summary */
     uint8_t rpt_first_reason;
     bool rpt_has_reason;
+    /* Aggregated leaf values across RPT value AccessResults (comma, no spaces) */
+    wmem_strbuf_t *rpt_values_summary;
+    uint32_t rpt_values_count;
     /* Summary text appended to AccessResult parent label */
     const char *access_result_summary;
     /* Collect leaf values (exclude q/t) for AccessResult summary */
@@ -2144,7 +2147,7 @@ mms_process_ref_from_item(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv,
 static void
 mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
                        const char *arrow_label, const char *rcb_ref,
-                       const char *reason_zh)
+                       const char *reason_zh, const char *values)
 {
     if (!have_tap_listener(mms_process_tap)) {
         return;
@@ -2165,6 +2168,10 @@ mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
     if (reason_zh) {
         (void)g_strlcpy(mms_process_tap_pdu.reason_zh, reason_zh,
                         sizeof(mms_process_tap_pdu.reason_zh));
+    }
+    if (values && values[0] != '\0') {
+        (void)g_strlcpy(mms_process_tap_pdu.values, values,
+                        sizeof(mms_process_tap_pdu.values));
     }
 
     char *src = address_to_str(pinfo->pool, &pinfo->src);
@@ -7172,21 +7179,35 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
     }
 
     if (mms_priv && mms_priv->collecting_value_summary &&
-        mms_priv->value_summary && mms_priv->value_summary_count > 0 &&
-        tree && tree->last_child && tree->last_child != prev_last) {
-        /* RPT value AccessResult already has k/n on the path label. */
-        if (is_rpt && mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
-            proto_item_append_text(tree->last_child, " (%s)",
-                                   wmem_strbuf_get_str(mms_priv->value_summary));
-        } else {
-            char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
-            if (ord) {
-                proto_item_append_text(tree->last_child, " (%s: %s)",
-                                       ord, wmem_strbuf_get_str(mms_priv->value_summary));
-            } else {
+        mms_priv->value_summary && mms_priv->value_summary_count > 0) {
+        if (tree && tree->last_child && tree->last_child != prev_last) {
+            /* RPT value AccessResult already has k/n on the path label. */
+            if (is_rpt && mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
                 proto_item_append_text(tree->last_child, " (%s)",
                                        wmem_strbuf_get_str(mms_priv->value_summary));
+            } else {
+                char *ord = mms_rpt_member_ordinal(mms_priv, actx->pinfo, actx->pinfo->pool);
+                if (ord) {
+                    proto_item_append_text(tree->last_child, " (%s: %s)",
+                                           ord, wmem_strbuf_get_str(mms_priv->value_summary));
+                } else {
+                    proto_item_append_text(tree->last_child, " (%s)",
+                                           wmem_strbuf_get_str(mms_priv->value_summary));
+                }
             }
+        }
+        /* Aggregate RPT leaf values for station-layer process analysis tap. */
+        if (is_rpt && mms_priv->rpt_phase == MMS_RPT_PHASE_VALUE) {
+            if (!mms_priv->rpt_values_summary) {
+                mms_priv->rpt_values_summary = wmem_strbuf_new(actx->pinfo->pool, "");
+                mms_priv->rpt_values_count = 0;
+            }
+            if (mms_priv->rpt_values_count > 0) {
+                wmem_strbuf_append(mms_priv->rpt_values_summary, ",");
+            }
+            wmem_strbuf_append(mms_priv->rpt_values_summary,
+                               wmem_strbuf_get_str(mms_priv->value_summary));
+            mms_priv->rpt_values_count++;
         }
     }
 
@@ -9140,6 +9161,8 @@ dissect_mms_T_listOfAccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsig
         mms_priv->rpt_first_reason_zh = NULL;
         mms_priv->rpt_first_reason = 0;
         mms_priv->rpt_has_reason = false;
+        mms_priv->rpt_values_summary = NULL;
+        mms_priv->rpt_values_count = 0;
         mms_priv->current_object_ref = NULL;
         mms_priv->struct_path_active = false;
         mms_priv->struct_child_idx = 0;
@@ -9948,7 +9971,11 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                     MMS_PROCESS_KIND_REPORT_PDU,
                                     NULL,
                                     rcb,
-                                    mms_priv->rpt_first_reason_zh);
+                                    mms_priv->rpt_first_reason_zh,
+                                    (mms_priv->rpt_values_summary &&
+                                     mms_priv->rpt_values_count > 0)
+                                        ? wmem_strbuf_get_str(mms_priv->rpt_values_summary)
+                                        : NULL);
                             }
                         }else if((mms_priv->mms_trans_p)&&(mms_priv->mms_trans_p->itemid==IEC61850_ITEM_ID_OPER)){
                             col_append_str(actx->pinfo->cinfo, COL_INFO, "Unconfirmed-CommandTermination");
@@ -9985,7 +10012,7 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                         char rcb[MMS_RPT_TAP_STR_LEN];
                                         mms_process_ref_from_item(actx, mms_priv, rcb, sizeof(rcb));
                                         mms_queue_process_tap(actx->pinfo,
-                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL);
+                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL, NULL);
                                     }
                                 }else{
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "GetDataValueRequest %s", private_data_get_moreCinfo(actx));
@@ -9999,7 +10026,7 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                         char rcb[MMS_RPT_TAP_STR_LEN];
                                         mms_process_ref_from_item(actx, mms_priv, rcb, sizeof(rcb));
                                         mms_queue_process_tap(actx->pinfo,
-                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL);
+                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL, NULL);
                                     }
                                 }else{
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetDataValueRequest %s", private_data_get_moreCinfo(actx));

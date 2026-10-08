@@ -8,6 +8,7 @@
 #ifndef MMS_PROCESS_DIAGRAM_WIDGET_H
 #define MMS_PROCESS_DIAGRAM_WIDGET_H
 
+#include <QColor>
 #include <QVector>
 #include <QWidget>
 
@@ -31,6 +32,11 @@ public:
     void setColumns(const QStringList &columns);
     void setEvents(const QVector<MmsProcessDiagramEvent> &events);
     void setSelectedIndex(int index);
+    void setBackgroundColor(const QColor &color);
+    QColor backgroundColor() const { return background_; }
+
+    static int topMargin();
+    static int rowHeight();
 
     QSize minimumSizeHint() const override;
     QSize sizeHint() const override;
@@ -50,6 +56,7 @@ private:
     QStringList columns_;
     QVector<MmsProcessDiagramEvent> events_;
     int selected_index_ = -1;
+    QColor background_{0xE8, 0xF5, 0xE9};
 };
 
 #endif /* MMS_PROCESS_DIAGRAM_WIDGET_H */

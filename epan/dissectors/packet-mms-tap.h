@@ -18,6 +18,7 @@
 #include <wsutil/nstime.h>
 
 #define MMS_RPT_TAP_STR_LEN 256
+#define MMS_PROCESS_VALUES_LEN 512
 
 typedef enum {
     MMS_PROCESS_KIND_REPORT_PDU = 0,
@@ -33,6 +34,8 @@ typedef struct mms_process_tap_data {
     char arrow_label[32];
     char rcb_ref[MMS_RPT_TAP_STR_LEN];
     char reason_zh[64];
+    /* Comma-separated leaf values for spontaneous (data-change) reports. */
+    char values[MMS_PROCESS_VALUES_LEN];
 } mms_process_tap_data;
 
 typedef struct mms_rpt_tap_data {

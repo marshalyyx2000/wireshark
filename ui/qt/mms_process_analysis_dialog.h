@@ -12,10 +12,12 @@
 
 #include <epan/dissectors/packet-mms-tap.h>
 
+#include <QColor>
 #include <QHash>
 #include <QVector>
 
 class MmsProcessDiagramWidget;
+class MmsProcessTimeColumnWidget;
 class QListWidgetItem;
 class QResizeEvent;
 
@@ -43,6 +45,7 @@ private slots:
     void onExplainItemDoubleClicked(QListWidgetItem *item);
     void onDiagramEventClicked(int index);
     void onDiagramEventDoubleClicked(int index);
+    void onBackgroundColorChanged(int index);
 
 private:
     struct EventRow {
@@ -68,14 +71,18 @@ private:
     void selectIndex(int index);
     void syncDiagramSize();
     void jumpToFrame(uint32_t framenum);
+    void applyBackgroundColor(const QColor &color, bool persist);
+    void initBackgroundColorCombo();
     static QString arrowLabelForKind(mms_process_kind_t kind);
     static QString buildExplanation(const mms_process_tap_data *tap);
 
     Ui::MmsProcessAnalysisDialog *ui_;
     MmsProcessDiagramWidget *diagram_;
+    MmsProcessTimeColumnWidget *time_column_;
     QVector<EventRow> rows_;
     QStringList columns_;
     QHash<QString, int> col_index_;
+    QColor background_color_;
 };
 
 #endif /* MMS_PROCESS_ANALYSIS_DIALOG_H */
