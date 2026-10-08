@@ -17,11 +17,7 @@
 #include "filter_action.h"
 #include "wireshark_dialog.h"
 
-#include <QSet>
-#include <QString>
-
-class QComboBox;
-class QTimer;
+class MmsReportFilterWidget;
 
 namespace Ui {
 class MmsReportFilterDialog;
@@ -43,48 +39,10 @@ protected:
 
 private slots:
     void onApplyClicked();
-    void onScopeCriteriaChanged();
-    void onRptidCriteriaChanged();
-    void onDatsetCriteriaChanged();
-    void onRptidActivated(int index);
-    void onDatsetActivated(int index);
-    void onDebouncedScopeRetap();
-    void onDebouncedRptidCriteriaChanged();
-    void onDebouncedFilterApply();
 
 private:
-    static void tapReset(void *tapdata);
-    static tap_packet_status tapPacket(void *tapdata, packet_info *pinfo,
-                                       epan_dissect_t *edt, const void *data,
-                                       tap_flags_t flags);
-    static void tapDraw(void *tapdata);
-
-    void retap();
-    void fillCombos();
-    QString buildScopeFilter(bool include_rptid) const;
-    QString buildFilter() const;
-    void updatePreview();
-    void applyFilterNow();
-    void applyFilterIfRealtime(bool debounce = true);
-    void refreshDatsetComboForRptid();
-    static QString quoteFilterString(const QString &value);
-    static QString quoteFilterRegex(const QString &pattern);
-    static QString ciContainsClause(const QString &field, const QString &segment);
-    static QString ciEqualsClause(const QString &field, const QString &text);
-    static QStringList filterSegments(const QString &text);
-    static void appendRefFilter(QStringList &parts, const QString &field, const QString &text,
-                                bool exact_match);
-    static void appendSegmentedContains(QStringList &parts, const QString &field, const QString &text);
-    static QString comboSelectedValue(QComboBox *combo);
-    static void restoreComboValue(QComboBox *combo, const QString &value);
-
     Ui::MmsReportFilterDialog *ui_;
-    QSet<QString> rptid_values_;
-    QSet<QString> datset_values_;
-    bool refreshing_combos_;
-    QTimer *scope_retap_timer_;
-    QTimer *id_change_timer_;
-    QTimer *filter_apply_timer_;
+    MmsReportFilterWidget *filter_widget_;
 };
 
 #endif /* MMS_REPORT_FILTER_DIALOG_H */

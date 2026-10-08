@@ -12,6 +12,9 @@
 #include "mms_ip_classify_dialog.h"
 #include <ui_mms_ip_classify_dialog.h>
 
+#include "mms_report_filter_widget.h"
+#include "wireshark_main_window.h"
+
 #include "ui/qt/utils/qt_ui_utils.h"
 
 #include <epan/address.h>
@@ -21,7 +24,9 @@
 
 #include <QAbstractSocket>
 #include <QHostAddress>
+#include <QSizePolicy>
 #include <QTreeWidgetItem>
+#include <QVBoxLayout>
 
 namespace {
 
@@ -61,13 +66,30 @@ bool ipLessThan(const QString &a, const QString &b)
 
 MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_file) :
     WiresharkDialog(parent, capture_file),
-    ui_(new Ui::MmsIpClassifyDialog)
+    ui_(new Ui::MmsIpClassifyDialog),
+    report_widget_(new MmsReportFilterWidget(this))
 {
     ui_->setupUi(this);
-    setWindowSubtitle(tr("按服务端分类 IP"));
+    setWindowSubtitle(tr("按服务端分类 IP / 报告过滤"));
+
+    ui_->verticalLayout->setStretch(0, 1);
+    ui_->verticalLayout->setStretch(1, 0);
+    ui_->verticalLayout->setStretch(2, 0);
 
     ui_->ipTree->setHeaderHidden(false);
     ui_->ipTree->setRootIsDecorated(true);
+    ui_->mainSplitter->setStretchFactor(0, 2);
+    ui_->mainSplitter->setStretchFactor(1, 3);
+    ui_->mainSplitter->setSizes({340, 700});
+    ui_->reportPanelLayout->setStretch(ui_->reportPanelLayout->indexOf(ui_->reportFilterContainer), 0);
+    ui_->reportPanelLayout->setStretch(ui_->reportPanelLayout->indexOf(ui_->reportPanelSpacer), 1);
+
+    auto *report_layout = new QVBoxLayout(ui_->reportFilterContainer);
+    report_layout->setContentsMargins(0, 0, 0, 0);
+    report_layout->addWidget(report_widget_);
+    report_widget_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    report_widget_->setPreviewVisible(false);
+    report_widget_->setDialogHost(this, &cap_file_);
 
     connect(ui_->searchEdit, &QLineEdit::textChanged,
             this, &MmsIpClassifyDialog::onSearchTextChanged);
@@ -77,6 +99,15 @@ MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_f
             this, &MmsIpClassifyDialog::onClearClicked);
     connect(ui_->ipTree, &QTreeWidget::itemChanged,
             this, &MmsIpClassifyDialog::onItemChanged);
+    connect(report_widget_, &MmsReportFilterWidget::filterChanged,
+            this, [this]() {
+        updateHint();
+        if (report_widget_->isRealtimeEnabled()) {
+            applyCombinedFilter();
+        }
+    });
+    connect(report_widget_, &MmsReportFilterWidget::requestApplyFilter,
+            this, &MmsIpClassifyDialog::applyCombinedFilter);
 
     retap();
 }
@@ -88,6 +119,7 @@ MmsIpClassifyDialog::~MmsIpClassifyDialog()
 
 void MmsIpClassifyDialog::captureFileClosing()
 {
+    report_widget_->onCaptureFileClosing();
     removeTapListeners();
     WiresharkDialog::captureFileClosing();
 }
@@ -274,7 +306,7 @@ void MmsIpClassifyDialog::applySearchFilter(const QString &text)
     }
 }
 
-QString MmsIpClassifyDialog::buildFilter() const
+QString MmsIpClassifyDialog::buildIpFilter() const
 {
     QStringList v4;
     QStringList v6;
@@ -318,6 +350,35 @@ QString MmsIpClassifyDialog::buildFilter() const
     return QStringLiteral("mms && (%1)").arg(terms.join(QStringLiteral(" || ")));
 }
 
+QString MmsIpClassifyDialog::buildCombinedFilter() const
+{
+    QStringList parts;
+    const QString ip_filter = buildIpFilter();
+    if (!ip_filter.isEmpty()) {
+        parts << ip_filter;
+    }
+    if (report_widget_->hasReportCriteria()) {
+        parts << report_widget_->buildFilter();
+    }
+    return parts.join(QStringLiteral(" && "));
+}
+
+void MmsIpClassifyDialog::applyCombinedFilter()
+{
+    const QString filter = buildCombinedFilter();
+    if (filter.isEmpty()) {
+        ui_->hintLabel->setText(tr("请勾选 IP 或设置报告过滤条件。"));
+        return;
+    }
+    auto *mw = qobject_cast<WiresharkMainWindow *>(parentWidget());
+    if (mw) {
+        mw->applyCaptureDisplayFilter(filter);
+    } else {
+        emit filterAction(filter, FilterAction::ActionApply, FilterAction::ActionTypePlain);
+    }
+    updateHint();
+}
+
 void MmsIpClassifyDialog::updateHint()
 {
     const int servers = clients_by_server_.size();
@@ -325,10 +386,10 @@ void MmsIpClassifyDialog::updateHint()
     for (const QSet<QString> &set : clients_by_server_) {
         clients += set.size();
     }
-    const QString filter = buildFilter();
+    const QString filter = buildCombinedFilter();
     if (filter.isEmpty()) {
         ui_->hintLabel->setText(
-            tr("服务端 %1 个，未知地址 %2 个。勾选 IP 后点「应用过滤」。")
+            tr("服务端 %1 个，未知地址 %2 个。勾选 IP 或设置报告条件后点「应用过滤」。")
                 .arg(servers)
                 .arg(unknown_ips_.size()));
     } else {
@@ -344,12 +405,7 @@ void MmsIpClassifyDialog::onSearchTextChanged(const QString &text)
 
 void MmsIpClassifyDialog::onApplyClicked()
 {
-    const QString filter = buildFilter();
-    if (filter.isEmpty()) {
-        ui_->hintLabel->setText(tr("请先勾选至少一个 IP。"));
-        return;
-    }
-    emit filterAction(filter, FilterAction::ActionApply, FilterAction::ActionTypePlain);
+    applyCombinedFilter();
 }
 
 void MmsIpClassifyDialog::onClearClicked()
@@ -367,4 +423,7 @@ void MmsIpClassifyDialog::onClearClicked()
 void MmsIpClassifyDialog::onItemChanged(QTreeWidgetItem *, int)
 {
     updateHint();
+    if (report_widget_->isRealtimeEnabled()) {
+        applyCombinedFilter();
+    }
 }

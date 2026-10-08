@@ -21,6 +21,7 @@
 #include <QSet>
 #include <QString>
 
+class MmsReportFilterWidget;
 class QTreeWidgetItem;
 
 namespace Ui {
@@ -57,10 +58,13 @@ private:
     void retap();
     void rebuildTree();
     void applySearchFilter(const QString &text);
-    QString buildFilter() const;
+    QString buildIpFilter() const;
+    QString buildCombinedFilter() const;
+    void applyCombinedFilter();
     void updateHint();
 
     Ui::MmsIpClassifyDialog *ui_;
+    MmsReportFilterWidget *report_widget_;
     QHash<QString, QSet<QString>> clients_by_server_;
     QSet<QString> unknown_ips_;
     QHash<QString, bool> ipv6_by_ip_;

@@ -34,9 +34,12 @@
 /**
  * @brief Base class for Wireshark specific dialogs that require interaction with a CaptureFile.
  */
+class MmsReportFilterWidget;
+
 class WiresharkDialog : public GeometryStateDialog
 {
     Q_OBJECT
+    friend class MmsReportFilterWidget;
 
 public:
     // XXX Unlike the entire QWidget API, parent is mandatory here.

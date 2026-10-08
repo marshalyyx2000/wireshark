@@ -320,6 +320,7 @@ set(WIRESHARK_QT_HEADERS
 	sv_analysis_dialog.h
 	mms_ip_classify_dialog.h
 	mms_report_filter_dialog.h
+	mms_report_filter_widget.h
 	supported_protocols_dialog.h
 	tabnav_tree_widget.h
 	tap_parameter_dialog.h
@@ -665,6 +666,7 @@ set(WIRESHARK_QT_SRC
 	sv_analysis_dialog.cpp
 	mms_ip_classify_dialog.cpp
 	mms_report_filter_dialog.cpp
+	mms_report_filter_widget.cpp
 	supported_protocols_dialog.cpp
 	tabnav_tree_widget.cpp
 	tap_parameter_dialog.cpp
@@ -823,6 +825,7 @@ set(WIRESHARK_QT_UI
 	sv_analysis_dialog.ui
 	mms_ip_classify_dialog.ui
 	mms_report_filter_dialog.ui
+	mms_report_filter_widget.ui
 	supported_protocols_dialog.ui
 	tap_parameter_dialog.ui
 	tcp_stream_dialog.ui
