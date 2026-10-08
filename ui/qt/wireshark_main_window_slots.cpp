@@ -197,10 +197,14 @@ DIAG_ON(frame-larger-than=)
 #include <ui/qt/interface_frame.h>
 
 #include <functional>
+#include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QPointer>
+#include <QTimer>
 #include <QToolBar>
 #include <QDesktopServices>
 #include <QUrl>
@@ -345,11 +349,36 @@ void WiresharkMainWindow::applyCaptureDisplayFilter(QString filter, bool force)
     if (!df_combo_box_) {
         return;
     }
+    /*
+     * Preserve focus across filter/rescan. Otherwise setForCapturedPackets /
+     * packet-list updates steal the caret; the next printable key then hits
+     * packet_list_'s eventFilter and is diverted into the display-filter bar
+     * (e.g. "...contains \"d\")a"), which looks like typing is interrupted.
+     */
+    QPointer<QWidget> keep_focus = QApplication::focusWidget();
+    int cursor_pos = -1;
+    if (auto *le = qobject_cast<QLineEdit *>(keep_focus.data())) {
+        cursor_pos = le->cursorPosition();
+    }
     if (df_combo_box_->text() != filter) {
         QSignalBlocker blocker(df_combo_box_);
         df_combo_box_->setText(filter);
     }
     applyFilter(filter, force);
+    if (keep_focus && keep_focus != packet_list_ && keep_focus->isVisible()) {
+        const int pos = cursor_pos;
+        QTimer::singleShot(0, keep_focus, [keep_focus, pos]() {
+            if (!keep_focus || !keep_focus->isVisible()) {
+                return;
+            }
+            keep_focus->setFocus(Qt::OtherFocusReason);
+            if (pos >= 0) {
+                if (auto *le = qobject_cast<QLineEdit *>(keep_focus.data())) {
+                    le->setCursorPosition(qMin(pos, le->text().size()));
+                }
+            }
+        });
+    }
 }
 
 void WiresharkMainWindow::layoutToolbars()

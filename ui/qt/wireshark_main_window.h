@@ -276,6 +276,7 @@ private:
     QMap<QAction *, ts_type>   td_actions;             /**< Map from timestamp-display menu actions to ts_type values. */
     QMap<QAction *, ts_precision> tp_actions;          /**< Map from timestamp-precision menu actions to ts_precision values. */
     bool                       was_maximized_;         /**< @c true if the window was maximised before going full-screen. */
+    bool                       had_captured_packets_;  /**< Tracks prior have-packets state for focus claiming. */
 
     /* the following values are maintained so that the capture file name and status
     is available when there is no cf structure available */

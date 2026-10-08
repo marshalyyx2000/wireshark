@@ -363,6 +363,7 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     action_telephony_imsi_list_(NULL),
     freeze_focus_(NULL),
     was_maximized_(false),
+    had_captured_packets_(false),
     capture_stopping_(false),
     // An empty capture filter is valid (capture everything), and the filter box
     // starts empty, so default to true. The widget reports false only once an
@@ -2705,7 +2706,14 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionStatisticsPlot->setEnabled(have_captured_packets);
 #endif
 
-    if (have_captured_packets && !packet_list_->hasFocus()) {
+    /*
+     * Only claim focus when we first gain packets (file open / capture start).
+     * Filter/rescan also ends up here via captureFileReadFinished; yanking
+     * focus then breaks typing in dock editors (e.g. MMS report fields).
+     */
+    const bool gained_packets = have_captured_packets && !had_captured_packets_;
+    had_captured_packets_ = have_captured_packets;
+    if (gained_packets && !packet_list_->hasFocus()) {
         packet_list_->setFocus();
     }
 }
