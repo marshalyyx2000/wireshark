@@ -35,11 +35,11 @@ MmsReportFilterWidget::MmsReportFilterWidget(QWidget *parent) :
     ui_->setupUi(this);
 
     scope_retap_timer_->setSingleShot(true);
-    scope_retap_timer_->setInterval(300);
+    scope_retap_timer_->setInterval(500);
     id_change_timer_->setSingleShot(true);
-    id_change_timer_->setInterval(300);
+    id_change_timer_->setInterval(400);
     filter_apply_timer_->setSingleShot(true);
-    filter_apply_timer_->setInterval(250);
+    filter_apply_timer_->setInterval(400);
     connect(scope_retap_timer_, &QTimer::timeout, this, &MmsReportFilterWidget::onDebouncedScopeRetap);
     connect(id_change_timer_, &QTimer::timeout, this, &MmsReportFilterWidget::onDebouncedRptidCriteriaChanged);
     connect(filter_apply_timer_, &QTimer::timeout, this, &MmsReportFilterWidget::onDebouncedFilterApply);
@@ -54,7 +54,7 @@ MmsReportFilterWidget::MmsReportFilterWidget(QWidget *parent) :
     }
     connect(ui_->exactRefMatchCheck, &QCheckBox::toggled, this, [this]() {
         updatePreview();
-        applyFilterIfRealtime(false);
+        applyFilterIfRealtime(true);
     });
     connect(ui_->dataRefEdit, &QLineEdit::textChanged, this, &MmsReportFilterWidget::onScopeCriteriaChanged);
     connect(ui_->objRefEdit, &QLineEdit::textChanged, this, &MmsReportFilterWidget::onScopeCriteriaChanged);
@@ -92,6 +92,7 @@ void MmsReportFilterWidget::setDialogHost(WiresharkDialog *host, CaptureFile *ca
             return;
         }
         if (e.captureContext() == CaptureEvent::Retap && e.eventType() == CaptureEvent::Finished) {
+            last_emitted_filter_.clear();
             applyFilterNow();
         }
     });
@@ -116,6 +117,11 @@ bool MmsReportFilterWidget::isRealtimeEnabled() const
 void MmsReportFilterWidget::setPreviewVisible(bool visible)
 {
     ui_->previewLabel->setVisible(visible);
+}
+
+void MmsReportFilterWidget::resetAppliedFilterState()
+{
+    last_emitted_filter_.clear();
 }
 
 void MmsReportFilterWidget::resetTapData()
@@ -230,6 +236,52 @@ QString MmsReportFilterWidget::buildScopeFilter(bool include_rptid) const
     return parts.join(QStringLiteral(" && "));
 }
 
+QString MmsReportFilterWidget::buildTapScopeFilter(bool include_rptid) const
+{
+    QStringList parts;
+    parts << QStringLiteral("mms.unconfirmedService == 0");
+
+    QStringList reasons;
+    if (ui_->reasonDataChange->isChecked()) {
+        reasons << QStringLiteral("mms.iec61850.reason.data_change");
+    }
+    if (ui_->reasonIntegrity->isChecked()) {
+        reasons << QStringLiteral("mms.iec61850.reason.integrity");
+    }
+    if (ui_->reasonGi->isChecked()) {
+        reasons << QStringLiteral("mms.iec61850.reason.general_interrogation");
+    }
+    if (ui_->reasonQuality->isChecked()) {
+        reasons << QStringLiteral("mms.iec61850.reason.quality_change");
+    }
+    if (ui_->reasonUpdate->isChecked()) {
+        reasons << QStringLiteral("mms.iec61850.reason.data_update");
+    }
+    if (ui_->reasonApp->isChecked()) {
+        reasons << QStringLiteral("mms.iec61850.reason.application_trigger");
+    }
+    if (!reasons.isEmpty()) {
+        if (reasons.size() == 1) {
+            parts << reasons.first();
+        } else {
+            parts << QStringLiteral("(%1)").arg(reasons.join(QStringLiteral(" || ")));
+        }
+    }
+
+    if (ui_->hasInclusion->isChecked()) {
+        parts << QStringLiteral("mms.iec61850.inclusion_bitstring");
+    }
+
+    if (include_rptid) {
+        const QString rptid = comboSelectedValue(ui_->rptidCombo);
+        if (!rptid.isEmpty()) {
+            parts << QStringLiteral("mms.iec61850.rptid == %1").arg(quoteFilterString(rptid));
+        }
+    }
+
+    return parts.join(QStringLiteral(" && "));
+}
+
 void MmsReportFilterWidget::retap()
 {
     if (!host_ || !capture_file_ || host_->fileClosed() ||
@@ -245,7 +297,7 @@ void MmsReportFilterWidget::retap()
     rptid_values_.clear();
     datset_values_.clear();
 
-    const QByteArray scope = buildScopeFilter(false).toUtf8();
+    const QByteArray scope = buildTapScopeFilter(false).toUtf8();
     if (!host_->registerTapListener("mms", this, scope.constData(),
                                     TL_LIMIT_TO_DISPLAY_FILTER,
                                     tapReset, tapPacket, tapDraw)) {
@@ -260,7 +312,7 @@ void MmsReportFilterWidget::retap()
 
     rptid_values_.clear();
     datset_values_.clear();
-    const QByteArray datset_scope = buildScopeFilter(true).toUtf8();
+    const QByteArray datset_scope = buildTapScopeFilter(true).toUtf8();
     if (!host_->registerTapListener("mms", this, datset_scope.constData(),
                                     TL_LIMIT_TO_DISPLAY_FILTER,
                                     tapReset, tapPacket, tapDraw)) {
@@ -312,20 +364,19 @@ QString MmsReportFilterWidget::quoteFilterString(const QString &value)
     return QStringLiteral("\"%1\"").arg(escaped);
 }
 
-QString MmsReportFilterWidget::quoteFilterRegex(const QString &pattern)
+QString MmsReportFilterWidget::quoteFilterLower(const QString &value)
 {
-    return quoteFilterString(QRegularExpression::escape(pattern));
+    return quoteFilterString(value.toLower());
 }
 
 QString MmsReportFilterWidget::ciContainsClause(const QString &field, const QString &segment)
 {
-    return QStringLiteral("%1 matches %2").arg(field, quoteFilterRegex(segment));
+    return QStringLiteral("lower(%1) contains %2").arg(field, quoteFilterLower(segment));
 }
 
 QString MmsReportFilterWidget::ciEqualsClause(const QString &field, const QString &text)
 {
-    const QString anchored = QStringLiteral("^%1$").arg(QRegularExpression::escape(text));
-    return QStringLiteral("%1 matches %2").arg(field, quoteFilterString(anchored));
+    return QStringLiteral("lower(%1) == %2").arg(field, quoteFilterLower(text));
 }
 
 QStringList MmsReportFilterWidget::filterSegments(const QString &text)
@@ -418,7 +469,12 @@ bool MmsReportFilterWidget::hasReportCriteria() const
 
 void MmsReportFilterWidget::applyFilterNow()
 {
-    emit requestApplyFilter(buildFilter());
+    const QString filter = buildFilter();
+    if (filter == last_emitted_filter_) {
+        return;
+    }
+    last_emitted_filter_ = filter;
+    emit requestApplyFilter(filter);
 }
 
 void MmsReportFilterWidget::applyFilterIfRealtime(bool debounce)
@@ -440,7 +496,6 @@ void MmsReportFilterWidget::onDebouncedScopeRetap()
     }
     retap();
     updatePreview();
-    applyFilterIfRealtime(false);
 }
 
 void MmsReportFilterWidget::onDebouncedFilterApply()
@@ -456,15 +511,11 @@ void MmsReportFilterWidget::onScopeCriteriaChanged()
     if (refreshing_combos_) {
         return;
     }
-    if (qobject_cast<const QLineEdit *>(sender())) {
-        updatePreview();
-        applyFilterIfRealtime(false);
-        scope_retap_timer_->start();
-        return;
-    }
     updatePreview();
-    applyFilterIfRealtime(false);
-    scope_retap_timer_->start();
+    applyFilterIfRealtime(true);
+    if (!qobject_cast<const QLineEdit *>(sender())) {
+        scope_retap_timer_->start();
+    }
 }
 
 void MmsReportFilterWidget::refreshDatsetComboForRptid()
@@ -478,7 +529,7 @@ void MmsReportFilterWidget::refreshDatsetComboForRptid()
     host_->beginRetapPackets();
     host_->removeTapListeners();
     datset_values_.clear();
-    const QByteArray datset_scope = buildScopeFilter(true).toUtf8();
+    const QByteArray datset_scope = buildTapScopeFilter(true).toUtf8();
     if (host_->registerTapListener("mms", this, datset_scope.constData(),
                                    TL_LIMIT_TO_DISPLAY_FILTER,
                                    tapReset, tapPacket, tapDraw)) {
@@ -516,7 +567,7 @@ void MmsReportFilterWidget::onRptidCriteriaChanged()
         return;
     }
     updatePreview();
-    applyFilterIfRealtime(false);
+    applyFilterIfRealtime(true);
     id_change_timer_->start();
 }
 
@@ -526,7 +577,7 @@ void MmsReportFilterWidget::onDatsetCriteriaChanged()
         return;
     }
     updatePreview();
-    applyFilterIfRealtime(false);
+    applyFilterIfRealtime(true);
 }
 
 void MmsReportFilterWidget::onRptidActivated(int index)
@@ -537,7 +588,7 @@ void MmsReportFilterWidget::onRptidActivated(int index)
     id_change_timer_->stop();
     filter_apply_timer_->stop();
     updatePreview();
-    applyFilterIfRealtime(false);
+    applyFilterIfRealtime(true);
     id_change_timer_->start();
 }
 
@@ -548,7 +599,7 @@ void MmsReportFilterWidget::onDatsetActivated(int index)
     }
     filter_apply_timer_->stop();
     updatePreview();
-    applyFilterIfRealtime(false);
+    applyFilterIfRealtime(true);
 }
 
 void MmsReportFilterWidget::onDebouncedRptidCriteriaChanged()
@@ -558,5 +609,5 @@ void MmsReportFilterWidget::onDebouncedRptidCriteriaChanged()
     }
     refreshDatsetComboForRptid();
     updatePreview();
-    applyFilterIfRealtime(false);
+    applyFilterIfRealtime(true);
 }

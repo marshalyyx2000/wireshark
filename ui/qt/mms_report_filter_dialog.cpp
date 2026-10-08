@@ -56,5 +56,6 @@ void MmsReportFilterDialog::captureFileClosing()
 
 void MmsReportFilterDialog::onApplyClicked()
 {
+    filter_widget_->resetAppliedFilterState();
     filter_widget_->applyFilterNow();
 }

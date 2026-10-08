@@ -47,6 +47,7 @@ public:
     bool hasReportCriteria() const;
     bool isRealtimeEnabled() const;
     void setPreviewVisible(bool visible);
+    void resetAppliedFilterState();
 
 signals:
     void filterChanged();
@@ -79,8 +80,9 @@ private:
     void refreshDatsetComboForRptid();
     void resetTapData();
     QString buildScopeFilter(bool include_rptid) const;
+    QString buildTapScopeFilter(bool include_rptid) const;
     static QString quoteFilterString(const QString &value);
-    static QString quoteFilterRegex(const QString &pattern);
+    static QString quoteFilterLower(const QString &value);
     static QString ciContainsClause(const QString &field, const QString &segment);
     static QString ciEqualsClause(const QString &field, const QString &text);
     static QStringList filterSegments(const QString &text);
@@ -99,6 +101,7 @@ private:
     QTimer *scope_retap_timer_;
     QTimer *id_change_timer_;
     QTimer *filter_apply_timer_;
+    QString last_emitted_filter_;
 };
 
 #endif /* MMS_REPORT_FILTER_WIDGET_H */

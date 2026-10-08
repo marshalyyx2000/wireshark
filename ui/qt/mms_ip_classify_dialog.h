@@ -22,6 +22,7 @@
 #include <QString>
 
 class MmsReportFilterWidget;
+class QTimer;
 class QTreeWidgetItem;
 
 namespace Ui {
@@ -47,6 +48,7 @@ private slots:
     void onApplyClicked();
     void onClearClicked();
     void onItemChanged(QTreeWidgetItem *item, int column);
+    void onDebouncedIpFilterApply();
 
 private:
     static void tapReset(void *tapdata);
@@ -68,6 +70,8 @@ private:
     QHash<QString, QSet<QString>> clients_by_server_;
     QSet<QString> unknown_ips_;
     QHash<QString, bool> ipv6_by_ip_;
+    QTimer *ip_filter_timer_;
+    QString last_applied_filter_;
 };
 
 #endif /* MMS_IP_CLASSIFY_DIALOG_H */

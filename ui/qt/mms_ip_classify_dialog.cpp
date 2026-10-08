@@ -25,6 +25,7 @@
 #include <QAbstractSocket>
 #include <QHostAddress>
 #include <QSizePolicy>
+#include <QTimer>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
@@ -67,7 +68,8 @@ bool ipLessThan(const QString &a, const QString &b)
 MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_file) :
     WiresharkDialog(parent, capture_file),
     ui_(new Ui::MmsIpClassifyDialog),
-    report_widget_(new MmsReportFilterWidget(this))
+    report_widget_(new MmsReportFilterWidget(this)),
+    ip_filter_timer_(new QTimer(this))
 {
     ui_->setupUi(this);
     setWindowSubtitle(tr("按服务端分类 IP / 报告过滤"));
@@ -91,6 +93,10 @@ MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_f
     report_widget_->setPreviewVisible(false);
     report_widget_->setDialogHost(this, &cap_file_);
 
+    ip_filter_timer_->setSingleShot(true);
+    ip_filter_timer_->setInterval(400);
+    connect(ip_filter_timer_, &QTimer::timeout, this, &MmsIpClassifyDialog::onDebouncedIpFilterApply);
+
     connect(ui_->searchEdit, &QLineEdit::textChanged,
             this, &MmsIpClassifyDialog::onSearchTextChanged);
     connect(ui_->applyButton, &QPushButton::clicked,
@@ -100,12 +106,7 @@ MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_f
     connect(ui_->ipTree, &QTreeWidget::itemChanged,
             this, &MmsIpClassifyDialog::onItemChanged);
     connect(report_widget_, &MmsReportFilterWidget::filterChanged,
-            this, [this]() {
-        updateHint();
-        if (report_widget_->isRealtimeEnabled()) {
-            applyCombinedFilter();
-        }
-    });
+            this, &MmsIpClassifyDialog::updateHint);
     connect(report_widget_, &MmsReportFilterWidget::requestApplyFilter,
             this, &MmsIpClassifyDialog::applyCombinedFilter);
 
@@ -367,9 +368,15 @@ void MmsIpClassifyDialog::applyCombinedFilter()
 {
     const QString filter = buildCombinedFilter();
     if (filter.isEmpty()) {
+        last_applied_filter_.clear();
         ui_->hintLabel->setText(tr("请勾选 IP 或设置报告过滤条件。"));
         return;
     }
+    if (filter == last_applied_filter_) {
+        updateHint();
+        return;
+    }
+    last_applied_filter_ = filter;
     auto *mw = qobject_cast<WiresharkMainWindow *>(parentWidget());
     if (mw) {
         mw->applyCaptureDisplayFilter(filter);
@@ -405,6 +412,7 @@ void MmsIpClassifyDialog::onSearchTextChanged(const QString &text)
 
 void MmsIpClassifyDialog::onApplyClicked()
 {
+    last_applied_filter_.clear();
     applyCombinedFilter();
 }
 
@@ -423,6 +431,13 @@ void MmsIpClassifyDialog::onClearClicked()
 void MmsIpClassifyDialog::onItemChanged(QTreeWidgetItem *, int)
 {
     updateHint();
+    if (report_widget_->isRealtimeEnabled()) {
+        ip_filter_timer_->start();
+    }
+}
+
+void MmsIpClassifyDialog::onDebouncedIpFilterApply()
+{
     if (report_widget_->isRealtimeEnabled()) {
         applyCombinedFilter();
     }
