@@ -32,10 +32,10 @@ MmsReportFilterDialog::MmsReportFilterDialog(QWidget &parent, CaptureFile &captu
     filter_widget_->setDialogHost(this, &cap_file_);
 
     connect(filter_widget_, &MmsReportFilterWidget::requestApplyFilter, this,
-            [this](const QString &filter) {
+            [this](const QString &filter, bool force) {
         auto *mw = qobject_cast<WiresharkMainWindow *>(parentWidget());
         if (mw) {
-            mw->applyCaptureDisplayFilter(filter);
+            mw->applyCaptureDisplayFilter(filter, force);
             return;
         }
         emit filterAction(filter, FilterAction::ActionApply, FilterAction::ActionTypePlain);
@@ -56,6 +56,5 @@ void MmsReportFilterDialog::captureFileClosing()
 
 void MmsReportFilterDialog::onApplyClicked()
 {
-    filter_widget_->resetAppliedFilterState();
-    filter_widget_->applyFilterNow();
+    filter_widget_->applyFilterNow(true);
 }

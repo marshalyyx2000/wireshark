@@ -25,6 +25,7 @@
 #include <QFontDatabase>
 #include <QFontInfo>
 #include <QStringList>
+#include <QWheelEvent>
 #include <QtMath>
 
 FontManager *FontManager::instance_{nullptr};
@@ -206,6 +207,26 @@ void FontManager::applyZoom()
     emit zoomChanged();
 }
 
+void FontManager::handleWheelZoom(int delta)
+{
+    if (delta == 0)
+        return;
+
+    wheel_accumulator_ += delta;
+
+    // One standard mouse-wheel notch is 120; trackpads report smaller steps
+    // that we accumulate for smooth zooming.
+    static const int k_wheel_unit = 120;
+    while (wheel_accumulator_ >= k_wheel_unit) {
+        zoomIn();
+        wheel_accumulator_ -= k_wheel_unit;
+    }
+    while (wheel_accumulator_ <= -k_wheel_unit) {
+        zoomOut();
+        wheel_accumulator_ += k_wheel_unit;
+    }
+}
+
 // --------------------------------------------------------------------
 // Internals
 // --------------------------------------------------------------------
@@ -307,6 +328,21 @@ QFont FontManager::guaranteeMonospace(const QFont &font)
 
 bool FontManager::eventFilter(QObject *watched, QEvent *event)
 {
+    if (event->type() == QEvent::Wheel) {
+        QWheelEvent *wheel_event = static_cast<QWheelEvent *>(event);
+        if (wheel_event->modifiers() & Qt::ControlModifier) {
+            int delta = wheel_event->angleDelta().y();
+            if (delta == 0)
+                delta = wheel_event->pixelDelta().y();
+            if (delta != 0) {
+                handleWheelZoom(delta);
+                return true;
+            }
+        } else {
+            wheel_accumulator_ = 0;
+        }
+    }
+
     if (watched == qApp && event->type() == QEvent::ApplicationFontChange) {
         const QFont desired = applicationFont();
         // If qApp's font matches what we want, this is our own push (or a

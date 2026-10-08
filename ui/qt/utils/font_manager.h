@@ -139,6 +139,7 @@ private:
     QFont     base_regular_;
     QFont     base_monospace_;
     int       zoom_level_ = 0;
+    int       wheel_accumulator_ = 0;       ///< leftover angle/pixel delta between zoom steps
     ZoomScope zoom_scope_;
 
     // True when a theme or pref explicitly set the regular font; while set,
@@ -150,6 +151,7 @@ private:
     void  applyApplicationFont();           ///< push applicationFont() onto qApp
     void  applyZoom();                      ///< re-push + emit after a zoom change
     void  syncMonospacePref();              ///< mirror base_monospace_ into prefs.gui_font_name
+    void  handleWheelZoom(int delta);       ///< accumulate wheel delta and step zoom
 
     static QFont fontFromName(const QString &name);  ///< fromString() or bare family
     static QFont guaranteeMonospace(const QFont &font);

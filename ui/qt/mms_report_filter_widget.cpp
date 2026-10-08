@@ -18,6 +18,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QEvent>
 #include <QLineEdit>
 #include <QRegularExpression>
 #include <QTimer>
@@ -28,19 +29,16 @@ MmsReportFilterWidget::MmsReportFilterWidget(QWidget *parent) :
     host_(nullptr),
     capture_file_(nullptr),
     refreshing_combos_(false),
-    scope_retap_timer_(new QTimer(this)),
     id_change_timer_(new QTimer(this)),
-    filter_apply_timer_(new QTimer(this))
+    filter_apply_timer_(new QTimer(this)),
+    combos_fresh_(false)
 {
     ui_->setupUi(this);
 
-    scope_retap_timer_->setSingleShot(true);
-    scope_retap_timer_->setInterval(500);
     id_change_timer_->setSingleShot(true);
-    id_change_timer_->setInterval(400);
+    id_change_timer_->setInterval(150);
     filter_apply_timer_->setSingleShot(true);
-    filter_apply_timer_->setInterval(400);
-    connect(scope_retap_timer_, &QTimer::timeout, this, &MmsReportFilterWidget::onDebouncedScopeRetap);
+    filter_apply_timer_->setInterval(100);
     connect(id_change_timer_, &QTimer::timeout, this, &MmsReportFilterWidget::onDebouncedRptidCriteriaChanged);
     connect(filter_apply_timer_, &QTimer::timeout, this, &MmsReportFilterWidget::onDebouncedFilterApply);
 
@@ -67,9 +65,11 @@ MmsReportFilterWidget::MmsReportFilterWidget(QWidget *parent) :
             this, &MmsReportFilterWidget::onRptidActivated);
     connect(ui_->datsetCombo, QOverload<int>::of(&QComboBox::activated),
             this, &MmsReportFilterWidget::onDatsetActivated);
+    ui_->rptidCombo->installEventFilter(this);
+    ui_->datsetCombo->installEventFilter(this);
     connect(ui_->realtimeFilterCheck, &QCheckBox::toggled, this, [this](bool checked) {
         if (checked) {
-            applyFilterNow();
+            applyFilterNow(false);
         }
     });
 }
@@ -92,12 +92,12 @@ void MmsReportFilterWidget::setDialogHost(WiresharkDialog *host, CaptureFile *ca
             return;
         }
         if (e.captureContext() == CaptureEvent::Retap && e.eventType() == CaptureEvent::Finished) {
-            last_emitted_filter_.clear();
-            applyFilterNow();
+            applyFilterNow(true);
         }
     });
 
     retap();
+    combos_fresh_ = true;
     updatePreview();
     applyFilterIfRealtime(false);
 }
@@ -122,6 +122,15 @@ void MmsReportFilterWidget::setPreviewVisible(bool visible)
 void MmsReportFilterWidget::resetAppliedFilterState()
 {
     last_emitted_filter_.clear();
+}
+
+bool MmsReportFilterWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonPress &&
+        (watched == ui_->rptidCombo || watched == ui_->datsetCombo)) {
+        onComboAboutToShow();
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void MmsReportFilterWidget::resetTapData()
@@ -467,14 +476,14 @@ bool MmsReportFilterWidget::hasReportCriteria() const
     return false;
 }
 
-void MmsReportFilterWidget::applyFilterNow()
+void MmsReportFilterWidget::applyFilterNow(bool force)
 {
     const QString filter = buildFilter();
-    if (filter == last_emitted_filter_) {
+    if (!force && filter == last_emitted_filter_) {
         return;
     }
     last_emitted_filter_ = filter;
-    emit requestApplyFilter(filter);
+    emit requestApplyFilter(filter, force);
 }
 
 void MmsReportFilterWidget::applyFilterIfRealtime(bool debounce)
@@ -489,12 +498,13 @@ void MmsReportFilterWidget::applyFilterIfRealtime(bool debounce)
     applyFilterNow();
 }
 
-void MmsReportFilterWidget::onDebouncedScopeRetap()
+void MmsReportFilterWidget::onComboAboutToShow()
 {
-    if (refreshing_combos_) {
+    if (refreshing_combos_ || combos_fresh_) {
         return;
     }
     retap();
+    combos_fresh_ = true;
     updatePreview();
 }
 
@@ -503,7 +513,7 @@ void MmsReportFilterWidget::onDebouncedFilterApply()
     if (!ui_->realtimeFilterCheck->isChecked()) {
         return;
     }
-    applyFilterNow();
+    applyFilterNow(false);
 }
 
 void MmsReportFilterWidget::onScopeCriteriaChanged()
@@ -514,7 +524,7 @@ void MmsReportFilterWidget::onScopeCriteriaChanged()
     updatePreview();
     applyFilterIfRealtime(true);
     if (!qobject_cast<const QLineEdit *>(sender())) {
-        scope_retap_timer_->start();
+        combos_fresh_ = false;
     }
 }
 

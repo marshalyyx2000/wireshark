@@ -716,7 +716,7 @@ public slots:
      * @brief Sets the display filter combo text and applies it immediately.
      * @param filter Display filter expression to apply.
      */
-    void applyCaptureDisplayFilter(QString filter);
+    void applyCaptureDisplayFilter(QString filter, bool force = false);
 
 protected slots:
     /**

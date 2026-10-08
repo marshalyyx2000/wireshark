@@ -62,7 +62,7 @@ private:
     void applySearchFilter(const QString &text);
     QString buildIpFilter() const;
     QString buildCombinedFilter() const;
-    void applyCombinedFilter();
+    void applyCombinedFilter(bool force = false);
     void updateHint();
 
     Ui::MmsIpClassifyDialog *ui_;

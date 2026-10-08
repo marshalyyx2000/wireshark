@@ -49,15 +49,18 @@ public:
     void setPreviewVisible(bool visible);
     void resetAppliedFilterState();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 signals:
     void filterChanged();
-    void requestApplyFilter(const QString &filter);
+    void requestApplyFilter(const QString &filter, bool force);
 
 public slots:
-    void applyFilterNow();
+    void applyFilterNow(bool force = false);
 
 private slots:
-    void onDebouncedScopeRetap();
+    void onComboAboutToShow();
     void onDebouncedRptidCriteriaChanged();
     void onDebouncedFilterApply();
     void onScopeCriteriaChanged();
@@ -98,10 +101,10 @@ private:
     QSet<QString> rptid_values_;
     QSet<QString> datset_values_;
     bool refreshing_combos_;
-    QTimer *scope_retap_timer_;
     QTimer *id_change_timer_;
     QTimer *filter_apply_timer_;
     QString last_emitted_filter_;
+    bool combos_fresh_;
 };
 
 #endif /* MMS_REPORT_FILTER_WIDGET_H */

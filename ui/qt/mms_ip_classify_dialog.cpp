@@ -94,7 +94,7 @@ MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_f
     report_widget_->setDialogHost(this, &cap_file_);
 
     ip_filter_timer_->setSingleShot(true);
-    ip_filter_timer_->setInterval(400);
+    ip_filter_timer_->setInterval(100);
     connect(ip_filter_timer_, &QTimer::timeout, this, &MmsIpClassifyDialog::onDebouncedIpFilterApply);
 
     connect(ui_->searchEdit, &QLineEdit::textChanged,
@@ -108,7 +108,9 @@ MmsIpClassifyDialog::MmsIpClassifyDialog(QWidget &parent, CaptureFile &capture_f
     connect(report_widget_, &MmsReportFilterWidget::filterChanged,
             this, &MmsIpClassifyDialog::updateHint);
     connect(report_widget_, &MmsReportFilterWidget::requestApplyFilter,
-            this, &MmsIpClassifyDialog::applyCombinedFilter);
+            this, [this](const QString &, bool force) {
+        applyCombinedFilter(force);
+    });
 
     retap();
 }
@@ -348,7 +350,7 @@ QString MmsIpClassifyDialog::buildIpFilter() const
     if (terms.isEmpty()) {
         return QString();
     }
-    return QStringLiteral("mms && (%1)").arg(terms.join(QStringLiteral(" || ")));
+    return QStringLiteral("(%1) && mms").arg(terms.join(QStringLiteral(" || ")));
 }
 
 QString MmsIpClassifyDialog::buildCombinedFilter() const
@@ -364,7 +366,7 @@ QString MmsIpClassifyDialog::buildCombinedFilter() const
     return parts.join(QStringLiteral(" && "));
 }
 
-void MmsIpClassifyDialog::applyCombinedFilter()
+void MmsIpClassifyDialog::applyCombinedFilter(bool force)
 {
     const QString filter = buildCombinedFilter();
     if (filter.isEmpty()) {
@@ -372,14 +374,14 @@ void MmsIpClassifyDialog::applyCombinedFilter()
         ui_->hintLabel->setText(tr("请勾选 IP 或设置报告过滤条件。"));
         return;
     }
-    if (filter == last_applied_filter_) {
+    if (!force && filter == last_applied_filter_) {
         updateHint();
         return;
     }
     last_applied_filter_ = filter;
     auto *mw = qobject_cast<WiresharkMainWindow *>(parentWidget());
     if (mw) {
-        mw->applyCaptureDisplayFilter(filter);
+        mw->applyCaptureDisplayFilter(filter, force);
     } else {
         emit filterAction(filter, FilterAction::ActionApply, FilterAction::ActionTypePlain);
     }
@@ -412,8 +414,7 @@ void MmsIpClassifyDialog::onSearchTextChanged(const QString &text)
 
 void MmsIpClassifyDialog::onApplyClicked()
 {
-    last_applied_filter_.clear();
-    applyCombinedFilter();
+    applyCombinedFilter(true);
 }
 
 void MmsIpClassifyDialog::onClearClicked()

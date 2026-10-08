@@ -338,7 +338,7 @@ void WiresharkMainWindow::applyFilter(QString new_filter, bool force)
     }
 }
 
-void WiresharkMainWindow::applyCaptureDisplayFilter(QString filter)
+void WiresharkMainWindow::applyCaptureDisplayFilter(QString filter, bool force)
 {
     if (!df_combo_box_) {
         return;
@@ -347,8 +347,7 @@ void WiresharkMainWindow::applyCaptureDisplayFilter(QString filter)
         QSignalBlocker blocker(df_combo_box_);
         df_combo_box_->setText(filter);
     }
-    df_combo_box_->recheck();
-    applyFilter(filter, true);
+    applyFilter(filter, force);
 }
 
 void WiresharkMainWindow::layoutToolbars()
