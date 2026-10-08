@@ -15,6 +15,27 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <layout class="QHBoxLayout" name="realtimeLayout">
+     <item>
+      <spacer name="realtimeSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="realtimeFilterCheck">
+       <property name="text">
+        <string>实时过滤</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="QGroupBox" name="reasonGroup">
      <property name="title">
       <string>传送原因（可多选，OR）</string>
@@ -151,11 +172,29 @@
      </property>
      <layout class="QFormLayout" name="inclLayout">
       <item row="0" column="0" colspan="2">
-       <widget class="QCheckBox" name="hasInclusion">
-        <property name="text">
-         <string>含纳入位图</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="inclCheckboxLayout">
+        <item>
+         <widget class="QCheckBox" name="hasInclusion">
+          <property name="text">
+           <string>含纳入位图</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="exactRefMatchCheck">
+          <property name="text">
+           <string>精确匹配</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="inclCheckboxSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+         </spacer>
+        </item>
+       </layout>
       </item>
       <item row="1" column="0">
        <widget class="QLabel" name="dataRefLabel">
@@ -167,7 +206,7 @@
       <item row="1" column="1">
        <widget class="QLineEdit" name="dataRefEdit">
         <property name="placeholderText">
-         <string>空则不参与过滤</string>
+         <string>支持模糊查询</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>
@@ -184,7 +223,7 @@
       <item row="2" column="1">
        <widget class="QLineEdit" name="objRefEdit">
         <property name="placeholderText">
-         <string>空则不参与过滤</string>
+         <string>支持模糊查询</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>

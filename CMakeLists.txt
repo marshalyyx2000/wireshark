@@ -182,9 +182,9 @@ if(ENABLE_MINIMAL_BUILD)
 	# 宾尧 industrial release branding (installer + About/version strings).
 	set(PROJECT_MAJOR_VERSION 0)
 	set(PROJECT_MINOR_VERSION 10)
-	set(PROJECT_PATCH_VERSION 0)
+	set(PROJECT_PATCH_VERSION 1)
 	set(PROJECT_BUILD_VERSION 0)
-	set(PROJECT_VERSION "0.10.0")
+	set(PROJECT_VERSION "0.10.1")
 	set(MINIMAL_PRODUCT_NAME "宾尧")
 endif()
 

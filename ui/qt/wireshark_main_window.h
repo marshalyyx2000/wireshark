@@ -712,6 +712,12 @@ public slots:
      */
     void rtpStreamsDialogDeselectRtpStreams(QVector<rtpstream_id_t *> stream_ids);
 
+    /**
+     * @brief Sets the display filter combo text and applies it immediately.
+     * @param filter Display filter expression to apply.
+     */
+    void applyCaptureDisplayFilter(QString filter);
+
 protected slots:
     /**
      * @brief Applies a new display filter to the open capture file.

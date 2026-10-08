@@ -2349,6 +2349,16 @@ process_specified_records(capture_file *cf, packet_range_t *range,
     ws_assert(cf->read_lock);
     cf->read_lock = false;
 
+    /*
+     * A display-filter change may have been queued while we held read_lock
+     * (e.g. MMS report dialog retap). Flush it now, mirroring cf_read().
+     */
+    if (cf->redissection_queued != RESCAN_NONE) {
+        bool redissect = cf->redissection_queued == RESCAN_REDISSECT;
+
+        rescan_packets(cf, NULL, NULL, redissect);
+    }
+
     wtap_rec_cleanup(&rec);
 
     return ret;
