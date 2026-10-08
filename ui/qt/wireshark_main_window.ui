@@ -514,6 +514,12 @@
     <addaction name="actionMmsIpClassify"/>
     <addaction name="actionMmsReportFilter"/>
    </widget>
+   <widget class="QMenu" name="menuModbus">
+    <property name="title">
+     <string>MODBUS</string>
+    </property>
+    <addaction name="actionModbusYushunVoltagePlate"/>
+   </widget>
    <widget class="QMenu" name="menuStatistics">
     <property name="enabled">
      <bool>true</bool>
@@ -806,6 +812,7 @@
    <addaction name="menuAnalyze"/>
    <addaction name="menuStatistics"/>
    <addaction name="menuMms"/>
+   <addaction name="menuModbus"/>
    <addaction name="menuTelephony"/>
    <addaction name="menuWireless"/>
    <addaction name="menuTools"/>
@@ -2945,6 +2952,14 @@
    </property>
    <property name="toolTip">
     <string>按 IEC 61850 报告字段分类过滤 RPT</string>
+   </property>
+  </action>
+  <action name="actionModbusYushunVoltagePlate">
+   <property name="text">
+    <string>禹舜MODBUS-下端电压硬压板协议</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示禹舜下端电压硬压板 MODBUS 报文 (yushun_modbus)</string>
    </property>
   </action>
   <action name="actionDisplayFilterExpression">

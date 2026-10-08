@@ -3331,6 +3331,13 @@ void WiresharkMainWindow::connectMmsMenuActions()
     });
 }
 
+void WiresharkMainWindow::connectModbusMenuActions()
+{
+    connect(main_ui_->actionModbusYushunVoltagePlate, &QAction::triggered, this, [=]() {
+        applyCaptureDisplayFilter(QStringLiteral("yushun_modbus"), true);
+    });
+}
+
 void WiresharkMainWindow::filterMenuAboutToShow()
 {
     QMenu * menu = qobject_cast<QMenu *>(sender());

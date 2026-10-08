@@ -25,8 +25,9 @@ void proto_reg_handoff_yushun_modbus(void);
 #define YUSHUN_PORT              502
 #define YUSHUN_REG_BASE          5000
 #define YUSHUN_REG_END           5506
+#define YUSHUN_UNIT_REGS         9
 #define YUSHUN_UNIT_BYTES        18
-#define YUSHUN_MAGIC             0x4459
+#define YUSHUN_MAGIC             0x4459   /* doc §9.5 device identifier */
 
 static int proto_yushun_modbus;
 
@@ -189,48 +190,97 @@ reg_range_overlaps_yushun(uint16_t start_reg, uint16_t quantity)
     return (start_reg < YUSHUN_REG_END) && (end_reg > YUSHUN_REG_BASE);
 }
 
-static void
-dissect_yushun_units(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-                     int offset, int data_len, uint16_t start_reg)
+/* Each sensor point occupies 9 consecutive holding registers (18 bytes). */
+static uint16_t
+yushun_unit_base_reg(uint16_t reg)
 {
-    int unit_offset;
-    int point_index;
-    uint16_t reg_addr;
+    uint16_t offset_regs;
+
+    if (reg < YUSHUN_REG_BASE)
+        return reg;
+
+    offset_regs = (uint16_t)(reg - YUSHUN_REG_BASE);
+    return (uint16_t)(YUSHUN_REG_BASE + (offset_regs / YUSHUN_UNIT_REGS) * YUSHUN_UNIT_REGS);
+}
+
+static int
+yushun_point_index(uint16_t unit_base_reg)
+{
+    return (int)((unit_base_reg - YUSHUN_REG_BASE) / YUSHUN_UNIT_REGS) + 1;
+}
+
+static void
+dissect_one_yushun_unit(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+                        int offset, int unit_byte_start, uint16_t unit_base_reg)
+{
+    const char *comm_str;
+    const char *plate_str;
     proto_tree *unit_tree;
     proto_item *ti;
+    int point_index;
+    int abs_offset;
     float voltage, zero_coeff, full_coeff;
     uint8_t comm_state, plate_state;
     uint16_t spare, magic;
 
-    for (unit_offset = 0; unit_offset + YUSHUN_UNIT_BYTES <= data_len; unit_offset += YUSHUN_UNIT_BYTES) {
-        reg_addr = (uint16_t)(start_reg + (unit_offset / 2));
-        point_index = (int)((start_reg - YUSHUN_REG_BASE) + (unit_offset / YUSHUN_UNIT_BYTES)) + 1;
+    abs_offset = offset + unit_byte_start;
+    point_index = yushun_point_index(unit_base_reg);
 
-        unit_tree = proto_tree_add_subtree_format(tree, tvb, offset + unit_offset, YUSHUN_UNIT_BYTES,
-                ett_yushun_unit, &ti, "Point %d (reg %u)", point_index, reg_addr);
+    voltage = tvb_get_letohieee_float(tvb, abs_offset);
+    comm_state = tvb_get_uint8(tvb, abs_offset + 4);
+    plate_state = tvb_get_uint8(tvb, abs_offset + 5);
+    spare = tvb_get_ntohs(tvb, abs_offset + 6);
+    zero_coeff = tvb_get_letohieee_float(tvb, abs_offset + 8);
+    full_coeff = tvb_get_letohieee_float(tvb, abs_offset + 12);
+    magic = tvb_get_ntohs(tvb, abs_offset + 16);
 
-        voltage = tvb_get_letohieee_float(tvb, offset + unit_offset);
-        comm_state = tvb_get_uint8(tvb, offset + unit_offset + 4);
-        plate_state = tvb_get_uint8(tvb, offset + unit_offset + 5);
-        spare = tvb_get_ntohs(tvb, offset + unit_offset + 6);
-        zero_coeff = tvb_get_letohieee_float(tvb, offset + unit_offset + 8);
-        full_coeff = tvb_get_letohieee_float(tvb, offset + unit_offset + 12);
-        magic = tvb_get_ntohs(tvb, offset + unit_offset + 16);
+    comm_str = val_to_str(pinfo->pool, comm_state, yushun_comm_state_vals, "Unknown (未知)");
+    plate_str = val_to_str(pinfo->pool, plate_state, yushun_plate_state_vals, "Unknown (未知)");
 
-        proto_tree_add_float(unit_tree, hf_yushun_voltage, tvb, offset + unit_offset, 4, voltage);
-        proto_tree_add_uint(unit_tree, hf_yushun_comm_state, tvb, offset + unit_offset + 4, 1, comm_state);
-        proto_tree_add_uint(unit_tree, hf_yushun_plate_state, tvb, offset + unit_offset + 5, 1, plate_state);
-        proto_tree_add_uint(unit_tree, hf_yushun_spare, tvb, offset + unit_offset + 6, 2, spare);
-        proto_tree_add_float(unit_tree, hf_yushun_zero_coeff, tvb, offset + unit_offset + 8, 4, zero_coeff);
-        proto_tree_add_float(unit_tree, hf_yushun_full_coeff, tvb, offset + unit_offset + 12, 4, full_coeff);
-        proto_tree_add_uint(unit_tree, hf_yushun_magic, tvb, offset + unit_offset + 16, 2, magic);
-        proto_tree_add_uint(unit_tree, hf_yushun_point_index, tvb, offset + unit_offset, 0, point_index);
-        proto_tree_add_uint(unit_tree, hf_yushun_point_address, tvb, offset + unit_offset, 0, reg_addr);
+    unit_tree = proto_tree_add_subtree_format(tree, tvb, abs_offset, YUSHUN_UNIT_BYTES,
+            ett_yushun_unit, &ti,
+            "Point %d (reg %u): %.3f V, %s, %s",
+            point_index, unit_base_reg, voltage, comm_str, plate_str);
 
-        if (magic != YUSHUN_MAGIC) {
-            expert_add_info_format(pinfo, ti, &ei_yushun_magic_invalid,
-                    "Invalid device magic 0x%04X (expected 0x%04X)", magic, YUSHUN_MAGIC);
-        }
+    proto_tree_add_float(unit_tree, hf_yushun_voltage, tvb, abs_offset, 4, voltage);
+    proto_tree_add_uint(unit_tree, hf_yushun_comm_state, tvb, abs_offset + 4, 1, comm_state);
+    proto_tree_add_uint(unit_tree, hf_yushun_plate_state, tvb, abs_offset + 5, 1, plate_state);
+    proto_tree_add_uint(unit_tree, hf_yushun_spare, tvb, abs_offset + 6, 2, spare);
+    proto_tree_add_float(unit_tree, hf_yushun_zero_coeff, tvb, abs_offset + 8, 4, zero_coeff);
+    proto_tree_add_float(unit_tree, hf_yushun_full_coeff, tvb, abs_offset + 12, 4, full_coeff);
+    proto_tree_add_uint(unit_tree, hf_yushun_magic, tvb, abs_offset + 16, 2, magic);
+    proto_tree_add_uint(unit_tree, hf_yushun_point_index, tvb, abs_offset, 0, point_index);
+    proto_tree_add_uint(unit_tree, hf_yushun_point_address, tvb, abs_offset, 0, unit_base_reg);
+
+    if (magic != YUSHUN_MAGIC) {
+        expert_add_info_format(pinfo, ti, &ei_yushun_magic_invalid,
+                "Invalid device magic 0x%04X (expected 0x%04X)", magic, YUSHUN_MAGIC);
+    }
+}
+
+static void
+dissect_yushun_units(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+                     int offset, int data_len, uint16_t start_reg)
+{
+    uint16_t unit_base_reg;
+    int unit_byte_start;
+
+    if (start_reg < YUSHUN_REG_BASE || data_len < YUSHUN_UNIT_BYTES)
+        return;
+
+    unit_base_reg = yushun_unit_base_reg(start_reg);
+    while (unit_base_reg < start_reg)
+        unit_base_reg = (uint16_t)(unit_base_reg + YUSHUN_UNIT_REGS);
+
+    while (unit_base_reg < YUSHUN_REG_END) {
+        unit_byte_start = (int)(unit_base_reg - start_reg) * 2;
+        if (unit_byte_start < 0)
+            break;
+        if (unit_byte_start + YUSHUN_UNIT_BYTES > data_len)
+            break;
+
+        dissect_one_yushun_unit(tvb, pinfo, tree, offset, unit_byte_start, unit_base_reg);
+        unit_base_reg = (uint16_t)(unit_base_reg + YUSHUN_UNIT_REGS);
     }
 }
 

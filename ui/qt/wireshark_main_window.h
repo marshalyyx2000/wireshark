@@ -1138,6 +1138,9 @@ private slots:
     /** @brief Connects MMS menu actions to their implementation slots. */
     void connectMmsMenuActions();
 
+    /** @brief Connects MODBUS menu actions to their implementation slots. */
+    void connectModbusMenuActions();
+
     /**
      * @brief Constructs a filter expression from the selected protocol-tree field
      *        and applies the given action and type.
