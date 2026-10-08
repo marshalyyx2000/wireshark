@@ -68,6 +68,13 @@ private:
     void applyFilterIfRealtime(bool debounce = true);
     void refreshDatsetComboForRptid();
     static QString quoteFilterString(const QString &value);
+    static QString quoteFilterRegex(const QString &pattern);
+    static QString ciContainsClause(const QString &field, const QString &segment);
+    static QString ciEqualsClause(const QString &field, const QString &text);
+    static QStringList filterSegments(const QString &text);
+    static void appendRefFilter(QStringList &parts, const QString &field, const QString &text,
+                                bool exact_match);
+    static void appendSegmentedContains(QStringList &parts, const QString &field, const QString &text);
     static QString comboSelectedValue(QComboBox *combo);
     static void restoreComboValue(QComboBox *combo, const QString &value);
 

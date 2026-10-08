@@ -206,7 +206,7 @@
       <item row="1" column="1">
        <widget class="QLineEdit" name="dataRefEdit">
         <property name="placeholderText">
-         <string>支持模糊查询</string>
+         <string>分段模糊查询（空格分隔，不区分大小写）</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>
@@ -223,7 +223,7 @@
       <item row="2" column="1">
        <widget class="QLineEdit" name="objRefEdit">
         <property name="placeholderText">
-         <string>支持模糊查询</string>
+         <string>分段模糊查询（空格分隔，不区分大小写）</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>

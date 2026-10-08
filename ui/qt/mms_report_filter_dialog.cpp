@@ -19,6 +19,7 @@
 
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QRegularExpression>
 #include <QTimer>
 
 MmsReportFilterDialog::MmsReportFilterDialog(QWidget &parent, CaptureFile &capture_file) :
@@ -205,17 +206,11 @@ QString MmsReportFilterDialog::buildScopeFilter(bool include_rptid) const
     if (ui_->hasInclusion->isChecked()) {
         parts << QStringLiteral("mms.iec61850.inclusion_bitstring");
     }
-    const char *ref_op = ui_->exactRefMatchCheck->isChecked() ? "==" : "contains";
-    const QString data_ref = ui_->dataRefEdit->text().trimmed();
-    if (!data_ref.isEmpty()) {
-        parts << QStringLiteral("mms.iec61850.data_reference %1 %2")
-                     .arg(QLatin1String(ref_op), quoteFilterString(data_ref));
-    }
-    const QString obj_ref = ui_->objRefEdit->text().trimmed();
-    if (!obj_ref.isEmpty()) {
-        parts << QStringLiteral("mms.iec61850.object_reference %1 %2")
-                     .arg(QLatin1String(ref_op), quoteFilterString(obj_ref));
-    }
+    const bool exact_ref = ui_->exactRefMatchCheck->isChecked();
+    appendRefFilter(parts, QStringLiteral("mms.iec61850.data_reference"),
+                    ui_->dataRefEdit->text().trimmed(), exact_ref);
+    appendRefFilter(parts, QStringLiteral("mms.iec61850.object_reference"),
+                    ui_->objRefEdit->text().trimmed(), exact_ref);
 
     if (include_rptid) {
         const QString rptid = comboSelectedValue(ui_->rptidCombo);
@@ -308,6 +303,73 @@ QString MmsReportFilterDialog::quoteFilterString(const QString &value)
     return QStringLiteral("\"%1\"").arg(escaped);
 }
 
+QString MmsReportFilterDialog::quoteFilterRegex(const QString &pattern)
+{
+    return quoteFilterString(QRegularExpression::escape(pattern));
+}
+
+QString MmsReportFilterDialog::ciContainsClause(const QString &field, const QString &segment)
+{
+    /* Wireshark compiles "matches" with WS_REGEX_CASELESS. */
+    return QStringLiteral("%1 matches %2").arg(field, quoteFilterRegex(segment));
+}
+
+QString MmsReportFilterDialog::ciEqualsClause(const QString &field, const QString &text)
+{
+    const QString anchored = QStringLiteral("^%1$").arg(QRegularExpression::escape(text));
+    return QStringLiteral("%1 matches %2").arg(field, quoteFilterString(anchored));
+}
+
+QStringList MmsReportFilterDialog::filterSegments(const QString &text)
+{
+    return text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+}
+
+void MmsReportFilterDialog::appendRefFilter(QStringList &parts, const QString &field,
+                                            const QString &text, bool exact_match)
+{
+    if (text.isEmpty()) {
+        return;
+    }
+    static const QString data_ref_field = QStringLiteral("mms.iec61850.data_reference");
+    static const QString datset_field = QStringLiteral("mms.iec61850.datset");
+
+    if (exact_match) {
+        if (field == data_ref_field) {
+            /* Info column dataset path is datset; member paths are data_reference. */
+            parts << QStringLiteral("(%1 || %2)")
+                             .arg(ciEqualsClause(data_ref_field, text),
+                                  ciEqualsClause(datset_field, text));
+        } else {
+            parts << ciEqualsClause(field, text);
+        }
+        return;
+    }
+    appendSegmentedContains(parts, field, text);
+}
+
+void MmsReportFilterDialog::appendSegmentedContains(QStringList &parts, const QString &field,
+                                                      const QString &text)
+{
+    static const QString data_ref_field = QStringLiteral("mms.iec61850.data_reference");
+    static const QString datset_field = QStringLiteral("mms.iec61850.datset");
+
+    for (const QString &segment : filterSegments(text)) {
+        if (field == data_ref_field) {
+            /*
+             * RPT Info shows DatSet (e.g. PCL1012XLD0/LLN0.dsAin) while
+             * data_reference holds per-member paths that may not include every
+             * segment; match either field for each token (case-insensitive).
+             */
+            parts << QStringLiteral("(%1 || %2)")
+                             .arg(ciContainsClause(data_ref_field, segment),
+                                  ciContainsClause(datset_field, segment));
+        } else {
+            parts << ciContainsClause(field, segment);
+        }
+    }
+}
+
 QString MmsReportFilterDialog::buildFilter() const
 {
     QStringList parts;
@@ -315,8 +377,7 @@ QString MmsReportFilterDialog::buildFilter() const
 
     const QString datset = comboSelectedValue(ui_->datsetCombo);
     if (!datset.isEmpty()) {
-        parts << QStringLiteral("mms.iec61850.datset contains %1")
-                     .arg(quoteFilterString(datset));
+        appendSegmentedContains(parts, QStringLiteral("mms.iec61850.datset"), datset);
     }
 
     return parts.join(QStringLiteral(" && "));
