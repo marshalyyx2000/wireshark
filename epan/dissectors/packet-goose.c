@@ -24,6 +24,7 @@
 #include <epan/proto_data.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
+#include <epan/iec61850_scd.h>
 #include <wsutil/array.h>
 
 #include "packet-ber.h"
@@ -195,9 +196,18 @@ dissect_goose_INTEGER(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset 
 
 static unsigned
 dissect_goose_VisibleString(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  tvbuff_t *out_tvb = NULL;
   offset = dissect_ber_restricted_string(implicit_tag, BER_UNI_TAG_VisibleString,
                                             actx, tree, tvb, offset, hf_index,
-                                            NULL);
+                                            &out_tvb);
+  if (out_tvb && actx && actx->created_item &&
+      (hf_index == hf_goose_datSet || hf_index == hf_goose_gocbRef ||
+       hf_index == hf_goose_goID)) {
+    char *s = (char *)tvb_get_string_enc(actx->pinfo->pool, out_tvb, 0,
+                                         tvb_reported_length(out_tvb),
+                                         ENC_ASCII | ENC_NA);
+    iec61850_scd_append_desc(actx->created_item, s);
+  }
 
   return offset;
 }

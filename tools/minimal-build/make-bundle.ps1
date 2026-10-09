@@ -1,20 +1,22 @@
 # Assemble a self-contained Wireshark Industrial (宾尧) portable SDK.
-# Includes: installer + runtime + source + compile deps + portable Git/Python/CMake + scripts.
+# Includes: installer + runtime + source (with portable .git) + compile deps +
+# portable Git/Python/CMake + scripts.
 # VS Build Tools is NOT copied (not relocatable); official bootstrapper is bundled instead.
 #
 # Usage:
 #   powershell -File tools\minimal-build\make-bundle.ps1
 #   $env:WIRESHARK_BUNDLE_DIR = 'D:\Binyao-SDK'; .\make-bundle.ps1
 #   .\make-bundle.ps1 -SkipInstaller   # skip 01-installer if not built yet
+#   .\make-bundle.ps1 -ShallowGit      # smaller .git (depth 100); default is full history
 
 param(
     [switch]$SkipInstaller,
-    # Include full git history (~2 GB for this worktree's common repo). Default is a
-    # portable shallow clone sufficient for vcs_version.h / make-version.py.
-    [switch]$FullGit
+    # Smaller portable .git (depth 100). Default is full history for commit/push on new PCs.
+    [switch]$ShallowGit
 )
 
 $ErrorActionPreference = 'Stop'
+$FullGit = -not $ShallowGit
 
 function Read-CMakeValue {
     param([string]$File, [string]$Name)
@@ -88,11 +90,58 @@ function Find-GitExe {
     return $null
 }
 
+function Get-SourceRemotes {
+    param([string]$SrcRoot, [string]$GitExe)
+    $map = [ordered]@{}
+    Push-Location -LiteralPath $SrcRoot
+    try {
+        $names = & $GitExe remote
+        foreach ($name in $names) {
+            $name = $name.Trim()
+            if (-not $name) { continue }
+            $url = & $GitExe remote get-url $name 2>$null
+            if ($url) { $map[$name] = $url.Trim() }
+        }
+    } finally {
+        Pop-Location
+    }
+    return $map
+}
+
+function Sync-GitRemotes {
+    param(
+        [string]$DestRoot,
+        [string]$GitExe,
+        [System.Collections.IDictionary]$Remotes
+    )
+    if (-not $Remotes -or $Remotes.Count -eq 0) {
+        Write-Warning "No remotes to sync into $DestRoot"
+        return
+    }
+    Push-Location -LiteralPath $DestRoot
+    try {
+        $existing = @(& $GitExe remote 2>$null)
+        foreach ($name in @($existing)) {
+            $name = "$name".Trim()
+            if ($name) { & $GitExe remote remove $name 2>$null | Out-Null }
+        }
+        foreach ($name in $Remotes.Keys) {
+            $url = $Remotes[$name]
+            & $GitExe remote add $name $url
+            if ($LASTEXITCODE -ne 0) { throw "git remote add $name failed" }
+            Write-Host "OK  remote $name -> $url"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Embed-PortableGit {
     param(
         [string]$SrcRoot,
         [string]$DestRoot,
-        [switch]$FullHistory
+        [switch]$FullHistory,
+        [System.Collections.IDictionary]$Remotes
     )
     $git = Find-GitExe
     if (-not $git) {
@@ -120,11 +169,10 @@ function Embed-PortableGit {
 
     if ($FullHistory -and (Test-Path -LiteralPath $commonDir)) {
         Robo-Copy $commonDir $destGit @('/XD', 'worktrees', 'modules') | Out-Null
-        # Convert shared/common repo copy into a normal worktree-backed .git
         & $git --git-dir=$destGit config --bool core.bare false
-        & $git --git-dir=$destGit config core.worktree $DestRoot
+        # Do NOT set core.worktree to an absolute path — breaks after copy to another PC.
+        & $git --git-dir=$destGit config --unset-all core.worktree 2>$null | Out-Null
         if ($branch) {
-            Set-Content -LiteralPath (Join-Path $destGit 'HEAD') -Value "ref: refs/heads/$branch" -Encoding ASCII -NoNewline
             Set-Content -LiteralPath (Join-Path $destGit 'HEAD') -Value "ref: refs/heads/$branch`n" -Encoding ASCII
         } else {
             Set-Content -LiteralPath (Join-Path $destGit 'HEAD') -Value "$head`n" -Encoding ASCII
@@ -140,11 +188,10 @@ function Embed-PortableGit {
             $cloneArgs += @($SrcRoot, $tmp)
             & $git @cloneArgs
             if ($LASTEXITCODE -ne 0) { throw "git clone failed ($LASTEXITCODE) for portable .git" }
-            # Tags help make-version.py's `git describe --match v[1-9]*`
             & $git -C $tmp fetch --tags --depth 100 2>$null | Out-Null
             Move-Item -LiteralPath (Join-Path $tmp '.git') -Destination $destGit -Force
             & $git --git-dir=$destGit config --bool core.bare false
-            & $git --git-dir=$destGit config core.worktree $DestRoot
+            & $git --git-dir=$destGit config --unset-all core.worktree 2>$null | Out-Null
         } finally {
             if (Test-Path -LiteralPath $tmp) {
                 Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -152,10 +199,52 @@ function Embed-PortableGit {
         }
     }
 
-    # Sanity: make-version.py only needs --git-dir operations
-    $check = & $git --git-dir=$destGit rev-parse HEAD
-    $desc = & $git --git-dir=$destGit describe --abbrev=12 --long --always --match 'v[1-9]*' 2>$null
-    Write-Host "OK  portable .git HEAD=$check describe=$desc"
+    # Relocate-safe: drop machine-specific absolute paths from copied config
+    & $git --git-dir=$destGit config --unset-all core.worktree 2>$null | Out-Null
+    & $git --git-dir=$destGit config --unset extensions.worktreeConfig 2>$null | Out-Null
+
+    Sync-GitRemotes -DestRoot $DestRoot -GitExe $git -Remotes $Remotes
+
+    Push-Location -LiteralPath $DestRoot
+    try {
+        if ($branch) {
+            # git writes "Reset branch ..." to stderr; do not treat as terminating error.
+            $prevEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            & $git -c advice.detachedHead=false checkout -B $branch HEAD *>$null
+            if ($LASTEXITCODE -ne 0) {
+                & $git symbolic-ref HEAD "refs/heads/$branch" *>$null
+            }
+            $ErrorActionPreference = $prevEap
+        }
+        # Shared worktree common-dir copies bring another worktree's index.
+        # Mixed reset rebuilds the index from HEAD against this working tree.
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $git reset HEAD *>$null
+        $ErrorActionPreference = $prevEap
+
+        $check = & $git rev-parse HEAD
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $desc = & $git describe --abbrev=12 --long --always --match 'v[1-9]*' 2>$null
+        $status = & $git status --porcelain
+        $curBranch = & $git branch --show-current
+        $ErrorActionPreference = $prevEap
+        Write-Host "OK  portable .git HEAD=$check describe=$desc branch=$curBranch"
+        if ($status) {
+            $n = @($status).Count
+            Write-Host "OK  working tree has $n uncommitted change(s) (copied with sources)"
+        } else {
+            Write-Host "OK  git status clean"
+        }
+        # Fail if still a worktree gitfile
+        if (-not (Test-Path -LiteralPath (Join-Path $DestRoot '.git\HEAD'))) {
+            throw "Embedded .git is not a directory repo under $DestRoot"
+        }
+    } finally {
+        Pop-Location
+    }
 }
 
 function Ensure-VsBootstrapper {
@@ -185,7 +274,7 @@ $DefaultSrc = (Resolve-Path (Join-Path $ScriptDir '..\..')).Path
 $Src = if ($env:WIRESHARK_SRC_DIR) { $env:WIRESHARK_SRC_DIR } else { $DefaultSrc }
 $CMakeLists = Join-Path $Src 'CMakeLists.txt'
 $Version = Read-CMakeValue $CMakeLists 'PROJECT_VERSION'
-if (-not $Version) { $Version = '0.10.3' }
+if (-not $Version) { $Version = '0.10.5' }
 $ProductName = Read-CMakeValue $CMakeLists 'MINIMAL_PRODUCT_NAME'
 if (-not $ProductName) { $ProductName = '宾尧' }
 
@@ -221,11 +310,18 @@ $CmakeSrc = Find-FirstPath @(
     "${env:ProgramFiles}\CMake"
 )
 
+$gitForRemotes = Find-GitExe
+$SourceRemotes = @{}
+if ($gitForRemotes) {
+    $SourceRemotes = Get-SourceRemotes -SrcRoot $Src -GitExe $gitForRemotes
+}
+
 Write-Host "=== Wireshark Industrial Portable SDK ==="
 Write-Host "Product : $ProductName"
 Write-Host "Version : $Version"
 Write-Host "Source  : $Src"
 Write-Host "Bundle  : $BundleRoot"
+Write-Host "FullGit : $FullGit"
 Write-Host ""
 
 if (Test-Path -LiteralPath $BundleRoot) {
@@ -277,11 +373,17 @@ Set-Content -LiteralPath (Join-Path $d01 'install-all.bat') -Value $installBat -
 
 # --- 02 runtime ---
 $d02 = Join-Path $BundleRoot '02-runtime'
-if (Test-Path $Installed) {
+$runRel = Join-Path $BuildDir 'run\RelWithDebInfo'
+$installedExe = Join-Path $Installed 'Wireshark.exe'
+$runExe = Join-Path $runRel 'Wireshark.exe'
+# Prefer build output when Program Files install is missing/stub (common on build PCs).
+if ((Test-Path -LiteralPath $runExe)) {
+    Robo-Copy $runRel $d02 @('/XF', '*.pdb') | Out-Null
+} elseif ((Test-Path -LiteralPath $installedExe)) {
     Robo-Copy $Installed $d02 @('/XF', '*.pdb') | Out-Null
 } else {
-    $run = Join-Path $BuildDir 'run\RelWithDebInfo'
-    Robo-Copy $run $d02 @('/XF', '*.pdb') | Out-Null
+    Write-Warning "No runtime found at $runRel or $Installed — 02-runtime will be empty"
+    New-Item -ItemType Directory -Force -Path $d02 | Out-Null
 }
 @'
 @echo off
@@ -296,6 +398,8 @@ Robo-Copy $Src $d03 @(
     'CMakeFiles', '__pycache__', '.git',
     '/XF', '*.obj', '*.pdb', '*.ilk', '*.exp'
 ) | Out-Null
+
+Embed-PortableGit -SrcRoot $Src -DestRoot $d03 -FullHistory:$FullGit -Remotes $SourceRemotes
 
 # --- 04 compile env ---
 $d04 = Join-Path $BundleRoot '04-compile-env'
@@ -386,6 +490,11 @@ if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\Common7\To
   set "VSDEVCMD=%ProgramFiles%\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat"
 )
 
+REM Prefer portable tools on PATH
+if exist "%BUNDLE_GIT_DIR%\cmd\git.exe" set "PATH=%BUNDLE_GIT_DIR%\cmd;%BUNDLE_GIT_DIR%\bin;%PATH%"
+if exist "%BUNDLE_PYTHON_DIR%\python.exe" set "PATH=%BUNDLE_PYTHON_DIR%;%BUNDLE_PYTHON_DIR%\Scripts;%PATH%"
+if exist "%BUNDLE_CMAKE_DIR%\bin\cmake.exe" set "PATH=%BUNDLE_CMAKE_DIR%\bin;%PATH%"
+
 echo BUNDLE_ROOT=%BUNDLE_ROOT%
 echo SRC=%WIRESHARK_SRC_DIR%
 echo BUILD=%WIRESHARK_BUILD_DIR%
@@ -410,7 +519,98 @@ echo Installer:
 dir /b "%WIRESHARK_BUILD_DIR%\packaging\nsis\*.exe" 2>nul
 '@ | Set-Content -LiteralPath (Join-Path $d05 'build-all-from-bundle.bat') -Encoding ASCII
 
-# --- root setup / build shortcuts ---
+@'
+@echo off
+REM Open a cmd shell in 03-source\wireshark with bundle PATH (Git/Python/CMake).
+setlocal EnableExtensions
+call "%~dp0use-bundle-env.bat" || exit /b 1
+if not exist "%WIRESHARK_SRC_DIR%\.git\HEAD" (
+  echo ERROR: portable .git missing under "%WIRESHARK_SRC_DIR%"
+  echo Re-run create-bundle.bat on the build machine.
+  pause
+  exit /b 1
+)
+cd /d "%WIRESHARK_SRC_DIR%"
+echo.
+echo === Development shell ===
+echo SRC=%CD%
+git status -sb
+echo.
+echo Remotes:
+git remote -v
+echo.
+echo Tips:
+echo   git add ... ^&^& git commit -m "msg"
+echo   git push -u github HEAD
+echo   Or run: ..\..\05-scripts\setup-github.bat
+echo.
+cmd /k
+'@ | Set-Content -LiteralPath (Join-Path $d05 'DEV.bat') -Encoding ASCII
+
+@'
+@echo off
+REM Check remotes and print GitHub auth / push instructions. Does NOT store credentials.
+setlocal EnableExtensions
+call "%~dp0use-bundle-env.bat" || exit /b 1
+cd /d "%WIRESHARK_SRC_DIR%" || exit /b 1
+
+echo === GitHub setup for portable SDK ===
+echo SRC=%CD%
+echo.
+
+if not exist ".git\HEAD" (
+  echo ERROR: no .git directory. Bundle was built without Embed-PortableGit.
+  exit /b 1
+)
+
+echo --- remotes ---
+git remote -v
+echo.
+
+git rev-parse --abbrev-ref HEAD >nul 2>&1
+if errorlevel 1 (
+  echo WARNING: detached HEAD or broken git. Try: git checkout industrial-4.7.6-upstream
+) else (
+  for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD') do echo Branch: %%B
+)
+echo.
+
+git config --get user.name >nul 2>&1
+if errorlevel 1 (
+  echo Git user.name is not set. Example:
+  echo   git config --global user.name "Your Name"
+) else (
+  for /f "delims=" %%N in ('git config --get user.name') do echo user.name=%%N
+)
+git config --get user.email >nul 2>&1
+if errorlevel 1 (
+  echo Git user.email is not set. Example:
+  echo   git config --global user.email "you@example.com"
+) else (
+  for /f "delims=" %%E in ('git config --get user.email') do echo user.email=%%E
+)
+echo.
+
+echo --- authenticate on THIS machine (credentials are NOT in the bundle) ---
+echo Option A - GitHub CLI:
+echo   gh auth login
+echo Option B - HTTPS + Personal Access Token:
+echo   When git push asks for password, paste a PAT ^(not account password^)
+echo Option C - SSH:
+echo   git remote set-url github git@github.com:USER/wireshark.git
+echo.
+
+echo --- push current branch ---
+echo   git push -u github HEAD
+echo.
+echo Prefer remote name "github" ^(https://github.com/marshalyyx2000/wireshark.git^).
+echo "origin" usually points at upstream wireshark/wireshark — do not push industrial work there
+echo unless you intend to.
+echo.
+pause
+'@ | Set-Content -LiteralPath (Join-Path $d05 'setup-github.bat') -Encoding ASCII
+
+# --- root setup / build / dev shortcuts ---
 @'
 @echo off
 echo ============================================
@@ -436,49 +636,76 @@ call "%~dp005-scripts\build-all-from-bundle.bat"
 call "%~dp005-scripts\build-all-from-bundle.bat"
 '@ | Set-Content -LiteralPath (Join-Path $BundleRoot 'BUILD.bat') -Encoding ASCII
 
+@'
+@echo off
+call "%~dp005-scripts\DEV.bat"
+'@ | Set-Content -LiteralPath (Join-Path $BundleRoot 'DEV.bat') -Encoding ASCII
+
+@'
+@echo off
+call "%~dp005-scripts\setup-github.bat"
+'@ | Set-Content -LiteralPath (Join-Path $BundleRoot 'setup-github.bat') -Encoding ASCII
+
 # --- README ---
+$gitMode = if ($FullGit) { 'full history (default)' } else { 'shallow depth=100 (-ShallowGit)' }
 $readme = @"
 Wireshark Industrial Portable SDK ($ProductName $Version)
 ========================================================
 
-本目录为完整可移植开发/运行环境，可拷贝到另一台 Windows x64 机器上使用。
-目标机器仅需：Windows 10/11 x64、管理员权限（首次安装 VS 时）、网络（仅 VS 引导安装器需要）。
+本目录为完整可移植开发/运行/编译环境，可拷贝到另一台「什么都没有」的 Windows x64 机器上：
+安装 VS Build Tools → 编译并生成 NSIS 安装包 → 在 03-source 内开发并 git push 到 GitHub。
+
+目标机器需要：Windows 10/11 x64、管理员权限（首次装 VS）、网络（VS 引导安装器下载组件）。
+GitHub 登录凭据不会打进本包，迁机后需在新机器上自行登录。
 
 目录说明
 --------
-01-installer\     安装包 + Npcap/USBPcap + install-all.bat（静默安装产品）
+01-installer\     安装包 + Npcap/USBPcap + install-all.bat
 02-runtime\       免安装运行目录（run-wireshark.bat）
-03-source\        完整源码（宾尧工业协议增强版）
-04-compile-env\   编译依赖：Qt、第三方库、NSIS、便携 Git/Python/CMake、VS 引导安装器
-05-scripts\       构建脚本（use-bundle-env.bat + build-all-from-bundle.bat）
-06-build\         本地编译输出（脚本自动创建）
+03-source\        完整源码 + 可搬迁的 .git（含 remote，Git 模式: $gitMode）
+04-compile-env\   Qt、第三方库、NSIS、便携 Git/Python/CMake、vs_BuildTools.exe
+05-scripts\       use-bundle-env / build-all-from-bundle / DEV / setup-github
+06-build\         本地编译输出（首次构建时创建）
 
-新机器快速上手
---------------
-1. 将整个目录拷贝到目标机（建议路径不含中文空格，如 D:\Binyao-SDK）
-2. 双击根目录 SETUP.bat（或手动执行下面两步）：
-   a. 以管理员运行 04-compile-env\install-vs-buildtools.bat（仅首次，约 10-30 分钟）
-   b. cmd 中：cd /d <本目录>\05-scripts && build-all-from-bundle.bat
-3. 安装包输出：<本目录>\06-build\wsbuild-industrial\packaging\nsis\*.exe
-4. 或直接运行：02-runtime\run-wireshark.bat
+新机器：编译打包
+----------------
+1. 将整个目录拷贝到目标机（建议 ASCII 路径，如 D:\Binyao-SDK）
+2. 双击 SETUP.bat
+   a. 管理员运行 04-compile-env\install-vs-buildtools.bat（仅首次，约 10–30 分钟，需联网）
+   b. 执行 05-scripts\build-all-from-bundle.bat
+3. 安装包：06-build\wsbuild-industrial\packaging\nsis\*.exe
+4. 或直接运行：02-runtime\run-wireshark.bat / 01-installer\install-all.bat
 
-仅重新编译（已安装 VS）
------------------------
-双击根目录 BUILD.bat
-或：05-scripts\build-all-from-bundle.bat
+仅重新编译（已装 VS）
+--------------------
+双击 BUILD.bat
 
-仅安装到系统
-------------
-01-installer\install-all.bat
+新机器：开发并提交到 GitHub
+--------------------------
+1. 双击 DEV.bat（打开源码目录 cmd，PATH 含便携 Git）
+2. 双击 setup-github.bat，按提示配置 user.name / user.email，并完成本机登录：
+     gh auth login
+   或使用 HTTPS PAT / SSH
+3. 修改代码后：
+     git add ...
+     git commit -m "..."
+     git push -u github HEAD
+4. 默认 remote「github」指向工业仓库；「origin」多为上游 wireshark/wireshark，勿误推。
 
 体积说明
 --------
-- 主要占用：Qt (~2.4 GB) + 第三方库 (~0.6 GB) + Git/Python/CMake (~1.5 GB)
-- VS Build Tools 不在包内完整拷贝（无法搬迁），以官方引导安装器提供
-- 打包脚本：03-source\wireshark\tools\minimal-build\make-bundle.ps1
+- Qt ~2.4 GB + third-party ~0.6 GB + Git/Python/CMake ~0.5–1.5 GB + 源码/.git
+- FullGit 会显著增大（取决于本机仓库历史）
+- VS Build Tools 不以完整目录搬迁，仅提供官方引导安装器
 
-环境变量（打包时可覆盖）
-------------------------
+打包命令（在开发机上）
+--------------------
+  tools\minimal-build\create-bundle.bat
+  tools\minimal-build\create-bundle.bat -ShallowGit
+  tools\minimal-build\create-bundle.bat -SkipInstaller
+
+环境变量
+--------
 WIRESHARK_BUNDLE_DIR   输出目录
 WIRESHARK_SRC_DIR      源码路径
 WIRESHARK_BUILD_DIR    构建目录（读取已有安装包）

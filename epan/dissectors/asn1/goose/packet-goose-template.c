@@ -19,6 +19,7 @@
 #include <epan/proto_data.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
+#include <epan/iec61850_scd.h>
 #include <wsutil/array.h>
 
 #include "packet-ber.h"

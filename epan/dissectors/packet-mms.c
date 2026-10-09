@@ -35,6 +35,7 @@
 #include "packet-mms.h"
 #include "packet-mms-tap.h"
 #include <epan/to_str.h>
+#include <epan/iec61850_scd.h>
 
 void proto_register_mms(void);
 void proto_reg_handoff_mms(void);
@@ -1263,6 +1264,8 @@ typedef struct mms_actx_private_data_t
     uint32_t rpt_values_count;
     /* Summary text appended to AccessResult parent label */
     const char *access_result_summary;
+    /* Bare ObjectReference for SCD lookup (must not include k/n prefix) */
+    const char *access_result_scd_ref;
     /* Collect leaf values (exclude q/t) for AccessResult summary */
     bool collecting_value_summary;
     wmem_strbuf_t *value_summary;
@@ -1640,12 +1643,15 @@ mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int de
 
 static void
 mms_label_access_result_path(proto_tree *tree, tvbuff_t *tvb _U_, proto_item *prev_last,
-                             const char *ref)
+                             const char *display, const char *lookup_ref)
 {
-    if (!ref || !tree || !tree->last_child || tree->last_child == prev_last) {
+    if (!display || !tree || !tree->last_child || tree->last_child == prev_last) {
         return;
     }
-    proto_item_append_text(tree->last_child, " [%s]", ref);
+    proto_item_append_text(tree->last_child, " [%s]", display);
+    if (lookup_ref && lookup_ref[0]) {
+        iec61850_scd_append_desc(tree->last_child, lookup_ref);
+    }
 }
 
 /* Per-phase "k/n": data-ref, value, and reason each restart at 1/n. */
@@ -1730,6 +1736,7 @@ mms_revise_rpt_inclusion_count(mms_actx_private_data_t *mms_priv, packet_info *p
                 proto_item_set_text(items[i],
                                     "AccessResult: success (1) [%u/%u %s]",
                                     i + 1, mms_priv->rpt_included_count, refs[i]);
+                iec61850_scd_append_desc(items[i], refs[i]);
             }
         }
     }
@@ -3244,6 +3251,7 @@ dissect_mms_T_listOfVariable_item_02(bool implicit_tag _U_, tvbuff_t *tvb _U_, u
     path = mms_build_object_reference(actx->pinfo->pool, mms_priv);
     if (path && tree && tree->last_child && tree->last_child != prev_last) {
       proto_item_append_text(tree->last_child, " [%s]", path);
+      iec61850_scd_append_desc(tree->last_child, path);
     }
   }
 
@@ -3811,6 +3819,10 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
             mms_priv->access_result_summary =
                 wmem_strdup_printf(actx->pinfo->pool, "数据集: %s",
                                    mms_priv->rpt_datset ? mms_priv->rpt_datset : s);
+            mms_priv->access_result_scd_ref =
+                mms_priv->rpt_datset ? mms_priv->rpt_datset : s;
+            iec61850_scd_append_desc(actx->created_item,
+                                     mms_priv->access_result_scd_ref);
         } else if (mms_priv->rpt_collecting_data_ref) {
             char *ref = mms_normalize_objref(actx->pinfo->pool, s);
             char *ord;
@@ -3825,6 +3837,8 @@ dissect_mms_T_data_visible_string(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsi
             } else {
                 mms_priv->access_result_summary = ref;
             }
+            mms_priv->access_result_scd_ref = ref;
+            iec61850_scd_append_desc(actx->created_item, ref);
         } else {
             mms_append_value_summary(mms_priv,
                 wmem_strdup_printf(actx->pinfo->pool, "\"%s\"", s));
@@ -4109,6 +4123,7 @@ dissect_mms_Data(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_, 
             if (mms_priv->vmd_specific != IEC61850_8_1_RPT ||
                 mms_priv->rpt_phase != MMS_RPT_PHASE_VALUE) {
                 proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
+                iec61850_scd_append_desc(tree->last_child, mms_priv->current_object_ref);
             }
         }
         mms_priv->current_object_ref = saved_ref;
@@ -4147,6 +4162,7 @@ dissect_mms_listOfData_item(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned o
         if (mms_priv->current_object_ref && tree && tree->last_child &&
             tree->last_child != prev_last) {
             proto_item_append_text(tree->last_child, " [%s]", mms_priv->current_object_ref);
+            iec61850_scd_append_desc(tree->last_child, mms_priv->current_object_ref);
         }
         mms_priv->current_object_ref = saved_ref;
     }
@@ -6995,6 +7011,7 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
 
     if (mms_priv) {
         mms_priv->access_result_summary = NULL;
+        mms_priv->access_result_scd_ref = NULL;
         mms_priv->collecting_value_summary = false;
         mms_priv->value_summary = NULL;
         mms_priv->value_summary_count = 0;
@@ -7152,17 +7169,21 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
             const char *ref = mms_priv->current_object_ref;
             if (ord && ref) {
                 mms_label_access_result_path(tree, tvb, prev_last,
-                    wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, ref));
+                    wmem_strdup_printf(actx->pinfo->pool, "%s %s", ord, ref), ref);
             } else if (ord) {
-                mms_label_access_result_path(tree, tvb, prev_last, ord);
+                mms_label_access_result_path(tree, tvb, prev_last, ord, NULL);
             } else if (ref) {
-                mms_label_access_result_path(tree, tvb, prev_last, ref);
+                mms_label_access_result_path(tree, tvb, prev_last, ref, ref);
             }
         } else {
-            mms_label_access_result_path(tree, tvb, prev_last, mms_priv->current_object_ref);
+            mms_label_access_result_path(tree, tvb, prev_last,
+                                         mms_priv->current_object_ref,
+                                         mms_priv->current_object_ref);
         }
     } else if (mms_priv && mms_priv->access_result_summary) {
-        mms_label_access_result_path(tree, tvb, prev_last, mms_priv->access_result_summary);
+        mms_label_access_result_path(tree, tvb, prev_last,
+                                     mms_priv->access_result_summary,
+                                     mms_priv->access_result_scd_ref);
         if (is_rpt && mms_priv->listOfAccessResult_cnt == 11 &&
             tree && tree->last_child && tree->last_child != prev_last) {
             mms_priv->rpt_inclusion_ar_item = tree->last_child;
@@ -7275,6 +7296,9 @@ dissect_mms_AccessResult(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
                         proto_item_append_text(tree->last_child, " [%s]", ord);
                     } else if (ref) {
                         proto_item_append_text(tree->last_child, " [%s]", ref);
+                    }
+                    if (ref) {
+                        iec61850_scd_append_desc(tree->last_child, ref);
                     }
                 }
                 mms_priv->rpt_phase_idx = 1;

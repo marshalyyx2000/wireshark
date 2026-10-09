@@ -26,6 +26,7 @@ DIAG_ON(frame-larger-than=)
 #include <epan/addr_resolv.h>
 #include "epan/conversation_filter.h"
 #include <epan/epan_dissect.h>
+#include <epan/iec61850_scd.h>
 #include <wsutil/filesystem.h>
 #include <wsutil/wslog.h>
 #include <wsutil/ws_assert.h>
@@ -66,6 +67,7 @@ DIAG_ON(frame-larger-than=)
 #endif
 #include "import_text_dialog.h"
 #include "interface_toolbar.h"
+#include <ui/qt/widgets/wireshark_file_dialog.h>
 #include "industrial_protocol_classify_panel.h"
 #include "packet_diagram.h"
 #include "packet_list.h"
@@ -93,6 +95,7 @@ DIAG_ON(frame-larger-than=)
 #include <QAction>
 #include <QActionGroup>
 #include <QDockWidget>
+#include <QFileInfo>
 #include <QIntValidator>
 #include <QKeyEvent>
 #include <QList>
@@ -725,6 +728,7 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectAnalyzeMenuActions();
     connectMmsMenuActions();
     connectModbusMenuActions();
+    connectCommonToolsMenuActions();
 #ifndef ENABLE_MINIMAL_BUILD
     connectStatisticsMenuActions();
     connectTelephonyMenuActions();
@@ -1520,6 +1524,52 @@ void WiresharkMainWindow::importCaptureFile() {
     }
 
     openCaptureFile(import_dlg.capfileName(), QString(), WTAP_TYPE_AUTO, true);
+}
+
+void WiresharkMainWindow::importScdModel()
+{
+    QString file_name = WiresharkFileDialog::getOpenFileName(
+        this,
+        mainApp->windowTitleString(tr("导入 SCD 模型")),
+        mainApp->openDialogInitialDir().path(),
+        tr("IEC 61850 SCL (*.scd *.cid *.icd *.SCD *.CID *.ICD);;All Files (*.*)"));
+
+    if (file_name.isEmpty()) {
+        return;
+    }
+
+    char *err = NULL;
+    QByteArray path_utf8 = file_name.toUtf8();
+    if (!iec61850_scd_load(path_utf8.constData(), &err)) {
+        QString msg = err ? QString::fromUtf8(err) : tr("加载 SCD 失败");
+        g_free(err);
+        QMessageBox::warning(this, tr("导入 SCD 模型"), msg);
+        return;
+    }
+    g_free(err);
+
+    main_ui_->actionFileClearScd->setEnabled(true);
+    QFileInfo fi(file_name);
+    mainApp->pushStatus(MainApplication::TemporaryStatus,
+                        tr("已加载 SCD: %1").arg(fi.fileName()));
+
+    if (capture_file_.capFile()) {
+        redissectPackets();
+    }
+}
+
+void WiresharkMainWindow::clearScdModel()
+{
+    if (!iec61850_scd_loaded()) {
+        main_ui_->actionFileClearScd->setEnabled(false);
+        return;
+    }
+    iec61850_scd_clear();
+    main_ui_->actionFileClearScd->setEnabled(false);
+    mainApp->pushStatus(MainApplication::TemporaryStatus, tr("已清除 SCD 模型"));
+    if (capture_file_.capFile()) {
+        redissectPackets();
+    }
 }
 
 bool WiresharkMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {

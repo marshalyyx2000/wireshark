@@ -328,6 +328,16 @@ private:
     void importCaptureFile();
 
     /**
+     * @brief Import an IEC 61850 SCD/CID/ICD model for ObjectReference descriptions.
+     */
+    void importScdModel();
+
+    /**
+     * @brief Clear the loaded IEC 61850 SCD model.
+     */
+    void clearScdModel();
+
+    /**
      * @brief Saves the capture file to its current path.
      * @param cf           Capture file to save.
      * @param dont_reopen  @c true to skip reopening the file after saving.
@@ -1145,6 +1155,9 @@ private slots:
 
     /** @brief Connects MODBUS menu actions to their implementation slots. */
     void connectModbusMenuActions();
+
+    /** @brief Connects 常用工具 menu actions to their implementation slots. */
+    void connectCommonToolsMenuActions();
 
     /**
      * @brief Constructs a filter expression from the selected protocol-tree field

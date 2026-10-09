@@ -83,6 +83,7 @@ set(LIBWIRESHARK_PUBLIC_HEADERS
 	in_cksum.h
 	introspection.h
 	iana-info.h
+	iec61850_scd.h
 	ip_opts.h
 	keytab_krb5_ctx.h
 	maxmind_db.h
@@ -185,6 +186,7 @@ set(LIBWIRESHARK_NONGENERATED_FILES
 	guid-utils.c
 	iana_charsets.c
 	iana-info.c
+	iec61850_scd.c
 	in_cksum.c
 	introspection.c
 	manuf.c

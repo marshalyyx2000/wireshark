@@ -232,6 +232,8 @@
     <addaction name="menuOpenRecentCaptureFile"/>
     <addaction name="actionFileMerge"/>
     <addaction name="actionFileImportFromHexDump"/>
+    <addaction name="actionFileImportScd"/>
+    <addaction name="actionFileClearScd"/>
     <addaction name="actionFileClose"/>
     <addaction name="separator"/>
     <addaction name="actionFileSave"/>
@@ -520,6 +522,12 @@
      <string>MODBUS</string>
     </property>
     <addaction name="actionModbusYushunVoltagePlate"/>
+   </widget>
+   <widget class="QMenu" name="menuCommonTools">
+    <property name="title">
+     <string>常用工具</string>
+    </property>
+    <addaction name="actionCommonToolsNicPacketLoss"/>
    </widget>
    <widget class="QMenu" name="menuStatistics">
     <property name="enabled">
@@ -814,6 +822,7 @@
    <addaction name="menuStatistics"/>
    <addaction name="menuMms"/>
    <addaction name="menuModbus"/>
+   <addaction name="menuCommonTools"/>
    <addaction name="menuTelephony"/>
    <addaction name="menuWireless"/>
    <addaction name="menuTools"/>
@@ -1298,6 +1307,22 @@
    </property>
    <property name="toolTip">
     <string>Import a file</string>
+   </property>
+  </action>
+  <action name="actionFileImportScd">
+   <property name="text">
+    <string>导入 SCD 模型…</string>
+   </property>
+   <property name="toolTip">
+    <string>导入 IEC 61850 SCD/CID/ICD 模型，用于参引描述标注</string>
+   </property>
+  </action>
+  <action name="actionFileClearScd">
+   <property name="text">
+    <string>清除 SCD 模型</string>
+   </property>
+   <property name="toolTip">
+    <string>清除已加载的 SCD 模型</string>
    </property>
   </action>
   <action name="actionFileSave">
@@ -2969,6 +2994,14 @@
    </property>
    <property name="toolTip">
     <string>仅显示禹舜下端电压硬压板 MODBUS 报文 (yushun_modbus)</string>
+   </property>
+  </action>
+  <action name="actionCommonToolsNicPacketLoss">
+   <property name="text">
+    <string>判断网卡是否丢包</string>
+   </property>
+   <property name="toolTip">
+    <string>使用 ping 按设定 MTU 与时长检测网卡/路径是否丢包</string>
    </property>
   </action>
   <action name="actionDisplayFilterExpression">

@@ -62,6 +62,7 @@ DIAG_ON(frame-larger-than=)
 #include "epan/uat.h"
 #include "epan/uat-int.h"
 #include "epan/secrets.h"
+#include "epan/iec61850_scd.h"
 #include <wsutil/value_string.h>
 
 #ifdef HAVE_LUA
@@ -117,6 +118,7 @@ DIAG_ON(frame-larger-than=)
 #include "mms_ip_classify_dialog.h"
 #include "mms_process_analysis_dialog.h"
 #include "mms_report_filter_dialog.h"
+#include "nic_packet_loss_dialog.h"
 #include "export_object_action.h"
 #include "export_object_dialog.h"
 #include "export_pdu_dialog.h"
@@ -1859,6 +1861,13 @@ void WiresharkMainWindow::connectFileMenuActions()
     connect(main_ui_->actionFileImportFromHexDump, &QAction::triggered, this,
             [this]() { importCaptureFile(); });
 
+    connect(main_ui_->actionFileImportScd, &QAction::triggered, this,
+            [this]() { importScdModel(); });
+
+    connect(main_ui_->actionFileClearScd, &QAction::triggered, this,
+            [this]() { clearScdModel(); });
+    main_ui_->actionFileClearScd->setEnabled(iec61850_scd_loaded());
+
     connect(main_ui_->actionFileClose, &QAction::triggered, this, [this]() {
         QString before_what(tr(" before closing the file"));
         if (tryClosingCaptureFile(before_what)) {
@@ -3376,6 +3385,15 @@ void WiresharkMainWindow::connectModbusMenuActions()
 {
     connect(main_ui_->actionModbusYushunVoltagePlate, &QAction::triggered, this, [=]() {
         applyCaptureDisplayFilter(QStringLiteral("yushun_modbus"), true);
+    });
+}
+
+void WiresharkMainWindow::connectCommonToolsMenuActions()
+{
+    connect(main_ui_->actionCommonToolsNicPacketLoss, &QAction::triggered, this, [=]() {
+        NicPacketLossDialog *dlg = new NicPacketLossDialog(*this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
     });
 }
 

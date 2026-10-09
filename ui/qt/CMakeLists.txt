@@ -327,6 +327,7 @@ set(WIRESHARK_QT_HEADERS
 	mms_general_filter_widget.h
 	mms_report_filter_dialog.h
 	mms_report_filter_widget.h
+	nic_packet_loss_dialog.h
 	supported_protocols_dialog.h
 	tabnav_tree_widget.h
 	tap_parameter_dialog.h
@@ -679,6 +680,7 @@ set(WIRESHARK_QT_SRC
 	mms_general_filter_widget.cpp
 	mms_report_filter_dialog.cpp
 	mms_report_filter_widget.cpp
+	nic_packet_loss_dialog.cpp
 	supported_protocols_dialog.cpp
 	tabnav_tree_widget.cpp
 	tap_parameter_dialog.cpp
@@ -841,6 +843,7 @@ set(WIRESHARK_QT_UI
 	mms_general_filter_widget.ui
 	mms_report_filter_dialog.ui
 	mms_report_filter_widget.ui
+	nic_packet_loss_dialog.ui
 	supported_protocols_dialog.ui
 	tap_parameter_dialog.ui
 	tcp_stream_dialog.ui

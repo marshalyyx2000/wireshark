@@ -24,6 +24,7 @@
 #include <epan/addr_resolv.h>
 #include <epan/exceptions.h>
 #include <epan/show_exception.h>
+#include <epan/iec61850_scd.h>
 #include <wsutil/array.h>
 
 #include "packet-ber.h"
@@ -237,7 +238,7 @@ dissect_sv_VisibleString(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
   tvbuff_t *out_tvb = NULL;
   offset = dissect_ber_restricted_string(implicit_tag, BER_UNI_TAG_VisibleString,
                                             actx, tree, tvb, offset, hf_index,
-                                            (hf_index == hf_sv_svID) ? &out_tvb : NULL);
+                                            &out_tvb);
   if (hf_index == hf_sv_svID && out_tvb != NULL && sv_data.svID[0] == '\0') {
     unsigned len = tvb_reported_length(out_tvb);
     if (len >= sizeof(sv_data.svID)) {
@@ -245,6 +246,13 @@ dissect_sv_VisibleString(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offs
     }
     tvb_memcpy(out_tvb, sv_data.svID, 0, len);
     sv_data.svID[len] = '\0';
+  }
+  if (out_tvb && actx && actx->created_item &&
+      (hf_index == hf_sv_svID || hf_index == hf_sv_datSet)) {
+    char *s = (char *)tvb_get_string_enc(actx->pinfo->pool, out_tvb, 0,
+                                         tvb_reported_length(out_tvb),
+                                         ENC_ASCII | ENC_NA);
+    iec61850_scd_append_desc(actx->created_item, s);
   }
 
   return offset;

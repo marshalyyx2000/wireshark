@@ -46,6 +46,7 @@ C:\Development\wsbuild-industrial\packaging\nsis\宾尧-0.10.3-x64.exe
 | `configure.bat` | CMake 配置，`ENABLE_MINIMAL_BUILD=ON` |
 | `build.bat` | 编译 `wireshark` / `tshark` / `dumpcap`，并复制数据文件（含精简 `colorfilters`） |
 | `package-nsis.bat` | `wireshark_nsis_prep` + `wireshark_nsis`，检查体积 ≤ 30 MB |
+| `create-green-package.bat` | 从 staging 生成绿色免安装包（配置隔离，不写 Program Files） |
 | `build-all.bat` | 依次执行 configure → build → package |
 | `smoke-check.bat` | 快速验收：`-v`、协议列表、colorfilters、安装包体积 |
 
@@ -144,26 +145,82 @@ cmake --build . --config RelWithDebInfo --target wireshark_nsis --parallel
 **与全量构建混淆**  
 务必使用独立目录 `wsbuild-min`，不要复用 `wsbuild64`。
 
-## 一键汇总整包（安装/运行/编译环境）
+## 绿色免安装包（推荐给终端用户）
 
-将安装包、运行目录、源码、Qt/第三方库/NSIS、便携 Git/Python/CMake、构建脚本汇总到单一目录（约 5 GB；VS 以引导安装器形式提供）：
+从已编译的 `run\RelWithDebInfo` 复制运行文件，并写入带 `WIRESHARK_APPDATA` 隔离的启动脚本，**不安装、不改注册表、不占用已安装 Wireshark 的配置目录**：
+
+```bat
+cd /d F:\software\temp\wireshark-industrial
+tools\minimal-build\create-green-package.bat
+```
+
+默认产物（包名使用 ASCII，避免中文路径乱码）：
+
+```text
+C:\Development\Binyao-0.10.3-green\          ← 解压即用目录
+C:\Development\Binyao-0.10.3-green.zip
+```
+
+双击目录内 `Run.bat` 即可运行。可用 `WIRESHARK_GREEN_DIR` 覆盖输出路径；加 `-NoZip` 可只生成目录。
+
+注意：实时抓包仍需目标机已安装 Npcap；分析现有 pcap 不需要。
+
+## 一键汇总整包（空白机可编译打包 + GitHub 提交）
+
+将安装包、运行目录、**带可搬迁 `.git` 的源码**、Qt/第三方库/NSIS、便携 Git/Python/CMake、VS 引导安装器、构建脚本汇总到单一目录（约 5 GB+；FullGit 会再加大）。
+
+在开发机上生成：
 
 ```bat
 cd /d F:\software\temp\wireshark-industrial
 tools\minimal-build\create-bundle.bat
 ```
 
+可选参数（传给 `make-bundle.ps1`）：
+
+| 参数 | 含义 |
+| --- | --- |
+| （默认） | 嵌入**完整** Git 历史，便于迁机后 `commit` / `push` |
+| `-ShallowGit` | 浅克隆（depth≈100），体积更小 |
+| `-SkipInstaller` | 尚未打出 NSIS 时跳过 `01-installer` |
+
 或：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bundle.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bundle.ps1 -ShallowGit
 ```
 
 默认输出：`C:\Development\Wireshark-Industrial-Bundle-0.10.3\`
 
-拷贝到目标机后：
+| 目录 | 内容 |
+| --- | --- |
+| `01-installer\` | NSIS 安装包 + Npcap/USBPcap |
+| `02-runtime\` | 免安装运行目录 |
+| `03-source\wireshark\` | 源码 + 便携 `.git`（含 `github` / `origin` remote） |
+| `04-compile-env\` | Qt、third-party、NSIS、Git、Python、CMake、`vs_BuildTools.exe` |
+| `05-scripts\` | `use-bundle-env` / `build-all-from-bundle` / `DEV` / `setup-github` |
+| `06-build\` | 目标机编译输出（首次构建时创建） |
 
-1. 双击根目录 `SETUP.bat`（首次会安装 VS Build Tools，约 10–30 分钟）
-2. 或手动：`04-compile-env\install-vs-buildtools.bat` → `05-scripts\build-all-from-bundle.bat`
+### 迁到空白机：编译出安装包
 
-可用环境变量 `WIRESHARK_BUNDLE_DIR` 覆盖输出路径；`BUNDLE_GIT_SRC` / `BUNDLE_PYTHON_SRC` / `BUNDLE_CMAKE_SRC` 指定要打包的工具路径。
+1. 整目录拷贝到目标机（建议 ASCII 路径，如 `D:\Binyao-SDK`）
+2. 双击根目录 `SETUP.bat`（需管理员 + 网络，首次装 VS Build Tools 约 10–30 分钟）
+3. 或手动：`04-compile-env\install-vs-buildtools.bat` → `BUILD.bat` / `05-scripts\build-all-from-bundle.bat`
+4. 安装包：`06-build\wsbuild-industrial\packaging\nsis\*.exe`
+
+### 迁到空白机：开发并 push 到 GitHub
+
+1. 双击 `DEV.bat`（进入 `03-source\wireshark`，PATH 含便携 Git）
+2. 双击 `setup-github.bat`：配置 `user.name` / `user.email`，并在**本机**完成登录（`gh auth login` / HTTPS PAT / SSH）。**凭据不会打进整包。**
+3. 修改后：`git add` → `git commit` → `git push -u github HEAD`
+4. remote `github` 指向工业仓库；`origin` 多为上游 `wireshark/wireshark`，勿误推
+
+### 体积与限制
+
+- 主要占用：Qt ~2.4 GB + third-party ~0.6 GB + 工具与源码/.git
+- VS **不能**整棵目录搬迁，仅提供官方引导安装器；目标机需联网安装
+- Npcap 安装多为交互式；分析现有 pcap 可不装 Npcap
+- 不打包 GitHub token / SSH 私钥
+
+可用环境变量：`WIRESHARK_BUNDLE_DIR`、`WIRESHARK_SRC_DIR`、`WIRESHARK_BUILD_DIR`、`BUNDLE_GIT_SRC`、`BUNDLE_PYTHON_SRC`、`BUNDLE_CMAKE_SRC`。
