@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MmsGeneralFilterWidget</class>
+ <widget class="QWidget" name="MmsGeneralFilterWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>520</width>
+    <height>280</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="realtimeLayout">
+     <item>
+      <spacer name="realtimeSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="realtimeFilterCheck">
+       <property name="text">
+        <string>开启过滤</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="refGroup">
+     <property name="title">
+      <string>输入 / 参引</string>
+     </property>
+     <layout class="QFormLayout" name="refLayout">
+      <item row="0" column="0" colspan="2">
+       <layout class="QHBoxLayout" name="refCheckboxLayout">
+        <item>
+         <widget class="QCheckBox" name="exactRefMatchCheck">
+          <property name="text">
+           <string>精确匹配</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="refCheckboxSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="dataRefLabel">
+        <property name="text">
+         <string>Data Reference</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="dataRefEdit">
+        <property name="placeholderText">
+         <string>分段模糊查询（空格分隔，不区分大小写）</string>
+        </property>
+        <property name="clearButtonEnabled">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="objRefLabel">
+        <property name="text">
+         <string>Object Reference</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="objRefEdit">
+        <property name="placeholderText">
+         <string>分段模糊查询（空格分隔，不区分大小写）</string>
+        </property>
+        <property name="clearButtonEnabled">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="invokeIdLabel">
+        <property name="text">
+         <string>InvokeID</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="invokeIdEdit">
+        <property name="placeholderText">
+         <string>invoke = N</string>
+        </property>
+        <property name="clearButtonEnabled">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="previewLabel">
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+</ui>

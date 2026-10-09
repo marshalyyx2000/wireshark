@@ -92,10 +92,51 @@
        <number>0</number>
       </property>
       <item>
-       <widget class="QLabel" name="reportTitleLabel">
-        <property name="text">
-         <string>MMS 报告过滤</string>
+       <widget class="QTabWidget" name="mmsFilterTabs">
+        <property name="currentIndex">
+         <number>0</number>
         </property>
+        <property name="documentMode">
+         <bool>true</bool>
+        </property>
+        <widget class="QWidget" name="reportFilterTab">
+         <attribute name="title">
+          <string>报告过滤</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="reportFilterTabLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>4</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="generalFilterTab">
+         <attribute name="title">
+          <string>通用过滤</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="generalFilterTabLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>4</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+         </layout>
+        </widget>
        </widget>
       </item>
      </layout>

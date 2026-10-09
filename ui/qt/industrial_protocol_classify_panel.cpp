@@ -8,6 +8,7 @@
 #include "industrial_protocol_classify_panel.h"
 #include <ui_industrial_protocol_classify_panel.h>
 
+#include "mms_general_filter_widget.h"
 #include "mms_report_filter_widget.h"
 #include "wireshark_main_window.h"
 
@@ -86,6 +87,7 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
     WiresharkDialog(parent, capture_file),
     ui_(new Ui::IndustrialProtocolClassifyPanel),
     report_widget_(new MmsReportFilterWidget(this)),
+    general_widget_(new MmsGeneralFilterWidget(this)),
     filter_timer_(new QTimer(this)),
     selected_is_root_(false),
     selected_is_proto_(false)
@@ -96,11 +98,14 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
 
     ui_->verticalLayout->setStretch(ui_->verticalLayout->indexOf(ui_->protoTree), 1);
 
-    auto *report_layout = ui_->reportLayout;
     report_widget_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     report_widget_->setPreviewVisible(false);
-    report_layout->addWidget(report_widget_);
+    ui_->reportFilterTabLayout->addWidget(report_widget_);
     report_widget_->setDialogHost(this, &cap_file_);
+
+    general_widget_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    general_widget_->setPreviewVisible(false);
+    ui_->generalFilterTabLayout->addWidget(general_widget_);
 
     filter_timer_->setSingleShot(true);
     filter_timer_->setInterval(100);
@@ -116,10 +121,16 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
             this, &IndustrialProtocolClassifyPanel::onClearClicked);
     connect(ui_->refreshButton, &QPushButton::clicked,
             this, &IndustrialProtocolClassifyPanel::refresh);
+    connect(ui_->mmsFilterTabs, &QTabWidget::currentChanged,
+            this, &IndustrialProtocolClassifyPanel::onMmsFilterTabChanged);
     connect(report_widget_, &MmsReportFilterWidget::filterChanged,
             this, &IndustrialProtocolClassifyPanel::updateHint);
     connect(report_widget_, &MmsReportFilterWidget::requestApplyFilter,
             this, &IndustrialProtocolClassifyPanel::onReportRequestApply);
+    connect(general_widget_, &MmsGeneralFilterWidget::filterChanged,
+            this, &IndustrialProtocolClassifyPanel::updateHint);
+    connect(general_widget_, &MmsGeneralFilterWidget::requestApplyFilter,
+            this, &IndustrialProtocolClassifyPanel::onGeneralRequestApply);
 
     connect(&cap_file_, &CaptureFile::captureEvent, this, [this](CaptureEvent e) {
         if (e.captureContext() != CaptureEvent::File) {
@@ -425,6 +436,12 @@ QString IndustrialProtocolClassifyPanel::buildTreeFilter() const
     return QStringLiteral("(%1) && (%2)").arg(addr_term, proto_filter);
 }
 
+bool IndustrialProtocolClassifyPanel::isGeneralFilterTabActive() const
+{
+    return ui_->mmsFilterTabs->currentIndex() ==
+           ui_->mmsFilterTabs->indexOf(ui_->generalFilterTab);
+}
+
 QString IndustrialProtocolClassifyPanel::buildCombinedFilter() const
 {
     QStringList parts;
@@ -432,9 +449,16 @@ QString IndustrialProtocolClassifyPanel::buildCombinedFilter() const
     if (!tree_filter.isEmpty()) {
         parts << tree_filter;
     }
-    if (selected_proto_key_ == QLatin1String("mms") &&
-        report_widget_->hasReportCriteria()) {
-        parts << report_widget_->buildFilter();
+    if (selected_proto_key_ == QLatin1String("mms")) {
+        if (isGeneralFilterTabActive()) {
+            /* 通用过滤：仅选中 IP + 全部 MMS（及可选参引/InvokeID），不含报告范围 */
+            if (general_widget_->hasGeneralCriteria()) {
+                parts << general_widget_->buildFilter();
+            }
+        } else {
+            /* 报告过滤：始终限定 unconfirmed RPT（mms.unconfirmedService == 0） */
+            parts << report_widget_->buildFilter();
+        }
     }
     return parts.join(QStringLiteral(" && "));
 }
@@ -548,7 +572,10 @@ void IndustrialProtocolClassifyPanel::onClearClicked()
     selected_is_proto_ = false;
     last_applied_filter_.clear();
     ui_->protoTree->clearSelection();
+    report_widget_->clearCriteria();
+    general_widget_->clearCriteria();
     report_widget_->resetAppliedFilterState();
+    general_widget_->resetAppliedFilterState();
 
     auto *mw = qobject_cast<WiresharkMainWindow *>(window());
     QWidget *w = parentWidget();
@@ -570,5 +597,26 @@ void IndustrialProtocolClassifyPanel::onDebouncedFilterApply()
 
 void IndustrialProtocolClassifyPanel::onReportRequestApply(const QString &, bool force)
 {
+    if (isGeneralFilterTabActive()) {
+        return;
+    }
     applyCombinedFilter(force);
+}
+
+void IndustrialProtocolClassifyPanel::onGeneralRequestApply(const QString &, bool force)
+{
+    if (!isGeneralFilterTabActive()) {
+        return;
+    }
+    applyCombinedFilter(force);
+}
+
+void IndustrialProtocolClassifyPanel::onMmsFilterTabChanged(int)
+{
+    report_widget_->resetAppliedFilterState();
+    general_widget_->resetAppliedFilterState();
+    last_applied_filter_.clear();
+    updateHint();
+    /* 切换到通用过滤时强制重刷，去掉报告 Tab 留下的 unconfirmedService 范围 */
+    applyCombinedFilter(true);
 }

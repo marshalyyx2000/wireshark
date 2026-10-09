@@ -323,6 +323,8 @@ set(WIRESHARK_QT_HEADERS
 	mms_process_analysis_dialog.h
 	mms_process_diagram_widget.h
 	mms_process_time_column_widget.h
+	mms_filter_helpers.h
+	mms_general_filter_widget.h
 	mms_report_filter_dialog.h
 	mms_report_filter_widget.h
 	supported_protocols_dialog.h
@@ -673,6 +675,8 @@ set(WIRESHARK_QT_SRC
 	mms_process_analysis_dialog.cpp
 	mms_process_diagram_widget.cpp
 	mms_process_time_column_widget.cpp
+	mms_filter_helpers.cpp
+	mms_general_filter_widget.cpp
 	mms_report_filter_dialog.cpp
 	mms_report_filter_widget.cpp
 	supported_protocols_dialog.cpp
@@ -834,6 +838,7 @@ set(WIRESHARK_QT_UI
 	industrial_protocol_classify_panel.ui
 	mms_ip_classify_dialog.ui
 	mms_process_analysis_dialog.ui
+	mms_general_filter_widget.ui
 	mms_report_filter_dialog.ui
 	mms_report_filter_widget.ui
 	supported_protocols_dialog.ui

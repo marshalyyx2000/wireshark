@@ -13,6 +13,7 @@
 #include <ui_mms_report_filter_widget.h>
 
 #include "capture_event.h"
+#include "mms_filter_helpers.h"
 #include "wireshark_dialog.h"
 #include <epan/dissectors/packet-mms-tap.h>
 
@@ -20,8 +21,11 @@
 #include <QComboBox>
 #include <QEvent>
 #include <QLineEdit>
-#include <QRegularExpression>
 #include <QTimer>
+
+using MmsFilterHelpers::appendRefFilter;
+using MmsFilterHelpers::appendSegmentedContains;
+using MmsFilterHelpers::quoteFilterString;
 
 MmsReportFilterWidget::MmsReportFilterWidget(QWidget *parent) :
     QWidget(parent),
@@ -122,6 +126,23 @@ void MmsReportFilterWidget::setPreviewVisible(bool visible)
 void MmsReportFilterWidget::resetAppliedFilterState()
 {
     last_emitted_filter_.clear();
+}
+
+void MmsReportFilterWidget::clearCriteria()
+{
+    refreshing_combos_ = true;
+    for (QCheckBox *box : {ui_->reasonDataChange, ui_->reasonIntegrity, ui_->reasonGi,
+                           ui_->reasonQuality, ui_->reasonUpdate, ui_->reasonApp,
+                           ui_->hasInclusion, ui_->exactRefMatchCheck}) {
+        box->setChecked(false);
+    }
+    ui_->dataRefEdit->clear();
+    ui_->objRefEdit->clear();
+    ui_->rptidCombo->setCurrentIndex(0);
+    ui_->datsetCombo->setCurrentIndex(0);
+    refreshing_combos_ = false;
+    last_emitted_filter_.clear();
+    updatePreview();
 }
 
 bool MmsReportFilterWidget::eventFilter(QObject *watched, QEvent *event)
@@ -363,73 +384,6 @@ void MmsReportFilterWidget::fillCombos()
     };
     fill(ui_->rptidCombo, rptid_values_);
     fill(ui_->datsetCombo, datset_values_);
-}
-
-QString MmsReportFilterWidget::quoteFilterString(const QString &value)
-{
-    QString escaped = value;
-    escaped.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
-    escaped.replace(QLatin1Char('"'), QStringLiteral("\\\""));
-    return QStringLiteral("\"%1\"").arg(escaped);
-}
-
-QString MmsReportFilterWidget::quoteFilterLower(const QString &value)
-{
-    return quoteFilterString(value.toLower());
-}
-
-QString MmsReportFilterWidget::ciContainsClause(const QString &field, const QString &segment)
-{
-    return QStringLiteral("lower(%1) contains %2").arg(field, quoteFilterLower(segment));
-}
-
-QString MmsReportFilterWidget::ciEqualsClause(const QString &field, const QString &text)
-{
-    return QStringLiteral("lower(%1) == %2").arg(field, quoteFilterLower(text));
-}
-
-QStringList MmsReportFilterWidget::filterSegments(const QString &text)
-{
-    return text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-}
-
-void MmsReportFilterWidget::appendRefFilter(QStringList &parts, const QString &field,
-                                            const QString &text, bool exact_match)
-{
-    if (text.isEmpty()) {
-        return;
-    }
-    static const QString data_ref_field = QStringLiteral("mms.iec61850.data_reference");
-    static const QString datset_field = QStringLiteral("mms.iec61850.datset");
-
-    if (exact_match) {
-        if (field == data_ref_field) {
-            parts << QStringLiteral("(%1 || %2)")
-                             .arg(ciEqualsClause(data_ref_field, text),
-                                  ciEqualsClause(datset_field, text));
-        } else {
-            parts << ciEqualsClause(field, text);
-        }
-        return;
-    }
-    appendSegmentedContains(parts, field, text);
-}
-
-void MmsReportFilterWidget::appendSegmentedContains(QStringList &parts, const QString &field,
-                                                      const QString &text)
-{
-    static const QString data_ref_field = QStringLiteral("mms.iec61850.data_reference");
-    static const QString datset_field = QStringLiteral("mms.iec61850.datset");
-
-    for (const QString &segment : filterSegments(text)) {
-        if (field == data_ref_field) {
-            parts << QStringLiteral("(%1 || %2)")
-                             .arg(ciContainsClause(data_ref_field, segment),
-                                  ciContainsClause(datset_field, segment));
-        } else {
-            parts << ciContainsClause(field, segment);
-        }
-    }
 }
 
 QString MmsReportFilterWidget::buildFilter() const

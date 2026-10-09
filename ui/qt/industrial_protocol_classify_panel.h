@@ -17,6 +17,7 @@
 #include <QString>
 #include <QVector>
 
+class MmsGeneralFilterWidget;
 class MmsReportFilterWidget;
 class QTimer;
 class QTreeWidgetItem;
@@ -47,6 +48,8 @@ private slots:
     void onClearClicked();
     void onDebouncedFilterApply();
     void onReportRequestApply(const QString &filter, bool force);
+    void onGeneralRequestApply(const QString &filter, bool force);
+    void onMmsFilterTabChanged(int index);
 
 private:
     enum class AddrKind {
@@ -74,6 +77,7 @@ private:
     void applySearchFilter(const QString &text);
     void updateReportPanelVisibility();
     void updateHint();
+    bool isGeneralFilterTabActive() const;
     QString buildTreeFilter() const;
     QString buildCombinedFilter() const;
     void applyCombinedFilter(bool force = false);
@@ -84,6 +88,7 @@ private:
 
     Ui::IndustrialProtocolClassifyPanel *ui_;
     MmsReportFilterWidget *report_widget_;
+    MmsGeneralFilterWidget *general_widget_;
     QTimer *filter_timer_;
     QHash<QString, QSet<QString>> addrs_by_proto_;
     QHash<QString, AddrKind> addr_kind_;

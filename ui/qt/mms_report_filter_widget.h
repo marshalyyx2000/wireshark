@@ -48,6 +48,7 @@ public:
     bool isRealtimeEnabled() const;
     void setPreviewVisible(bool visible);
     void resetAppliedFilterState();
+    void clearCriteria();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -84,14 +85,6 @@ private:
     void resetTapData();
     QString buildScopeFilter(bool include_rptid) const;
     QString buildTapScopeFilter(bool include_rptid) const;
-    static QString quoteFilterString(const QString &value);
-    static QString quoteFilterLower(const QString &value);
-    static QString ciContainsClause(const QString &field, const QString &segment);
-    static QString ciEqualsClause(const QString &field, const QString &text);
-    static QStringList filterSegments(const QString &text);
-    static void appendRefFilter(QStringList &parts, const QString &field, const QString &text,
-                                bool exact_match);
-    static void appendSegmentedContains(QStringList &parts, const QString &field, const QString &text);
     static QString comboSelectedValue(QComboBox *combo);
     static void restoreComboValue(QComboBox *combo, const QString &value);
 
