@@ -259,3 +259,17 @@ source tools/minimal-build/env-linux.sh
 ```
 
 CMake 要点：`-DENABLE_MINIMAL_BUILD=ON -DUSE_qt5=ON`。Qt 5.14 可能没有 `qtbase_zh_CN.qm`，POST_BUILD 会回退拷贝 `qt_zh_CN.qm`。
+
+### 生成 .deb 安装包
+
+自包含包：程序与私有 Qt/GLib 装到 `/opt/binyao-wireshark`；`/usr/bin` 使用 **`binyao-wireshark` / `binyao-tshark` / `binyao-dumpcap`**，避免覆盖发行版 `wireshark-qt` / `tshark`。
+
+```bash
+source tools/minimal-build/env-linux.sh
+bash tools/minimal-build/package-deb.sh
+# 产物默认：源码根目录 binyao-wireshark_0.10.5-1_amd64.deb
+sudo dpkg -i binyao-wireshark_0.10.5-1_amd64.deb
+binyao-wireshark   # 或 /opt/binyao-wireshark/bin/wireshark.sh
+```
+
+可用环境变量：`PKG_VERSION`、`OUT_DIR`、`INSTALL_ROOT`。
