@@ -59,7 +59,7 @@ public slots:
      * @param fdata    Frame metadata for the packet to evaluate.
      * @param row      Row index of the packet in the packet list model.
      */
-    void checkPacket(capture_file *cap_file, frame_data *fdata, qsizetype row);
+    void checkPacket(capture_file *cap_file, frame_data *fdata, int row);
 
 private:
     QVector<struct profile_switch_filter> profile_filters_; /**< Ordered list of profile trigger filters loaded from configuration. */

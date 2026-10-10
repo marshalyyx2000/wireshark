@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QRegularExpression>
 #include <QtConcurrent>
+#include <QFileInfo>
 #include <QThreadPool>
 
 #include <wsutil/filesystem.h>
@@ -270,7 +271,9 @@ void WorkspaceState::queueFileStatusCheck(const QString &filename)
     // Force deep copy for thread safety
     QString filenameCopy = QString::fromStdU16String(filename.toStdU16String());
 
-    QThreadPool::globalInstance()->start([this, filenameCopy]() {
+    // QThreadPool::start(callable) needs Qt 5.15+; QtConcurrent::run accepts
+    // lambdas on Qt 5.14.
+    QtConcurrent::run([this, filenameCopy]() {
         QFileInfo fileInfo(filenameCopy);
         qint64 size = 0;
         bool accessible = false;

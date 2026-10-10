@@ -11,6 +11,7 @@
 
 #include <ui/qt/utils/color_utils.h>
 
+#include <QtGlobal>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QProxyStyle>
@@ -263,6 +264,16 @@ void OverlayScrollBar::mouseReleaseEvent(QMouseEvent *event)
 
 void OverlayScrollBar::updateChildStyle()
 {
-    child_style_->setBaseStyle(QStyleFactory::create(qApp->style()->name()));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
+    const QString styleName = qApp->style()->name();
+#else
+    // QStyle::name() is Qt 6.1+; derive a factory key from the class name.
+    QString styleName = QString::fromLatin1(qApp->style()->metaObject()->className());
+    if (styleName.startsWith(QLatin1Char('Q')))
+        styleName.remove(0, 1);
+    if (styleName.endsWith(QLatin1String("Style")))
+        styleName.chop(5);
+#endif
+    child_style_->setBaseStyle(QStyleFactory::create(styleName));
     child_sb_.setStyle(child_style_);
 }

@@ -26,8 +26,10 @@
 #include "ui/qt/utils/color_utils.h"
 #include "ui/qt/utils/theme_manager.h"
 
+#include <QtGlobal>
 #include <QPainter>
 #include <QScrollBar>
+#include <QVector>
 
 JsonDataSourceView::JsonDataSourceView(const QByteArray &data, proto_node *root_node, QWidget *parent) :
     BaseDataSourceView(data, parent),
@@ -161,7 +163,11 @@ void JsonDataSourceView::paintEvent(QPaintEvent *)
                             hovered_line_ == &text_line ? ColorUtils::hoverBackground() : palette().highlight());
                 fmt_list.append(format_range);
             }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             layout_->setFormats(fmt_list);
+#else
+            layout_->setFormats(QVector<QTextLayout::FormatRange>::fromList(fmt_list));
+#endif
             layout_->beginLayout();
             QTextLine tl = layout_->createLine();
             tl.setLeadingIncluded(true);
@@ -209,7 +215,7 @@ void JsonDataSourceView::keyPressEvent(QKeyEvent *event)
         //   otherwise, next nonzero
     {
         QList<const TextLine *> selectable_lines;
-        qsizetype idx = event->key() == Qt::Key_Up ? INT32_MAX : -1;
+        int idx = event->key() == Qt::Key_Up ? INT32_MAX : -1;
         for (const auto &text_block : text_blocks_) {
             for (const auto &text_line : text_block.text_lines) {
                 if (text_line.kv_length > 0) {
@@ -314,7 +320,7 @@ int JsonDataSourceView::stringWidth(const QString &line)
 
 void JsonDataSourceView::updateScrollbars()
 {
-    qsizetype line_count = 0;
+    int line_count = 0;
     for (const auto & text_block : text_blocks_) {
         line_count += text_block.text_lines.size();
     }
@@ -370,7 +376,8 @@ bool JsonDataSourceView::addJsonObject()
         break;
     }
 
-    QList<jsmntok_t> tokens;
+    // QList::resize/data are Qt 6+; QVector works on both.
+    QVector<jsmntok_t> tokens;
     QList<jsmntok_t *> parents;
     bool new_line = false;
     QString indent;

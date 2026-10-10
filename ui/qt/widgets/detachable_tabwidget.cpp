@@ -9,6 +9,8 @@
 
 #include <ui/qt/widgets/detachable_tabwidget.h>
 
+#include <ui/qt/qt5_compat.h>
+
 #include <QStackedWidget>
 #include <QBoxLayout>
 #include <QEvent>
@@ -203,6 +205,6 @@ void DragDropTabBar::dragEnterEvent(QDragEnterEvent *event)
 
 void DragDropTabBar::dropEvent(QDropEvent *event)
 {
-    _dragDropPos = event->position().toPoint();
+    _dragDropPos = ws_drop_pos(event);
     QTabBar::dropEvent(event);
 }

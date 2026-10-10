@@ -626,7 +626,7 @@ void MainWindow::populateRecentCapturesMenu()
         }
 #endif
 
-        if (recent_captures_menu_->actions().count() == static_cast<qsizetype>(prefs.gui_recent_files_count_max)) {
+        if (recent_captures_menu_->actions().count() == static_cast<int>(prefs.gui_recent_files_count_max)) {
             break;
         }
     }

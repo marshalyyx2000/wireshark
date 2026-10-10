@@ -8,6 +8,7 @@
  */
 
 #include <ui/qt/models/dissector_tables_model.h>
+#include <QtGlobal>
 #include <epan/ftypes/ftypes.h>
 #include <epan/packet.h>
 
@@ -360,7 +361,9 @@ filter_()
 {
     // The tree is only three levels deep so recursion is ok
     setRecursiveFilteringEnabled(true);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     setAutoAcceptChildRows(true);
+#endif
 }
 
 QVariant DissectorTablesProxyModel::headerData(int section, Qt::Orientation orientation, int role) const

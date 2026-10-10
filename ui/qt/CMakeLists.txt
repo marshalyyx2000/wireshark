@@ -7,7 +7,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 
-set(qtver "6")
+if(USE_qt5)
+	set(qtver "5")
+else()
+	set(qtver "6")
+endif()
 
 ADD_CUSTOM_CMAKE_INCLUDE()
 
@@ -1045,7 +1049,7 @@ if(NOT APPLE)
 	set(WSICON_QRC ${CMAKE_SOURCE_DIR}/resources/wsicon.qrc)
 endif()
 
-qt_add_resources(WIRESHARK_QT_QRC
+set(_WIRESHARK_QT_QRC_FILES
 	../../resources/about.qrc
 	../../resources/languages/languages.qrc
 	../../resources/layout.qrc
@@ -1057,8 +1061,17 @@ qt_add_resources(WIRESHARK_QT_QRC
 	${JSON_QRC}
 	${STYLESHEETS_QRC}
 	${THEMES_QRC}
-	OPTIONS ${CMAKE_AUTORCC_OPTIONS}
 )
+if(USE_qt5)
+	# Qt5 LinguistTools / RCC helpers (qt5_add_resources, qt5_add_translation)
+	qt5_add_resources(WIRESHARK_QT_QRC ${_WIRESHARK_QT_QRC_FILES}
+		OPTIONS ${CMAKE_AUTORCC_OPTIONS}
+	)
+else()
+	qt_add_resources(WIRESHARK_QT_QRC ${_WIRESHARK_QT_QRC_FILES}
+		OPTIONS ${CMAKE_AUTORCC_OPTIONS}
+	)
+endif()
 
 set_source_files_properties(
 	${WIRESHARK_QT_NONGENERATED_SRC}
@@ -1113,17 +1126,17 @@ add_library(qtui OBJECT
 )
 
 target_link_libraries(qtui PUBLIC
-	Qt6::Concurrent
-	Qt6::Network
-	Qt6::PrintSupport
-	Qt6::Svg
-	Qt6::Widgets
-)
-if(Qt6Multimedia_FOUND)
+	Qt${qtver}::Concurrent
+	Qt${qtver}::Network
+	Qt${qtver}::PrintSupport
+	Qt${qtver}::Svg
+	Qt${qtver}::Widgets
+	)
+if(NOT USE_qt5 AND Qt6Multimedia_FOUND)
 	target_link_libraries(qtui PUBLIC Qt6::Multimedia)
 endif()
-if(Qt6DBus_FOUND)
-	target_link_libraries(qtui PUBLIC Qt6::DBus)
+if(Qt${qtver}DBus_FOUND)
+	target_link_libraries(qtui PUBLIC Qt${qtver}::DBus)
 endif()
 
 target_include_directories(qtui
@@ -1167,21 +1180,35 @@ set_target_properties(qtui PROPERTIES
 # So to make this work properly we would need to manually do those merging
 # and deploying steps.
 #
-# Below uses the Qt 6.2 signature for qt_add_lrelease. Eventually it would
-# be good to use the newer signature in order to merge the Qt provided
-# translation catalogs.
-# https://doc.qt.io/qt-6/qtlinguist-cmake-qt-add-lrelease.html
-qt_add_lrelease(qtui
-	TS_FILES ${WIRESHARK_QT_TS}
-	QM_FILES_OUTPUT_VARIABLE WIRESHARK_QT_QM
-	OPTIONS -silent
-)
-# Translation resource (i18n)
-qt_add_resources(qtui "i18n"
-	PREFIX "/i18n"
-	BASE "${CMAKE_CURRENT_BINARY_DIR}"
-	FILES "${WIRESHARK_QT_QM}"
-)
+if(USE_qt5)
+	# Qt5: qt5_add_translation + generated i18n.qrc (no qt_add_lrelease / PREFIX API).
+	qt5_add_translation(WIRESHARK_QT_QM ${WIRESHARK_QT_TS})
+	# Name must be i18n.qrc so Q_INIT_RESOURCE(i18n) resolves (matches Qt6).
+	set(_i18n_qrc "${CMAKE_CURRENT_BINARY_DIR}/i18n.qrc")
+	set(_i18n_qrc_body "<!DOCTYPE RCC><RCC version=\"1.0\"><qresource prefix=\"/i18n\">\n")
+	foreach(_qm IN LISTS WIRESHARK_QT_QM)
+		get_filename_component(_qm_name "${_qm}" NAME)
+		string(APPEND _i18n_qrc_body "  <file alias=\"${_qm_name}\">${_qm}</file>\n")
+	endforeach()
+	string(APPEND _i18n_qrc_body "</qresource></RCC>\n")
+	file(WRITE "${_i18n_qrc}" "${_i18n_qrc_body}")
+	qt5_add_resources(_WIRESHARK_QT_I18N_RCC "${_i18n_qrc}")
+	target_sources(qtui PRIVATE ${_WIRESHARK_QT_I18N_RCC} ${WIRESHARK_QT_QM})
+else()
+	# Below uses the Qt 6.2 signature for qt_add_lrelease.
+	# https://doc.qt.io/qt-6/qtlinguist-cmake-qt-add-lrelease.html
+	qt_add_lrelease(qtui
+		TS_FILES ${WIRESHARK_QT_TS}
+		QM_FILES_OUTPUT_VARIABLE WIRESHARK_QT_QM
+		OPTIONS -silent
+	)
+	# Translation resource (i18n)
+	qt_add_resources(qtui "i18n"
+		PREFIX "/i18n"
+		BASE "${CMAKE_CURRENT_BINARY_DIR}"
+		FILES "${WIRESHARK_QT_QM}"
+	)
+endif()
 
 if(MSVC)
 	set_target_properties(qtui PROPERTIES LINK_FLAGS_DEBUG "${WS_MSVC_DEBUG_LINK_FLAGS}")

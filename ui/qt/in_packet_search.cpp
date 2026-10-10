@@ -127,7 +127,7 @@ void InPacketSearch::findNext()
     if (matches_.isEmpty()) {
         return;
     }
-    current_match_ = static_cast<qsizetype>((current_match_ + 1) % matches_.size());
+    current_match_ = static_cast<int>((current_match_ + 1) % matches_.size());
     navigateTo(current_match_);
     emit matchesChanged();
     proto_tree_->viewport()->update();
@@ -138,7 +138,7 @@ void InPacketSearch::findPrevious()
     if (matches_.isEmpty()) {
         return;
     }
-    current_match_ = static_cast<qsizetype>((current_match_ - 1 + matches_.size()) % matches_.size());
+    current_match_ = static_cast<int>((current_match_ - 1 + matches_.size()) % matches_.size());
     navigateTo(current_match_);
     emit matchesChanged();
     proto_tree_->viewport()->update();
@@ -174,7 +174,7 @@ void InPacketSearch::collectIndices(const QModelIndex &parent, QList<QModelIndex
     }
 }
 
-void InPacketSearch::navigateTo(qsizetype index)
+void InPacketSearch::navigateTo(int index)
 {
     if (index < 0 || index >= matches_.size()) {
         return;

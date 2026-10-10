@@ -190,7 +190,7 @@ bool VoipCallsInfoModel::timeOfDay() const
 void VoipCallsInfoModel::updateCalls(GQueue *callsinfos)
 {
     if (callsinfos) {
-        qsizetype calls = callinfos_.count();
+        int calls = callinfos_.count();
         int cnt = 0;
         GList *cur_call;
 

@@ -184,7 +184,7 @@ void TaggingRulesDialog::tagRuleSelectionChanged(const QItemSelection &, const Q
         selectedRows.insert(index.row(), index);
     }
 
-    qsizetype num_selected = selectedRows.count();
+    int num_selected = selectedRows.count();
 
     ui->copyToolButton->setEnabled(num_selected == 1);
     ui->deleteToolButton->setEnabled(num_selected > 0);
@@ -315,7 +315,7 @@ void TaggingRulesDialog::on_newToolButton_clicked()
 void TaggingRulesDialog::on_deleteToolButton_clicked()
 {
     QModelIndexList selectedList = ui->taggingRulesTreeView->selectionModel()->selectedIndexes();
-    qsizetype num_selected = selectedList.count() / tagRuleModel_.columnCount();
+    int num_selected = selectedList.count() / tagRuleModel_.columnCount();
     if (num_selected > 0) {
         std::sort(selectedList.begin(), selectedList.end());
         for (int i = static_cast<int>(selectedList.count()) - 1; i >= 0; i--) {

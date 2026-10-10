@@ -54,7 +54,7 @@ QStringList FilterCompleter::splitPath(const QString &path) const
     // Match against the final token. With an explicit token-character set we
     // walk back from the end while characters remain valid; otherwise we fall
     // back to the last whitespace-delimited word.
-    qsizetype start = path.length();
+    int start = path.length();
     while (start > 0) {
         const QChar c = path.at(start - 1);
         const bool in_token = token_chars_.isEmpty() ? !c.isSpace()

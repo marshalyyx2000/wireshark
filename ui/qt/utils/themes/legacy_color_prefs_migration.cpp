@@ -11,6 +11,7 @@
 
 #include "ui/qt/utils/themes/legacy_color_prefs_migration.h"
 
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/utils/theme_manager.h>
 #include <ui/qt/utils/workspace_state.h>
 
@@ -133,7 +134,7 @@ QHash<QString, QString> readUserCustomizations(const QString &prefsPath)
         const QString line = in.readLine().trimmed();
         if (line.isEmpty() || line.startsWith('#'))
             continue;
-        const qsizetype colon = line.indexOf(':');
+        const WsSizeType colon = line.indexOf(':');
         if (colon <= 0)
             continue;
         const QString key = line.left(colon).trimmed();
@@ -331,7 +332,7 @@ bool stripLegacyKeysFromPrefs(const QString &prefsPath)
         const QString trimmed = raw.trimmed();
         bool drop = false;
         if (!trimmed.isEmpty() && !trimmed.startsWith('#')) {
-            const qsizetype colon = trimmed.indexOf(':');
+            const WsSizeType colon = trimmed.indexOf(':');
             if (colon > 0
                 && keys.contains(trimmed.left(colon).trimmed())) {
                 drop = true;

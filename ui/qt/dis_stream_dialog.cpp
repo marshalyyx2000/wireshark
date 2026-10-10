@@ -58,7 +58,11 @@ DisStreamDialog::DisStreamTreeWidgetItem::operator<(const QTreeWidgetItem &other
     QVariant rhs = other.data(sort_col, Qt::UserRole);
 
     if (lhs.isValid() && rhs.isValid()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         if (lhs.metaType().id() == QMetaType::Double || rhs.metaType().id() == QMetaType::Double) {
+#else
+        if (lhs.userType() == QMetaType::Double || rhs.userType() == QMetaType::Double) {
+#endif
             return lhs.toDouble() < rhs.toDouble();
         }
 

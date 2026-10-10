@@ -226,7 +226,7 @@ QModelIndexList ProfileDialog::selectedProfiles()
 void ProfileDialog::selectionChanged()
 {
     QModelIndexList profiles = selectedProfiles();
-    qsizetype numSelected = profiles.count();
+    int numSelected = profiles.count();
 
     QModelIndex index = sort_model_->mapToSource(pd_ui_->profileTreeView->currentIndex());
     // Ensure that the index is always the name column

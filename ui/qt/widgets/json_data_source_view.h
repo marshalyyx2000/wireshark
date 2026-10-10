@@ -227,7 +227,7 @@ private:
     int line_height_;           // Font line spacing
 
     /** The maximum line length in characters. */
-    qsizetype max_line_length_; // In characters
+    int max_line_length_; // In characters
 
     /** The root node of the dissected JSON protocol tree. */
     proto_node *root_node_;

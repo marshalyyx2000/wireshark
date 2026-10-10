@@ -21,6 +21,7 @@
 
 #include <QAbstractButton>
 #include <QPushButton>
+#include <QSet>
 #include <QStandardItemModel>
 
 namespace Ui {

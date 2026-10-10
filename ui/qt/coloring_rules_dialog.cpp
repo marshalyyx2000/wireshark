@@ -300,7 +300,7 @@ void ColoringRulesDialog::colorRuleSelectionChanged(const QItemSelection&, const
         selectedRows.insert(index.row(), index);
     }
 
-    qsizetype num_selected = selectedRows.count();
+    int num_selected = selectedRows.count();
     if (num_selected == 1) {
         setColorButtons(selectedList[0]);
     }
@@ -384,7 +384,7 @@ void ColoringRulesDialog::on_newToolButton_clicked()
 void ColoringRulesDialog::on_deleteToolButton_clicked()
 {
     QModelIndexList selectedList = ui->coloringRulesTreeView->selectionModel()->selectedIndexes();
-    qsizetype num_selected = selectedList.count() / colorRuleModel_.columnCount();
+    int num_selected = selectedList.count() / colorRuleModel_.columnCount();
     if (num_selected > 0) {
         //list is not guaranteed to be sorted, so force it
         std::sort(selectedList.begin(), selectedList.end());

@@ -9,6 +9,7 @@
 
 #include "tcp_stream_dialog.h"
 #include <ui_tcp_stream_dialog.h>
+#include "qt5_compat.h"
 
 #include <algorithm> // for std::sort
 #include <utility> // for std::pair
@@ -1006,7 +1007,7 @@ void TCPStreamDialog::moveLegend()
 {
     if (QAction *contextAction = qobject_cast<QAction*>(sender())) {
         if (contextAction->data().canConvert<Qt::Alignment::Int>()) {
-            ui->streamPlot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::Alignment::fromInt(contextAction->data().value<Qt::Alignment::Int>()));
+            ui->streamPlot->axisRect()->insetLayout()->setInsetAlignment(0, ws_alignment_from_int(contextAction->data().toInt()));
             ui->streamPlot->replot();
         }
     }
@@ -2003,12 +2004,12 @@ void TCPStreamDialog::showContextMenu(const QPoint& pos)
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addAction(ui->actionLegend);
         menu->addSeparator();
-        menu->addAction(tr("Move to top left"), this, &TCPStreamDialog::moveLegend)->setData((Qt::AlignTop|Qt::AlignLeft).toInt());
-        menu->addAction(tr("Move to top center"), this, &TCPStreamDialog::moveLegend)->setData((Qt::AlignTop|Qt::AlignHCenter).toInt());
-        menu->addAction(tr("Move to top right"), this, &TCPStreamDialog::moveLegend)->setData((Qt::AlignTop|Qt::AlignRight).toInt());
-        menu->addAction(tr("Move to bottom left"), this, &TCPStreamDialog::moveLegend)->setData((Qt::AlignBottom|Qt::AlignLeft).toInt());
-        menu->addAction(tr("Move to bottom center"), this, &TCPStreamDialog::moveLegend)->setData((Qt::AlignBottom|Qt::AlignHCenter).toInt());
-        menu->addAction(tr("Move to bottom right"), this, &TCPStreamDialog::moveLegend)->setData((Qt::AlignBottom|Qt::AlignRight).toInt());
+        menu->addAction(tr("Move to top left"), this, &TCPStreamDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop|Qt::AlignLeft));
+        menu->addAction(tr("Move to top center"), this, &TCPStreamDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop|Qt::AlignHCenter));
+        menu->addAction(tr("Move to top right"), this, &TCPStreamDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop|Qt::AlignRight));
+        menu->addAction(tr("Move to bottom left"), this, &TCPStreamDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom|Qt::AlignLeft));
+        menu->addAction(tr("Move to bottom center"), this, &TCPStreamDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom|Qt::AlignHCenter));
+        menu->addAction(tr("Move to bottom right"), this, &TCPStreamDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom|Qt::AlignRight));
         menu->popup(ui->streamPlot->mapToGlobal(pos));
     } else {
         ctx_menu_.popup(ui->streamPlot->mapToGlobal(pos));

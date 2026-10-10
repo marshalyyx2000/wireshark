@@ -10,6 +10,7 @@
 #define WS_LOG_DOMAIN LOG_DOMAIN_QTUI
 #include "io_graph_dialog.h"
 #include <ui_io_graph_dialog.h>
+#include "qt5_compat.h"
 
 #include "file.h"
 #include "locale.h"
@@ -678,7 +679,7 @@ void IOGraphDialog::syncGraphSettings(int row)
     }
 }
 
-qsizetype IOGraphDialog::graphCount() const
+int IOGraphDialog::graphCount() const
 {
     return uat_model_ ? uat_model_->rowCount() : ioGraphs_.size();
 }
@@ -1241,12 +1242,12 @@ void IOGraphDialog::showContextMenu(const QPoint &pos)
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addAction(ui->actionLegend);
         menu->addSeparator();
-        menu->addAction(tr("Move to top left"), this, &IOGraphDialog::moveLegend)->setData((Qt::AlignTop|Qt::AlignLeft).toInt());
-        menu->addAction(tr("Move to top center"), this, &IOGraphDialog::moveLegend)->setData((Qt::AlignTop|Qt::AlignHCenter).toInt());
-        menu->addAction(tr("Move to top right"), this, &IOGraphDialog::moveLegend)->setData((Qt::AlignTop|Qt::AlignRight).toInt());
-        menu->addAction(tr("Move to bottom left"), this, &IOGraphDialog::moveLegend)->setData((Qt::AlignBottom|Qt::AlignLeft).toInt());
-        menu->addAction(tr("Move to bottom center"), this, &IOGraphDialog::moveLegend)->setData((Qt::AlignBottom|Qt::AlignHCenter).toInt());
-        menu->addAction(tr("Move to bottom right"), this, &IOGraphDialog::moveLegend)->setData((Qt::AlignBottom|Qt::AlignRight).toInt());
+        menu->addAction(tr("Move to top left"), this, &IOGraphDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop|Qt::AlignLeft));
+        menu->addAction(tr("Move to top center"), this, &IOGraphDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop|Qt::AlignHCenter));
+        menu->addAction(tr("Move to top right"), this, &IOGraphDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop|Qt::AlignRight));
+        menu->addAction(tr("Move to bottom left"), this, &IOGraphDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom|Qt::AlignLeft));
+        menu->addAction(tr("Move to bottom center"), this, &IOGraphDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom|Qt::AlignHCenter));
+        menu->addAction(tr("Move to bottom right"), this, &IOGraphDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom|Qt::AlignRight));
         menu->popup(ui->ioPlot->mapToGlobal(pos));
     } else if (ui->ioPlot->xAxis->selectTest(pos, false, nullptr) >= 0) {
         QMenu *menu = new QMenu(this);
@@ -1359,7 +1360,7 @@ void IOGraphDialog::moveLegend()
 {
     if (QAction *contextAction = qobject_cast<QAction*>(sender())) {
         if (contextAction->data().canConvert<Qt::Alignment::Int>()) {
-            ui->ioPlot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::Alignment::fromInt(contextAction->data().value<Qt::Alignment::Int>()));
+            ui->ioPlot->axisRect()->insetLayout()->setInsetAlignment(0, ws_alignment_from_int(contextAction->data().toInt()));
             ui->ioPlot->replot();
         }
     }
@@ -1645,7 +1646,7 @@ void IOGraphDialog::modelRowsMoved(const QModelIndex &source, int sourceStart, i
 void IOGraphDialog::graphUatSelectionChanged(const QItemSelection&, const QItemSelection&)
 {
     QModelIndexList selectedRows = ui->graphUat->selectionModel()->selectedRows();
-    qsizetype num_selected = selectedRows.size();
+    int num_selected = selectedRows.size();
     if (num_selected > 0) {
         std::sort(selectedRows.begin(), selectedRows.end());
         ui->deleteToolButton->setEnabled(true);

@@ -27,6 +27,7 @@
 
 #include <epan/color_filters.h>
 
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/utils/color_utils.h>
 #include <ui/qt/utils/qt_ui_utils.h>
 #include "main_application.h"
@@ -109,7 +110,7 @@ static void accumulate_rgb(float rgb[TIMELINE_HEIGHT][3], int height, int dfilte
 
 void WirelessTimeline::mousePressEvent(QMouseEvent *event)
 {
-    start_x = last_x = event->position().x();
+    start_x = last_x = ws_mouse_posf(event).x();
 }
 
 
@@ -118,8 +119,8 @@ void WirelessTimeline::mouseMoveEvent(QMouseEvent *event)
     if (event->buttons() == Qt::NoButton)
         return;
 
-    qreal offset = event->position().x() - last_x;
-    last_x = event->position().x();
+    qreal offset = ws_mouse_posf(event).x() - last_x;
+    last_x = ws_mouse_posf(event).x();
 
     qreal shift = ((qreal) (end_tsf - start_tsf))/width() * offset;
     start_tsf -= shift;
@@ -135,7 +136,7 @@ void WirelessTimeline::mouseMoveEvent(QMouseEvent *event)
 
 void WirelessTimeline::mouseReleaseEvent(QMouseEvent *event)
 {
-    QPointF localPos = event->position();
+    QPointF localPos = ws_mouse_posf(event);
     qreal offset = localPos.x() - start_x;
 
     /* if this was a drag, ignore it */

@@ -16,6 +16,8 @@
 #include <QAbstractProxyModel>
 #include <QList>
 
+#include "qt5_compat.h"
+
 class PacketListProxyModel;
 
 /**
@@ -142,7 +144,7 @@ private slots:
      * @param roles The roles that changed, forwarded as-is.
      */
     void sourceDataChanged(const QModelIndex &source_top_left, const QModelIndex &source_bottom_right,
-                           const QList<int> &roles);
+                           const WsModelRoles &roles);
 
 private:
     QList<int> pinned_frame_nums_;

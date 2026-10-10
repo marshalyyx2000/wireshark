@@ -508,7 +508,7 @@ public:
      *
      * @return int > 0 if graph colors are defined, 0 if not.
      */
-    qsizetype graphColorCount() const;
+    int graphColorCount() const;
 
 signals:
     void themeChanged();

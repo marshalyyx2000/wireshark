@@ -511,7 +511,7 @@ void SoftwareUpdate::onNetworkReplyFinished(QNetworkReply* reply)
     }
 
     #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
-        qsizetype suffix;
+        int suffix;
     #else
         int suffix;
     #endif

@@ -9,6 +9,8 @@
 
 #include <ui/qt/widgets/label_stack.h>
 
+#include <ui/qt/qt5_compat.h>
+
 #include <QContextMenuEvent>
 #include <QPainter>
 #include <QMouseEvent>
@@ -105,7 +107,7 @@ void LabelStack::setShrinkable(bool shrinkable)
 void LabelStack::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
-        emit mousePressedAt(event->globalPosition().toPoint(), Qt::LeftButton);
+        emit mousePressedAt(ws_mouse_global_pos(event), Qt::LeftButton);
     }
 }
 

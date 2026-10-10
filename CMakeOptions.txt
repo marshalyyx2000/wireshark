@@ -91,6 +91,10 @@ option(ENABLE_MINIMAL_BUILD
 	"极简构建：仅保留 MMS/GOOSE/SV/IEC-103-104/Modbus 与基础协议，并裁剪高级 GUI/资产"
 	OFF)
 
+option(USE_qt5
+	"Build GUI against Qt5 (for Ubuntu 16.04 / Qt 5.14.x). Default OFF keeps Qt6."
+	OFF)
+
 option(ENABLE_PCAP       "Enable libpcap support (required for capturing)" ON)
 option(BUILD_SHARED_LIBS            "Build Wireshark libraries as shared" ON)
 option(USE_STATIC               "Always link statically with external libraries" OFF)

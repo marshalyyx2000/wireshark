@@ -20,6 +20,8 @@
 
 #include "rowmove_tree_view.h"
 
+#include <ui/qt/qt5_compat.h>
+
 #include <QDropEvent>
 
 RowMoveTreeView::RowMoveTreeView(QWidget *parent) : TabnavTreeView(parent)
@@ -48,7 +50,7 @@ void RowMoveTreeView::dropEvent(QDropEvent *event)
             return;
         }
 
-        QModelIndex destIndex = indexAt(event->position().toPoint());
+        QModelIndex destIndex = indexAt(ws_drop_pos(event));
         if (!destIndex.isValid() || destIndex.row() == -1) {
             destIndex = model()->index(model()->rowCount() - 1, 0);
         }

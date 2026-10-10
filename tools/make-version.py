@@ -326,6 +326,22 @@ def read_git_archive(tagged_version_extra, untagged_version_extra):
     return repo_data
 
 
+def _resolve_git_dir(src_dir):
+    """Resolve .git file/dir; map Windows drive paths for WSL/Linux builds."""
+    git_path = os.path.join(src_dir, '.git')
+    if os.path.isfile(git_path):
+        with open(git_path, encoding='utf-8') as git_file:
+            line = git_file.read().strip()
+        if line.lower().startswith('gitdir:'):
+            git_path = line.split(':', 1)[1].strip()
+    if os.name != 'nt':
+        # F:/foo/bar -> /mnt/f/foo/bar (Windows worktree checked out under WSL)
+        m = re.match(r'^([A-Za-z]):[/\\](.*)$', git_path)
+        if m:
+            git_path = '/mnt/' + m.group(1).lower() + '/' + m.group(2).replace('\\', '/')
+    return git_path
+
+
 def read_git_repo(src_dir, tagged_version_extra, untagged_version_extra):
     # Reads metadata from the git repo for generating the version string
     # Returns the data in a dict
@@ -335,11 +351,17 @@ def read_git_repo(src_dir, tagged_version_extra, untagged_version_extra):
         print("Git unavailable. Git revision will be missing from version string.", file=sys.stderr)
         return {}
 
-    GIT_DIR = os.path.join(src_dir, '.git')
+    GIT_DIR = _resolve_git_dir(src_dir)
     # Check whether to include VCS version information in vcs_version.h
     enable_vcsversion = True
     git_get_commondir_cmd = shlex.split(f'git --git-dir="{GIT_DIR}" rev-parse --git-common-dir')
     git_commondir = subprocess.check_output(git_get_commondir_cmd, universal_newlines=True).strip()
+    if os.name != 'nt':
+        m = re.match(r'^([A-Za-z]):[/\\](.*)$', git_commondir)
+        if m:
+            git_commondir = '/mnt/' + m.group(1).lower() + '/' + m.group(2).replace('\\', '/')
+        elif git_commondir and not os.path.isabs(git_commondir):
+            git_commondir = os.path.normpath(os.path.join(GIT_DIR, git_commondir))
     if git_commondir and os.path.exists(f"{git_commondir}{os.sep}wireshark-disable-versioning"):
         print("Header versioning disabled using git override.")
         enable_vcsversion = False

@@ -11,6 +11,8 @@
 
 #include <ui/qt/widgets/clickable_label.h>
 
+#include <ui/qt/qt5_compat.h>
+
 #include <QMouseEvent>
 
 ClickableLabel::ClickableLabel(QWidget* parent)
@@ -36,7 +38,7 @@ void ClickableLabel::mouseReleaseEvent(QMouseEvent * event)
 void ClickableLabel::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton)
-        emit clickedAt(event->globalPosition().toPoint(), Qt::LeftButton);
+        emit clickedAt(ws_mouse_global_pos(event), Qt::LeftButton);
 }
 
 void ClickableLabel::contextMenuEvent(QContextMenuEvent *event)

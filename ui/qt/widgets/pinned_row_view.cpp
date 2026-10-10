@@ -233,7 +233,11 @@ void PinnedRowView::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
     QStyleOptionViewItem option;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     initViewItemOption(&option);
+#else
+    option = viewOptions();
+#endif
     option.rect = visualRect(index);
     static_cast<QAbstractItemDelegate &>(
         const_cast<TagColumnDelegate &>(packet_list_->tagColumnDelegate()))

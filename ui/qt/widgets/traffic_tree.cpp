@@ -19,6 +19,7 @@
 
 #include "ui/recent.h"
 
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/utils/qt_ui_utils.h>
 #include <ui/qt/main_application.h>
 #include <ui/qt/main_window.h>
@@ -360,6 +361,7 @@ bool TrafficDataFilterProxy::filterAcceptsRow(int source_row, const QModelIndex 
                     }
                 }
             }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             QPartialOrdering result = QVariant::compare(data, rhs);
             if (_filterOn == TrafficDataFilterProxy::TRAFFIC_DATA_LESS)
                 filtered = result < 0;
@@ -367,6 +369,14 @@ bool TrafficDataFilterProxy::filterAcceptsRow(int source_row, const QModelIndex 
                 filtered = result > 0;
             else if (_filterOn == TrafficDataFilterProxy::TRAFFIC_DATA_EQUAL)
                 filtered = result == 0;
+#else
+            if (_filterOn == TrafficDataFilterProxy::TRAFFIC_DATA_LESS)
+                filtered = data < rhs;
+            else if (_filterOn == TrafficDataFilterProxy::TRAFFIC_DATA_GREATER)
+                filtered = data > rhs;
+            else if (_filterOn == TrafficDataFilterProxy::TRAFFIC_DATA_EQUAL)
+                filtered = data == rhs;
+#endif
 
             if (!filtered)
                 return false;
@@ -789,7 +799,7 @@ void TrafficTree::widenColumnToContents(int col)
 }
 
 
-void TrafficTree::handleDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int>)
+void TrafficTree::handleDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const WsModelRoles &)
 {
     for (int col = topLeft.column(); col <= bottomRight.column(); ++col) {
         widenColumnToContents(col);

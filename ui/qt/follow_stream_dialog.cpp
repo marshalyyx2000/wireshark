@@ -142,16 +142,16 @@ FollowStreamDialog::FollowStreamDialog(QWidget &parent, CaptureFile &cf, int pro
 
     ProgressFrame::addToButtonBox(ui->buttonBox, &parent);
 
-    connect(ui->cbDirections, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(ui->cbDirections, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)),
             this, &FollowStreamDialog::cbDirectionsCurrentIndexChanged);
-    connect(ui->cbCharset, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(ui->cbCharset, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)),
             this, &FollowStreamDialog::cbCharsetCurrentIndexChanged);
-    connect(ui->deltaComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(ui->deltaComboBox, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)),
             this, &FollowStreamDialog::deltaComboBoxCurrentIndexChanged);
 
-    connect(ui->streamNumberSpinBox, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+    connect(ui->streamNumberSpinBox, static_cast<void (QSpinBox::*)(int)>(QOverload<int>::of(&QSpinBox::valueChanged)),
             this, &FollowStreamDialog::streamNumberSpinBoxValueChanged);
-    connect(ui->subStreamNumberSpinBox, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+    connect(ui->subStreamNumberSpinBox, static_cast<void (QSpinBox::*)(int)>(QOverload<int>::of(&QSpinBox::valueChanged)),
             this, &FollowStreamDialog::subStreamNumberSpinBoxValueChanged);
 
     connect(ui->buttonBox, &QDialogButtonBox::helpRequested, this, &FollowStreamDialog::helpButton);
@@ -686,7 +686,7 @@ void FollowStreamDialog::keyPressEvent(QKeyEvent *event)
 // Causes buffer to detach/deep copy *only* if a character has to be
 // replaced.
 static inline void sanitize_buffer(QByteArray &buffer, size_t nchars) {
-    for (qsizetype i = 0; i < (qsizetype)nchars; i++) {
+    for (int i = 0; i < (int)nchars; i++) {
         if (buffer.at(i) == '\n' || buffer.at(i) == '\r' || buffer.at(i) == '\t')
             continue;
         if (! g_ascii_isprint((unsigned char)buffer.at(i))) {

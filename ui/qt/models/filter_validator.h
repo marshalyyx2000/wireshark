@@ -81,7 +81,7 @@ public:
      */
     static QString createSyntaxErrorMessageFull(const QString &filter,
                                                 const QString &err_msg,
-                                                qsizetype loc_start,
+                                                int loc_start,
                                                 size_t loc_length);
 };
 

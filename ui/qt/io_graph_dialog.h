@@ -223,7 +223,7 @@ public:
      * @brief Return the number of graphs currently in the dialog.
      * @return The size of the @c ioGraphs_ vector.
      */
-    qsizetype graphCount() const;
+    int graphCount() const;
 
 
 public slots:

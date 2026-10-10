@@ -76,8 +76,10 @@ public:
         m_band = band;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
         endFilterChange(QSortFilterProxyModel::Direction::Rows);
-#else
+#elif QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         invalidateRowsFilter();
+#else
+        invalidateFilter();
 #endif
     }
     void addItem(const QString& text, enum ws80211_band_type band, const QVariant &data = QVariant())
@@ -135,8 +137,10 @@ public:
         m_mask = mask;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
         endFilterChange(QSortFilterProxyModel::Direction::Rows);
-#else
+#elif QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         invalidateRowsFilter();
+#else
+        invalidateFilter();
 #endif
     }
 
@@ -189,10 +193,10 @@ WirelessFrame::WirelessFrame(QWidget *parent) :
     proxy = new ChanTypeProxyModel(this);
     ui->channelTypeComboBox->setModel(proxy);
 
-    connect(ui->bandComboBox, &QComboBox::currentIndexChanged,
+    connect(ui->bandComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &WirelessFrame::bandComboBoxIndexChanged);
 
-    connect(ui->channelComboBox, &QComboBox::currentIndexChanged,
+    connect(ui->channelComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &WirelessFrame::channelComboBoxIndexChanged);
 
     updateInterfaceList();

@@ -102,7 +102,7 @@ MainWindowPreferencesFrame::MainWindowPreferencesFrame(QWidget *parent) :
             lang.replace(0, 1, lang.at(0).toUpper());
         }
 
-        langs.emplaceBack(lang, locale);
+        langs.append(qMakePair(lang, QVariant(locale)));
     }
 
     // Use the system locale for collation (Qt uses the CLDR guidelines.) That
@@ -130,7 +130,7 @@ MainWindowPreferencesFrame::MainWindowPreferencesFrame(QWidget *parent) :
         ui->languageComboBox->setCurrentIndex(i);
     }
 
-    connect(ui->languageComboBox, &QComboBox::currentIndexChanged,
+    connect(ui->languageComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
         this, &MainWindowPreferencesFrame::languageComboBoxCurrentIndexChanged);
 }
 

@@ -761,7 +761,7 @@ void PacketListModel::flushNewRows()
 int PacketListModel::appendPacket(frame_data *fdata)
 {
     PacketListRecord *record = new PacketListRecord(fdata);
-    qsizetype pos = physical_rows_.size();
+    int pos = physical_rows_.size();
 
 #ifdef DEBUG_PACKET_LIST_MODEL
     if (fdata->num % 10000 == 1) {

@@ -187,7 +187,7 @@ void ByteViewTextCells::appendRun(const QVector<CodePoint> &run)
     int first = 0;    // First code point of the current cluster.
     int last = 0;     // Code point that starts at text_pos.
     int text_pos = 0;
-    for (qsizetype boundary = finder.toNextBoundary(); boundary >= 0; boundary = finder.toNextBoundary()) {
+    for (int boundary = finder.toNextBoundary(); boundary >= 0; boundary = finder.toNextBoundary()) {
         while (last < run_size && text_pos < boundary) {
             text_pos += QChar::requiresSurrogates(run.at(last).uc) ? 2 : 1;
             last++;

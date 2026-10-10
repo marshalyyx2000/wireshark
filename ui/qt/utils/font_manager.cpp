@@ -289,8 +289,8 @@ QFont FontManager::fontFromName(const QString &name)
         // https://doc.qt.io/qt-6.10/qfont.html#toString
         // On earlier versions, strip any attributes after 17.
         const auto parts = name.trimmed().split(QLatin1Char(','));
-        constexpr qsizetype maxAttributes = 17;
-        const qsizetype size = parts.size();
+        constexpr int maxAttributes = 17;
+        const int size = parts.size();
 
         if (size > maxAttributes) {
             // QList.first is Qt 6.0

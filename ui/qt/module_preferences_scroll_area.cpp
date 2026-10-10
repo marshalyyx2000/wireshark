@@ -417,7 +417,7 @@ ModulePreferencesScrollArea::ModulePreferencesScrollArea(module_t *module, QWidg
         if (!pref) continue;
 
         if (prefs_get_type(pref) == PREF_ENUM && !prefs_get_enum_radiobuttons(pref)) {
-            connect(combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            connect(combo, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)),
                     this, &ModulePreferencesScrollArea::enumComboBoxCurrentIndexChanged);
         }
     }
@@ -427,7 +427,7 @@ ModulePreferencesScrollArea::ModulePreferencesScrollArea(module_t *module, QWidg
         if (!pref) continue;
 
         if (prefs_get_type(pref) == PREF_PROTO_TCP_SNDAMB_ENUM && !prefs_get_enum_radiobuttons(pref)) {
-            connect(combo, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            connect(combo, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)),
                     this, &ModulePreferencesScrollArea::enumComboBoxCurrentIndexChanged_PROTO_TCP);
         }
     }

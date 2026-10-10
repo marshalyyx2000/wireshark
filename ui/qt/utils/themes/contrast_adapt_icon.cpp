@@ -12,6 +12,7 @@
 #include <ui/qt/utils/themes/contrast_adapt_icon.h>
 #include <ui/qt/utils/themes/color_math.h>
 #include <ui/qt/utils/theme_manager.h>
+#include "qt5_compat.h"
 
 #include <QApplication>
 #include <QFile>
@@ -199,7 +200,7 @@ private:
         while (it.hasNext()) {
             const QString el = it.next().captured(0);
             const QRegularExpressionMatch bm = baseAttr.match(el);
-            const QColor base = bm.hasMatch() ? QColor::fromString(bm.captured(1)) : QColor();
+            const QColor base = bm.hasMatch() ? ws_color_from_string(bm.captured(1)) : QColor();
             if (!base.isValid())
                 continue;
             StateColors sc;
@@ -207,11 +208,11 @@ private:
             const QRegularExpressionMatch sm = selectedAttr.match(el);
             const QRegularExpressionMatch nom = normal_onAttr.match(el);
             if (am.hasMatch())
-                sc.active = QColor::fromString(am.captured(1));
+                sc.active = ws_color_from_string(am.captured(1));
             if (sm.hasMatch())
-                sc.selected = QColor::fromString(sm.captured(1));
+                sc.selected = ws_color_from_string(sm.captured(1));
             if (nom.hasMatch())
-                sc.normal_on = QColor::fromString(nom.captured(1));
+                sc.normal_on = ws_color_from_string(nom.captured(1));
             // Key on the canonical #rrggbb form so it matches the drawn literal
             // regardless of how either was spelled.
             swaps_.insert(base.name(), sc);
@@ -239,7 +240,7 @@ private:
             const QRegularExpressionMatch tm = tokenAttr.match(el);
             if (!cm.hasMatch() || !tm.hasMatch())
                 continue;
-            const QColor color = QColor::fromString(cm.captured(1));
+            const QColor color = ws_color_from_string(cm.captured(1));
             if (!color.isValid())
                 continue;
             // Accept an optional "ThemeToken:" / "ThemeManager::" style prefix.
@@ -299,17 +300,17 @@ private:
         QString out;
         out.reserve(svg_.size());
         const QRegularExpression &re = paintColorRe();
-        qsizetype last = 0;
+        WsSizeType last = 0;
         auto it = re.globalMatch(svg_);
         while (it.hasNext()) {
             const QRegularExpressionMatch m = it.next();
-            out += QStringView{svg_}.mid(last, m.capturedStart(1) - last);
-            const QColor c = QColor::fromString(m.captured(1));
+            out += svg_.mid(last, m.capturedStart(1) - last);
+            const QColor c = ws_color_from_string(m.captured(1));
             const QColor a = c.isValid() ? finalColor(c, mode, state, bg) : c;
             out += a.isValid() ? a.name() : m.captured(1);
             last = m.capturedEnd(1);
         }
-        out += QStringView{svg_}.mid(last);
+        out += svg_.mid(last);
         return out;
     }
 

@@ -11,6 +11,7 @@
 
 #include <ui/qt/widgets/display_filter_entry.h>
 
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/models/display_filter_validator.h>
 #include <ui/qt/models/display_filter_completer.h>
 #include <ui/qt/models/display_filter_history_model.h>
@@ -271,7 +272,7 @@ void DisplayFilterEntry::createFilterTextDropMenu(QDropEvent *event, bool prepar
     FilterAction::Action filterAct = prepare ? FilterAction::ActionPrepare : FilterAction::ActionApply;
     QMenu *applyMenu = FilterAction::createFilterMenu(filterAct, filterText, true, this);
     applyMenu->setAttribute(Qt::WA_DeleteOnClose);
-    applyMenu->popup(mapToGlobal(event->position().toPoint()));
+    applyMenu->popup(mapToGlobal(ws_drop_pos(event)));
 }
 
 void DisplayFilterEntry::contextMenuEvent(QContextMenuEvent *event)

@@ -284,7 +284,7 @@ signals:
      * @param fdata Pointer to the frame data.
      * @param row The row index where the packet was added.
      */
-    void packetAppended(capture_file *cap_file, frame_data *fdata, qsizetype row);
+    void packetAppended(capture_file *cap_file, frame_data *fdata, int row);
 
 public slots:
     /**

@@ -563,7 +563,7 @@ QString scaleStyleSheetFontSizes(const QString &qss, qreal factor)
 
     QString out;
     out.reserve(qss.size());
-    qsizetype last = 0;
+    int last = 0;
     auto it = propRe.globalMatch(qss);
     while (it.hasNext()) {
         const QRegularExpressionMatch m = it.next();
@@ -572,7 +572,7 @@ QString scaleStyleSheetFontSizes(const QString &qss, qreal factor)
         const QString value = m.captured(1);
         QString scaledValue;
         scaledValue.reserve(value.size());
-        qsizetype vlast = 0;
+        int vlast = 0;
         auto vit = sizeRe.globalMatch(value);
         while (vit.hasNext()) {
             const QRegularExpressionMatch vm = vit.next();
@@ -829,7 +829,7 @@ QColor ThemeManager::graphDefaultColor() const
 }
 
 
-qsizetype ThemeManager::graphColorCount() const
+int ThemeManager::graphColorCount() const
 {
     return graphColors_.size();
 }

@@ -11,6 +11,7 @@
 #define SYNTAX_LINE_EDIT_H
 
 #include <QLineEdit>
+#include <ui/qt/qt5_compat.h>
 
 class QCompleter;
 class QStringListModel;
@@ -114,7 +115,7 @@ public:
      */
     static QString createSyntaxErrorMessageFull(const QString &filter,
                                                 const QString &err_msg,
-                                                qsizetype loc_start,
+                                                WsSizeType loc_start,
                                                 size_t loc_length);
 
 public slots:

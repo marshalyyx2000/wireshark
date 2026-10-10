@@ -9,6 +9,8 @@
 
 #include "compression_group_box.h"
 
+#include <QtGlobal>
+#include <QAbstractButton>
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QVBoxLayout>
@@ -48,7 +50,12 @@ CompressionGroupBox::CompressionGroupBox(QWidget *parent) :
 
     setLayout(vbox);
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(bg_, &QButtonGroup::idToggled, [=] { emit stateChanged(); });
+#else
+    connect(bg_, QOverload<QAbstractButton *, bool>::of(&QButtonGroup::buttonToggled),
+            this, [this](QAbstractButton *, bool) { emit stateChanged(); });
+#endif
 }
 
 CompressionGroupBox::~CompressionGroupBox()

@@ -201,13 +201,13 @@ void ConversationDialog::showGraphIO()
     if(lst_ids.size()>0) {
         // id based list
         QList<QVariant> lst_vars = lst_ids.at(0);
-        for (qsizetype i = 1; i < lst_vars.size(); ++i) {
+        for (int i = 1; i < lst_vars.size(); ++i) {
             typed_conv_ids.append(lst_vars[i].toInt());
         }
 
         // aggregated based list
         lst_vars = lst_ids.at(1);
-        for (qsizetype i = 1; i < lst_vars.size(); ++i) {
+        for (int i = 1; i < lst_vars.size(); ++i) {
             agg_conv_filters.append(lst_vars[i]);
         }
     }

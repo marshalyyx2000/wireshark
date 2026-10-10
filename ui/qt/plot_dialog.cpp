@@ -13,6 +13,7 @@
 #define WS_LOG_DOMAIN LOG_DOMAIN_QTUI
 #include "plot_dialog.h"
 #include <ui_plot_dialog.h>
+#include "qt5_compat.h"
 
 #include <epan/uat-int.h>
 
@@ -1016,12 +1017,12 @@ void PlotDialog::showContextMenu(const QPoint& pos)
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addAction(ui->actionLegend);
         menu->addSeparator();
-        menu->addAction(tr("Move to top left"), this, &PlotDialog::moveLegend)->setData((Qt::AlignTop | Qt::AlignLeft).toInt());
-        menu->addAction(tr("Move to top center"), this, &PlotDialog::moveLegend)->setData((Qt::AlignTop | Qt::AlignHCenter).toInt());
-        menu->addAction(tr("Move to top right"), this, &PlotDialog::moveLegend)->setData((Qt::AlignTop | Qt::AlignRight).toInt());
-        menu->addAction(tr("Move to bottom left"), this, &PlotDialog::moveLegend)->setData((Qt::AlignBottom | Qt::AlignLeft).toInt());
-        menu->addAction(tr("Move to bottom center"), this, &PlotDialog::moveLegend)->setData((Qt::AlignBottom | Qt::AlignHCenter).toInt());
-        menu->addAction(tr("Move to bottom right"), this, &PlotDialog::moveLegend)->setData((Qt::AlignBottom | Qt::AlignRight).toInt());
+        menu->addAction(tr("Move to top left"), this, &PlotDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop | Qt::AlignLeft));
+        menu->addAction(tr("Move to top center"), this, &PlotDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop | Qt::AlignHCenter));
+        menu->addAction(tr("Move to top right"), this, &PlotDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignTop | Qt::AlignRight));
+        menu->addAction(tr("Move to bottom left"), this, &PlotDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom | Qt::AlignLeft));
+        menu->addAction(tr("Move to bottom center"), this, &PlotDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom | Qt::AlignHCenter));
+        menu->addAction(tr("Move to bottom right"), this, &PlotDialog::moveLegend)->setData(ws_alignment_to_int(Qt::AlignBottom | Qt::AlignRight));
         menu->popup(ui->plot->mapToGlobal(pos));
     }
     else if (ui->plot->xAxis2->selectTest(pos, false) >= 0) {
@@ -1062,7 +1063,7 @@ void PlotDialog::moveLegend()
 {
     if (QAction* contextAction = qobject_cast<QAction*>(sender())) {
         if (contextAction->data().canConvert<Qt::Alignment::Int>()) {
-            Qt::Alignment alignment = Qt::Alignment::fromInt(contextAction->data().value<Qt::Alignment::Int>());
+            Qt::Alignment alignment = ws_alignment_from_int(contextAction->data().toInt());
             legend_alignment_ = alignment;
             updateLegendPos();
             ui->plot->replot();
@@ -1427,7 +1428,7 @@ void PlotDialog::drawMarkers() {
 
 void PlotDialog::updateFirstAxisRectHeight() {
     int minHeight = 0;
-    qsizetype nbVisibleMarkers = ui->plot->visibleMarkers().size();
+    int nbVisibleMarkers = ui->plot->visibleMarkers().size();
     if (ui->actionShowMarkersDifference->isChecked() && nbVisibleMarkers > 1) {
         minHeight = 40;
     }
@@ -1450,7 +1451,7 @@ void PlotDialog::recreateMultiValueAxes() {
 
 QList<QCPAxisRect*> PlotDialog::axisRects() const {
     QList<QCPAxisRect*> list;
-    for (qsizetype i = 1; i < ui->plot->axisRects().size(); i++) {
+    for (int i = 1; i < ui->plot->axisRects().size(); i++) {
         QCPAxisRect* axisRect = ui->plot->axisRects()[i];
         if (axisRect->axisCount(QCPAxis::AxisType::atLeft) > 0) {
             list << axisRect;
@@ -1616,7 +1617,7 @@ void PlotDialog::selectedFrameChanged(const QList<int>& frames)
 void PlotDialog::plotUatSelectionChanged(const QItemSelection&, const QItemSelection&)
 {
     QModelIndexList selectedRows = ui->plotUat->selectionModel()->selectedRows();
-    qsizetype num_selected = selectedRows.size();
+    int num_selected = selectedRows.size();
     if (num_selected > 0) {
         std::sort(selectedRows.begin(), selectedRows.end());
         ui->deleteToolButton->setEnabled(true);
@@ -1960,7 +1961,7 @@ void PlotDialog::on_actionEnableMultiYAxes_triggered(bool checked)
             if (graph->visible()) graphs << graph;
         }
         QList<QCPAxis*> axes;
-        for (qsizetype i = 0; i < graphs.count(); i++) {
+        for (int i = 0; i < graphs.count(); i++) {
             QCPGraph* graph = graphs.at(i);
             if (checked && i != 0) {
                 QCPAxis::AxisType type = (i % 2 == 1) ? QCPAxis::atRight : QCPAxis::atLeft;

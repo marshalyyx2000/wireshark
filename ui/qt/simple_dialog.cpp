@@ -221,7 +221,7 @@ SimpleDialog::SimpleDialog(QWidget *parent, ESD_TYPE_E type, int btn_mask, const
     }
 
     if (!parent || !mainApp->isInitialized() || mainApp->isReloadingLua()) {
-        message_queue_.emplaceBack(primary, secondary);
+        message_queue_.append(qMakePair(primary, secondary));
         if (type > max_severity_) {
             max_severity_ = type;
         }

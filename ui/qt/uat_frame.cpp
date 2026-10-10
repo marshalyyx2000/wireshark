@@ -208,7 +208,7 @@ void UatFrame::addRecord(bool copy_from_current)
 void UatFrame::uatTreeViewSelectionChanged(const QItemSelection&, const QItemSelection&)
 {
     QModelIndexList selectedRows = ui->uatTreeView->selectionModel()->selectedRows();
-    qsizetype num_selected = selectedRows.size();
+    int num_selected = selectedRows.size();
     if (num_selected > 0) {
         std::sort(selectedRows.begin(), selectedRows.end());
         ui->deleteToolButton->setEnabled(true);

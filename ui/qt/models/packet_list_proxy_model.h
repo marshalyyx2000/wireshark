@@ -20,6 +20,8 @@
 
 #include <epan/cfile.h>
 
+#include "qt5_compat.h"
+
 class QElapsedTimer;
 class PacketListModel;
 class PacketListRecord;
@@ -206,7 +208,7 @@ private slots:
     void sourceModelAboutToBeReset();
     void sourceModelReset();
     void sourceDataChanged(const QModelIndex &source_top_left, const QModelIndex &source_bottom_right,
-                           const QList<int> &roles);
+                           const WsModelRoles &roles);
     void sourceHeaderDataChanged(Qt::Orientation orientation, int first, int last);
 
 private:

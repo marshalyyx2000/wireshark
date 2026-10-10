@@ -28,6 +28,7 @@
 
 #include <models/packet_list_model.h>
 #include <models/pref_models.h>
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/utils/wireshark_mime_data.h>
 #include <ui/qt/widgets/packet_list_header.h>
 #include <ui/qt/utils/font_manager.h>
@@ -104,7 +105,7 @@ void PacketListHeader::dropEvent(QDropEvent *event)
             MainWindow * mw = mainApp->mainWindow();
             if (mw)
             {
-                int idx = logicalIndexAt(event->position().toPoint());
+                int idx = logicalIndexAt(ws_drop_pos(event));
                 mw->insertColumn(data["description"].toString(), data["name"].toString(), idx);
             }
 
@@ -121,13 +122,14 @@ void PacketListHeader::mousePressEvent(QMouseEvent *e)
     if (e->button() == Qt::LeftButton && sectionIdx < 0)
     {
         /* No move happening yet */
-        int sectIdx = logicalIndexAt(e->position().toPoint().x() - 4, e->position().toPoint().y());
+        const QPoint pos = ws_mouse_pos(e);
+        int sectIdx = logicalIndexAt(pos.x() - 4, pos.y());
 
         QString headerName = model()->headerData(sectIdx, orientation()).toString();
-        QToolTip::showText(e->globalPosition().toPoint(), QStringLiteral("Width: %1").arg(sectionSize(sectIdx)));
+        QToolTip::showText(ws_mouse_global_pos(e), QStringLiteral("Width: %1").arg(sectionSize(sectIdx)));
     }
     if (e->button() == Qt::LeftButton) {
-        press_pos_ = e->position().toPoint();
+        press_pos_ = ws_mouse_pos(e);
         press_active_ = true;
     }
     QHeaderView::mousePressEvent(e);
@@ -159,7 +161,8 @@ void PacketListHeader::mouseMoveEvent(QMouseEvent *e)
     else if (e->buttons() & Qt::LeftButton)
     {
         /* section being moved */
-        int triggeredSection = logicalIndexAt(e->position().toPoint().x() - 4, e->position().toPoint().y());
+        const QPoint pos = ws_mouse_pos(e);
+        int triggeredSection = logicalIndexAt(pos.x() - 4, pos.y());
 
         if (sectionIdx < 0)
             sectionIdx = triggeredSection;
@@ -167,11 +170,11 @@ void PacketListHeader::mouseMoveEvent(QMouseEvent *e)
         {
             /* Only run for the current moving section after a change */
             QString headerName = model()->headerData(sectionIdx, orientation()).toString();
-            QToolTip::showText(e->globalPosition().toPoint(), QStringLiteral("Width: %1").arg(sectionSize(sectionIdx)));
+            QToolTip::showText(ws_mouse_global_pos(e), QStringLiteral("Width: %1").arg(sectionSize(sectionIdx)));
         }
     }
     if (press_active_ && (e->buttons() & Qt::LeftButton)
-        && (e->position().toPoint() - press_pos_).manhattanLength() >= QApplication::startDragDistance()) {
+        && (ws_mouse_pos(e) - press_pos_).manhattanLength() >= QApplication::startDragDistance()) {
         setDragActive(true);
     }
     QHeaderView::mouseMoveEvent(e);

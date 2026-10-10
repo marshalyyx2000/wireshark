@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -30,6 +31,11 @@
 #include <sys/types.h>
 
 #include <glib.h>
+
+/* G_SOURCE_FUNC arrived in GLib 2.58; /opt/ws-deps may ship 2.56.x. */
+#ifndef G_SOURCE_FUNC
+#define G_SOURCE_FUNC(f) ((GSourceFunc) (void (*)(void)) (f))
+#endif
 
 #include <epan/prefs.h>
 #include <epan/prefs-int.h>

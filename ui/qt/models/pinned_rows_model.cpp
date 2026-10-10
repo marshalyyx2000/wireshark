@@ -172,7 +172,7 @@ Qt::ItemFlags PinnedRowsModel::flags(const QModelIndex &proxy_index) const
 }
 
 void PinnedRowsModel::sourceDataChanged(const QModelIndex &source_top_left, const QModelIndex &source_bottom_right,
-                                        const QList<int> &roles)
+                                        const WsModelRoles &roles)
 {
     if (!packet_list_proxy_model_ || pinned_frame_nums_.isEmpty()) {
         return;

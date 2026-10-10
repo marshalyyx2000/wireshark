@@ -11,6 +11,7 @@
 
 #include <ui/qt/widgets/drag_drop_toolbar.h>
 #include <ui/qt/widgets/drag_label.h>
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/utils/wireshark_mime_data.h>
 
 #include <QAction>
@@ -179,7 +180,7 @@ void DragDropToolBar::dragMoveEvent(QDragMoveEvent *event)
 
     if (qobject_cast<const ToolbarEntryMimeData *>(event->mimeData()))
     {
-        QAction * actionAtPos = actionAt(event->position().toPoint());
+        QAction * actionAtPos = actionAt(ws_drop_pos(event));
         if (actionAtPos)
         {
             QWidget * widget = widgetForAction(actionAtPos);
@@ -226,7 +227,7 @@ void DragDropToolBar::dropEvent(QDropEvent *event)
 
         int oldPos = data->position();
         int newPos = -1;
-        QAction * action = actionAt(event->position().toPoint());
+        QAction * action = actionAt(ws_drop_pos(event));
         if (action && actions().at(oldPos))
         {
             widgetForAction(action)->setStyleSheet("QWidget { border: none; };");

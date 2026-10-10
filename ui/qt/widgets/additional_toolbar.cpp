@@ -477,7 +477,7 @@ QWidget * AdditionalToolbarWidgetAction::createSelector(ext_toolbar_t * item, QW
 
     frame->layout()->addWidget(myBox);
 
-    connect(myBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(myBox, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)),
             this, &AdditionalToolbarWidgetAction::onSelectionInWidgetChanged);
 
     ext_toolbar_register_update_cb(item, (ext_toolbar_action_cb)&toolbar_selector_cb, (void *)myBox);

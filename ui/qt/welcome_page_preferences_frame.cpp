@@ -26,7 +26,7 @@ WelcomePagePreferencesFrame::WelcomePagePreferencesFrame(QWidget *parent) :
     connect(ui->tipsSponsorshipCheckBox, &QCheckBox::toggled, this, &WelcomePagePreferencesFrame::tipsSponsorshipToggled);
     connect(ui->tipsTipsCheckBox, &QCheckBox::toggled, this, &WelcomePagePreferencesFrame::tipsTipsToggled);
     connect(ui->tipsAutoAdvanceCheckBox, &QCheckBox::toggled, this, &WelcomePagePreferencesFrame::tipsAutoAdvanceToggled);
-    connect(ui->tipsIntervalSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &WelcomePagePreferencesFrame::tipsIntervalValueChanged);
+    connect(ui->tipsIntervalSpinBox, qOverload<int>(QOverload<int>::of(&QSpinBox::valueChanged)), this, &WelcomePagePreferencesFrame::tipsIntervalValueChanged);
     connect(ui->restoreButtonBox, &QDialogButtonBox::clicked, this, &WelcomePagePreferencesFrame::restoreButtonBoxClicked);
 
     stashed_learn_visible_ = recent.gui_welcome_page_sidebar_learn_visible;

@@ -115,7 +115,7 @@ CaptureOptionsDialog::CaptureOptionsDialog(QWidget *parent) :
     ui->processInfoComboBox->addItem(tr("Don't record processes"), CAPTURE_PROCESS_INFO_NONE);
     ui->processInfoComboBox->addItem(tr("Record process IDs and names"), CAPTURE_PROCESS_INFO_BASIC);
     ui->processInfoComboBox->addItem(tr("Record process IDs, names, paths, command lines and users"), CAPTURE_PROCESS_INFO_FULL);
-    connect(ui->processInfoComboBox, &QComboBox::currentIndexChanged, this, &CaptureOptionsDialog::updateProcessInfoWidgets);
+    connect(ui->processInfoComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptureOptionsDialog::updateProcessInfoWidgets);
     connect(ui->rbPcapng, &QRadioButton::toggled, this, &CaptureOptionsDialog::updateProcessInfoWidgets);
 
     cache_model_ = new InterfaceTreeCacheModel(this);
@@ -237,8 +237,8 @@ CaptureOptionsDialog::CaptureOptionsDialog(QWidget *parent) :
     ui->MBSpinBox->setMaximum(2000000000);
     ui->stopMBSpinBox->setMaximum(2000000000);
 
-    connect(ui->MBComboBox, &QComboBox::currentIndexChanged, this, &CaptureOptionsDialog::MBComboBoxIndexChanged);
-    connect(ui->stopMBComboBox, &QComboBox::currentIndexChanged, this, &CaptureOptionsDialog::stopMBComboBoxIndexChanged);
+    connect(ui->MBComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptureOptionsDialog::MBComboBoxIndexChanged);
+    connect(ui->stopMBComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CaptureOptionsDialog::stopMBComboBoxIndexChanged);
 
     ui->tabWidget->setCurrentIndex(0);
 
@@ -783,7 +783,7 @@ void CaptureOptionsDialog::on_compileBPF_clicked()
     foreach (const QModelIndex &row, selected_rows) {
         interface_t *device = deviceForIndex(cache_model_, proxy_model_, row);
         if (!device) continue;
-        interfaces.emplaceBack(device);
+        interfaces.append(device);
     }
 
     CompiledFilterOutput *cfo = new CompiledFilterOutput(this, interfaces);

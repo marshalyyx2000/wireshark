@@ -19,6 +19,7 @@
 #include "main_application.h"
 
 #include <ui/qt/widgets/display_filter_edit.h>
+#include <ui/qt/qt5_compat.h>
 #include "filter_dialog.h"
 #include <ui/qt/widgets/stock_icon_tool_button.h>
 #include <ui/qt/widgets/syntax_line_edit.h>
@@ -897,7 +898,7 @@ void DisplayFilterEdit::createFilterTextDropMenu(QDropEvent *event, bool prepare
     QMenu * applyMenu = FilterAction::createFilterMenu(filterAct, filterText, true, this);
     applyMenu->setAttribute(Qt::WA_DeleteOnClose);
 
-    applyMenu->popup(this->mapToGlobal(event->position().toPoint()));
+    applyMenu->popup(this->mapToGlobal(ws_drop_pos(event)));
 }
 
 void DisplayFilterEdit::displayFilterExpression()

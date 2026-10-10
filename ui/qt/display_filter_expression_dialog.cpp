@@ -59,7 +59,11 @@ static inline bool compareTreeWidgetItems(const QTreeWidgetItem *it1, const QTre
     return *it1 < *it2;
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 static void generateProtocolTreeItems(QPromise<QTreeWidgetItem *> &promise)
+#else
+static QList<QTreeWidgetItem *> generateProtocolTreeItems()
+#endif
 {
     QList<QTreeWidgetItem *> proto_list;
     QList<QTreeWidgetItem *> *ptr_proto_list = &proto_list;
@@ -80,11 +84,13 @@ static void generateProtocolTreeItems(QPromise<QTreeWidgetItem *> &promise)
     std::stable_sort(ptr_proto_list->begin(), ptr_proto_list->end(), compareTreeWidgetItems);
 
     foreach (QTreeWidgetItem *proto_ti, *ptr_proto_list) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         if (promise.isCanceled()) {
             delete proto_ti;
             continue;
         }
         promise.suspendIfRequested();
+#endif
         void *field_cookie;
         int proto_id = proto_ti->data(0, Qt::UserRole).toInt();
 
@@ -101,9 +107,14 @@ static void generateProtocolTreeItems(QPromise<QTreeWidgetItem *> &promise)
         }
         std::stable_sort(field_list.begin(), field_list.end(), compareTreeWidgetItems);
         proto_ti->addChildren(field_list);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         if (!promise.addResult(proto_ti))
             delete proto_ti;
+#endif
     }
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    return proto_list;
+#endif
 }
 
 DisplayFilterExpressionDialog::DisplayFilterExpressionDialog(QWidget *parent) :
@@ -121,8 +132,6 @@ DisplayFilterExpressionDialog::DisplayFilterExpressionDialog(QWidget *parent) :
     setWindowIcon(mainApp->normalIcon());
 
     proto_initialize_all_prefixes();
-
-    auto future = QtConcurrent::run(generateProtocolTreeItems);
 
     ui->fieldTreeWidget->setToolTip(ui->fieldLabel->toolTip());
     ui->searchLineEdit->setToolTip(ui->searchLabel->toolTip());
@@ -155,9 +164,21 @@ DisplayFilterExpressionDialog::DisplayFilterExpressionDialog(QWidget *parent) :
     updateWidgets();
     ui->searchLineEdit->setReadOnly(true);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    auto future = QtConcurrent::run(generateProtocolTreeItems);
     connect(watcher, &QFutureWatcher<QTreeWidgetItem *>::resultReadyAt, this, &DisplayFilterExpressionDialog::addTreeItem);
     connect(watcher, &QFutureWatcher<QTreeWidgetItem *>::finished, this, &DisplayFilterExpressionDialog::fillTree);
     watcher->setFuture(future);
+#else
+    /* Qt5 has no QPromise; populate synchronously. */
+    const QList<QTreeWidgetItem *> items = generateProtocolTreeItems();
+    foreach (QTreeWidgetItem *item, items) {
+        ui->fieldTreeWidget->invisibleRootItem()->addChild(item);
+    }
+    delete watcher;
+    watcher = nullptr;
+    fillTree();
+#endif
 }
 
 DisplayFilterExpressionDialog::~DisplayFilterExpressionDialog()

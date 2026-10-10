@@ -294,7 +294,7 @@ void PacketListProxyModel::sourceRowsInserted(const QModelIndex &parent, int fir
 }
 
 void PacketListProxyModel::sourceDataChanged(const QModelIndex &source_top_left, const QModelIndex &source_bottom_right,
-                                             const QList<int> &roles)
+                                             const WsModelRoles &roles)
 {
     if (!source_top_left.isValid() || !source_bottom_right.isValid() || visible_rows_.isEmpty())
         return;

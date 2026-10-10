@@ -16,6 +16,7 @@
 
 #include <ui/qt/models/atap_data_model.h>
 #include <ui/qt/filter_action.h>
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/widgets/adaptive_header_view.h>
 
 #include <QTreeView>
@@ -412,7 +413,7 @@ private slots:
      * @param topLeft Top left index of changed data.
      * @param bottomRight Bottom right index of changed data.
      */
-    void handleDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int>);
+    void handleDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const WsModelRoles &);
 
     /**
      * @brief Handles updates when the model layout changes.

@@ -20,6 +20,7 @@
 #include "main_application.h"
 #include "ui/recent.h"
 
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/utils/font_manager.h>
 #include <ui/qt/utils/theme_manager.h>
 #include <ui/qt/utils/themes/color_math.h>
@@ -52,7 +53,7 @@ Q_DECLARE_METATYPE(DataPrinter::DumpType)
 namespace {
 QPoint mouseGlobalPos(const QMouseEvent *event)
 {
-    return event->globalPosition().toPoint();
+    return ws_mouse_global_pos(event);
 }
 
 bool rangesIntersect(int a_start, int a_len, int b_start, int b_len)

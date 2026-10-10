@@ -40,8 +40,8 @@ public:
     void findNext();
     void findPrevious();
 
-    qsizetype matchCount() const { return matches_.size(); }
-    qsizetype currentMatchIndex() const { return current_match_; }
+    int matchCount() const { return matches_.size(); }
+    int currentMatchIndex() const { return current_match_; }
     bool isRegexInvalid() const { return regex_invalid_; }
 
 signals:
@@ -49,12 +49,12 @@ signals:
 
 private:
     void collectIndices(const QModelIndex &parent, QList<QModelIndex> &out);
-    void navigateTo(qsizetype index);
+    void navigateTo(int index);
     void expandParents(const QModelIndex &index);
 
     ProtoTree *proto_tree_;
     QList<QModelIndex> matches_;
-    qsizetype current_match_;
+    int current_match_;
     bool highlight_enabled_;
     bool regex_invalid_;
 };

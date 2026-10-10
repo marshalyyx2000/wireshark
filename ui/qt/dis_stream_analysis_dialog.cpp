@@ -173,7 +173,7 @@ DisStreamAnalysisDialog::DisStreamAnalysisDialog(QWidget &parent, CaptureFile &c
     stop_button_ = button_box_->addButton(tr("Stop"), QDialogButtonBox::ActionRole);
     layout->addWidget(button_box_);
 
-    connect(stream_combo_, qOverload<int>(&QComboBox::currentIndexChanged), this, &DisStreamAnalysisDialog::onStreamChanged);
+    connect(stream_combo_, qOverload<int>(QOverload<int>::of(&QComboBox::currentIndexChanged)), this, &DisStreamAnalysisDialog::onStreamChanged);
     connect(packet_tree_, &QTreeWidget::itemDoubleClicked, this, &DisStreamAnalysisDialog::onPacketRowActivated);
     connect(audio_plot_, &QCustomPlot::mouseDoubleClick, this, &DisStreamAnalysisDialog::onGraphDoubleClicked);
     connect(button_box_, &QDialogButtonBox::rejected, this, &DisStreamAnalysisDialog::reject);

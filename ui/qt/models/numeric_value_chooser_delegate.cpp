@@ -54,7 +54,7 @@ QWidget* NumericValueChooserDelegate::createEditor(QWidget *parent, const QStyle
     editor->setMaximum(_max);
     editor->setWrapping(true);
 
-    connect(editor, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged), this,
+    connect(editor, static_cast<void (QSpinBox::*)(int)>(QOverload<int>::of(&QSpinBox::valueChanged)), this,
             &NumericValueChooserDelegate::onValueChanged);
 
     return editor;

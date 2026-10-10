@@ -23,6 +23,8 @@
 #include <QPainter>
 #include <QStyleOptionViewItem>
 #include <QUrl>
+#include <QVector>
+#include <QtGlobal>
 
 // Segment: one matching rule's display text + its URL.
 struct TagSeg {
@@ -76,11 +78,14 @@ static QList<TagRun> splitRuns(const QString &text)
     QList<TagRun> runs;
     if (text.isEmpty())
         return runs;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QList<uint> ucs4 = text.toUcs4();
+#else
+    QVector<uint> ucs4 = text.toUcs4();
+#endif
     for (uint cp : ucs4) {
-        char32_t c32 = static_cast<char32_t>(cp);
-        bool emoji = isEmojiCodepoint(c32);
-        QString ch = QString::fromUcs4(&c32, 1);
+        bool emoji = isEmojiCodepoint(static_cast<char32_t>(cp));
+        QString ch = QString::fromUcs4(&cp, 1);
         if (!runs.isEmpty() && runs.last().is_emoji == emoji)
             runs.last().text += ch;
         else

@@ -73,7 +73,7 @@ BluetoothDevicesDialog::BluetoothDevicesDialog(QWidget &parent, CaptureFile &cf,
 
     connect(ui->tableTreeWidget, &QTreeWidget::customContextMenuRequested, this, &BluetoothDevicesDialog::tableContextMenu);
     connect(ui->tableTreeWidget, &QTreeWidget::itemDoubleClicked, this, &BluetoothDevicesDialog::tableItemDoubleClicked);
-    connect(ui->interfaceComboBox, &QComboBox::currentIndexChanged, this, &BluetoothDevicesDialog::interfaceCurrentIndexChanged);
+    connect(ui->interfaceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &BluetoothDevicesDialog::interfaceCurrentIndexChanged);
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 7, 0))
     connect(ui->showInformationStepsCheckBox, &QCheckBox::checkStateChanged, this, &BluetoothDevicesDialog::showInformationStepsChanged);
 #else

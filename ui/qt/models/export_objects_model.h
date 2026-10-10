@@ -17,7 +17,9 @@
 #include <epan/tap.h>
 #include <epan/export_object.h>
 
+#include <QtGlobal>
 #include <QAbstractTableModel>
+#include <QByteArray>
 #include <QSortFilterProxyModel>
 #include <QList>
 #include <QSet>
@@ -54,7 +56,11 @@ public:
      * @brief Retrieves the payload data view for the entry.
      * @return A QByteArrayView containing the payload data.
      */
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QByteArrayView Data() const { return entry ? QByteArrayView(entry->payload_data, entry->payload_len) : QByteArrayView(); }
+#else
+    QByteArray Data() const { return entry ? QByteArray(reinterpret_cast<const char *>(entry->payload_data), (int)entry->payload_len) : QByteArray(); }
+#endif
     /**
      * @brief Retrieves the packet number associated with the entry.
      * @return The packet number.

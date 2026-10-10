@@ -11,6 +11,8 @@
 
 #include "ui/qt/utils/themes/theme_stylesheet_loader.h"
 
+#include <ui/qt/qt5_compat.h>
+
 #include <QColor>
 #include <QFile>
 #include <QIODevice>
@@ -67,7 +69,7 @@ QString ThemeStyleSheetLoader::load(const QString  &name,
     static const QMetaEnum roleEnum =
         QMetaEnum::fromType<ThemeManager::ThemeToken>();
 
-    qsizetype offset = 0;
+    WsSizeType offset = 0;
     QRegularExpressionMatch match;
     while ((match = tokenRe.match(qss, offset)).hasMatch()) {
         const QString token = match.captured(1);

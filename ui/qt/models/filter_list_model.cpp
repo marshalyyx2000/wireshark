@@ -16,6 +16,7 @@
 #include <ui/qt/models/profile_model.h>
 #include <app/application_flavor.h>
 
+#include <QtGlobal>
 #include <QFile>
 #include <QTextStream>
 #include <QRegularExpression>
@@ -207,7 +208,11 @@ QModelIndex FilterListModel::addFilter(QString name, QString expression)
         return QModelIndex();
 
     beginInsertRows(QModelIndex(), rowCount(), rowCount());
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     storage.emplace_back(name, expression);
+#else
+    storage.append(FilterListValue(name, expression));
+#endif
     endInsertRows();
 
     return index(rowCount() - 1, 0);

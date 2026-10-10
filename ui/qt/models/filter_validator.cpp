@@ -28,7 +28,7 @@ QString FilterValidator::lastErrorFull(const QString &filter) const
 // annotation matches what users have seen historically.
 QString FilterValidator::createSyntaxErrorMessageFull(
                                 const QString &filter, const QString &err_msg,
-                                qsizetype loc_start, size_t loc_length)
+                                int loc_start, size_t loc_length)
 {
     QString msg = tr("Invalid filter: %1").arg(err_msg);
 

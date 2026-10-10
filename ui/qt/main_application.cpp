@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <errno.h>
 
+#include <QDebug>
+
 #include "wsutil/filesystem.h"
 #include "app/application_flavor.h"
 
@@ -845,14 +847,16 @@ QStringList MainApplication::getTranslationsPaths() const
     // Search path list ordered by priority. Prefer personal configuration
     // to global datadir to embedded resources to Qt global directory.
     QStringList searchPath;
-    searchPath.emplaceBack(gchar_free_to_qstring(get_persconffile_path("languages", false, env_prefix)));
-    searchPath.emplaceBack(QStringLiteral("%1/languages").arg(get_datafile_dir(env_prefix)));
-    searchPath.emplaceBack(QStringLiteral(":/i18n/"));
+    searchPath.append(gchar_free_to_qstring(get_persconffile_path("languages", false, env_prefix)));
+    searchPath.append(QStringLiteral("%1/languages").arg(get_datafile_dir(env_prefix)));
+    searchPath.append(QStringLiteral(":/i18n/"));
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     searchPath.append(QLibraryInfo::paths(QLibraryInfo::TranslationsPath));
+#elif QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    searchPath.append(QLibraryInfo::path(QLibraryInfo::TranslationsPath));
 #else
-    searchPath.emplaceBack(QLibraryInfo::path(QLibraryInfo::TranslationsPath));
+    searchPath.append(QLibraryInfo::location(QLibraryInfo::TranslationsPath));
 #endif
 
     return searchPath;

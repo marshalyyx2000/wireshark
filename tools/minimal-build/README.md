@@ -224,3 +224,38 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\minimal-build\make-bun
 - 不打包 GitHub token / SSH 私钥
 
 可用环境变量：`WIRESHARK_BUNDLE_DIR`、`WIRESHARK_SRC_DIR`、`WIRESHARK_BUILD_DIR`、`BUNDLE_GIT_SRC`、`BUNDLE_PYTHON_SRC`、`BUNDLE_CMAKE_SRC`。
+
+## Ubuntu 16.04 + Qt 5.14.1（WSL，前缀隔离）
+
+工作分支：`ubuntu1604-工业极简分支`（勿合并回主分支）。系统 g++/cmake 保持不动；工具链与依赖只装在前缀目录，运行时靠 `source env-linux.sh`。
+
+| 前缀 | 默认路径 | 内容 |
+| --- | --- | --- |
+| 工具链 | `/opt/ws-toolchain` | CMake 3.28、Ninja、g++-9 包装、Python 3.8 |
+| 依赖 | `/opt/ws-deps` | GLib 等 |
+| Qt | `/opt/Qt5.14.1/5.14.1/gcc_64` | Qt 5.14.1 |
+| 构建 | `/opt/ws-build` | out-of-tree build |
+
+```bash
+# 在 Ubuntu 16.04 WSL 中
+cd /mnt/f/software/temp/wireshark-industrial
+source tools/minimal-build/env-linux.sh
+# 首次：bootstrap-prefix-toolchain.sh / bootstrap-prefix-deps.sh / configure-linux.sh
+bash tools/minimal-build/build-linux.sh
+# 或增量重编并汇总错误：
+bash tools/minimal-build/rebuild-and-dump-errors.sh
+```
+
+产物：`/opt/ws-build/run/{wireshark,tshark,dumpcap}`。
+
+冒烟（必须带 `LD_LIBRARY_PATH`，或先 `source env-linux.sh`）：
+
+```bash
+source tools/minimal-build/env-linux.sh
+/opt/ws-build/run/tshark -v
+/opt/ws-build/run/wireshark -v
+# GUI（需可用 DISPLAY / WSLg）：
+/opt/ws-build/run/wireshark
+```
+
+CMake 要点：`-DENABLE_MINIMAL_BUILD=ON -DUSE_qt5=ON`。Qt 5.14 可能没有 `qtbase_zh_CN.qm`，POST_BUILD 会回退拷贝 `qt_zh_CN.qm`。

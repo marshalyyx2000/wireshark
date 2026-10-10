@@ -11,6 +11,7 @@
 
 #include <ui/qt/utils/themes/themed_icon.h>
 
+#include <QtGlobal>
 #include <QApplication>
 #include <QIconEngine>
 #include <QPaintDevice>
@@ -64,8 +65,13 @@ public:
         return scaledPixmap(size, mode, state, 1.0);
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State /*state*/,
                          qreal scale) override
+#else
+    QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State /*state*/,
+                         qreal scale)
+#endif
     {
         const QColor color = modeColor(mode);
         const QSize logical = (size.isValid() && !size.isEmpty()) ? size : size_;

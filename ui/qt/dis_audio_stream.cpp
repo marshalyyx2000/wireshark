@@ -64,7 +64,7 @@ resample_int16_mono(const QByteArray &src_pcm, unsigned in_rate, unsigned out_ra
         return QByteArray();
     }
 
-    const qsizetype input_sample_count = src_pcm.size() / SAMPLE_BYTES;
+    const int input_sample_count = src_pcm.size() / SAMPLE_BYTES;
     if (input_sample_count <= 0 || input_sample_count > std::numeric_limits<int>::max()) {
         return QByteArray();
     }
@@ -105,7 +105,7 @@ convert_int16_pcm_to_format(const QByteArray &src_pcm, QAudioFormat::SampleForma
         return src_pcm;
     }
 
-    const qsizetype sample_count = src_pcm.size() / SAMPLE_BYTES;
+    const int sample_count = src_pcm.size() / SAMPLE_BYTES;
     if (sample_count <= 0 || sample_count > std::numeric_limits<int>::max()) {
         return QByteArray();
     }
@@ -122,14 +122,14 @@ convert_int16_pcm_to_format(const QByteArray &src_pcm, QAudioFormat::SampleForma
         }
         return out_pcm;
     case QAudioFormat::Int32:
-        out_pcm.resize(sample_count * (qsizetype)sizeof(qint32));
+        out_pcm.resize(sample_count * (int)sizeof(qint32));
         for (int i = 0; i < sample_count; i++) {
             const qint32 value = ((qint32)in_data[i]) << 16;
             memcpy(out_pcm.data() + (i * (int)sizeof(qint32)), &value, sizeof(value));
         }
         return out_pcm;
     case QAudioFormat::Float:
-        out_pcm.resize(sample_count * (qsizetype)sizeof(float));
+        out_pcm.resize(sample_count * (int)sizeof(float));
         for (int i = 0; i < sample_count; i++) {
             const float value = (float)in_data[i] / 32768.0f;
             memcpy(out_pcm.data() + (i * (int)sizeof(float)), &value, sizeof(value));

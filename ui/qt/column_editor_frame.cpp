@@ -66,7 +66,7 @@ ColumnEditorFrame::ColumnEditorFrame(QWidget *parent) :
             ui->fieldsNameLineEdit, &DisplayFilterEdit::checkCustomColumn);
     connect(ui->fieldsNameLineEdit, &DisplayFilterEdit::textChanged,
             this, &ColumnEditorFrame::checkCanResolve);
-    connect(ui->typeComboBox, &QComboBox::currentIndexChanged, this,
+    connect(ui->typeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &ColumnEditorFrame::typeChanged);
 
 }

@@ -9,6 +9,7 @@
  */
 
 #include "config.h"
+#include <errno.h>
 #include <stdio.h>
 #include <wsutil/file_util.h>
 #include <wsutil/filesystem.h>

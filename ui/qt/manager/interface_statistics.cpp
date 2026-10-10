@@ -259,7 +259,7 @@ void InterfaceStatistics::onSampled(const InterfaceStatsSnapshot &snapshot)
     // history to a ring buffer for O(1) appends (reads would then linearize).
     // active_ only grows here (interfaces are never deactivated mid-stream), so a
     // size change means a newly-active interface and a sort-affecting event.
-    const qsizetype activeBefore = active_.size();
+    const int activeBefore = active_.size();
 
     for (auto it = snapshot.cbegin(); it != snapshot.cend(); ++it) {
         const QString &name = it.key();
@@ -338,8 +338,11 @@ void InterfaceStatistics::appendCapped(QList<int> &buffer, int value) const
 
 void InterfaceStatistics::trimToCapacity(QList<int> &buffer) const
 {
-    if (buffer.size() > historyCapacity_)
-        buffer.remove(0, buffer.size() - historyCapacity_);
+    if (buffer.size() > historyCapacity_) {
+        // QList::remove(pos, n) is Qt 6+; drop from the front on Qt 5.
+        const int drop = buffer.size() - historyCapacity_;
+        buffer.erase(buffer.begin(), buffer.begin() + drop);
+    }
 }
 
 void InterfaceStatistics::resetBaselines()

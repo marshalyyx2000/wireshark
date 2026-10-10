@@ -66,7 +66,7 @@ void ProfileSwitcher::captureEventHandler(CaptureEvent ev)
     }
 }
 
-void ProfileSwitcher::checkPacket(capture_file *cap_file, frame_data *fdata, qsizetype row)
+void ProfileSwitcher::checkPacket(capture_file *cap_file, frame_data *fdata, int row)
 {
     if (profile_changed_ || !capture_file_changed_ || row >= recent.gui_profile_switch_check_count) {
         return;

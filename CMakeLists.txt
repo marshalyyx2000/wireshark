@@ -1575,34 +1575,55 @@ endif()
 if(BUILD_wireshark OR BUILD_stratoshark)
 	# We don't use any QVulkan* classes, so tell Qt's CMake modules not to look for Vulkan.
 	set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders ON)
-	set(qtver 6)
-	if(DEFINED ENV{WIRESHARK_QT6_PREFIX_PATH})
-		list(APPEND CMAKE_PREFIX_PATH $ENV{WIRESHARK_QT6_PREFIX_PATH})
-	endif()
+	if(USE_qt5)
+		set(qtver 5)
+		if(DEFINED ENV{WIRESHARK_QT5_PREFIX_PATH})
+			list(APPEND CMAKE_PREFIX_PATH $ENV{WIRESHARK_QT5_PREFIX_PATH})
+		endif()
+		find_package(Qt5 5.14 REQUIRED
+			COMPONENTS
+				Core
+				Concurrent
+				Gui
+				LinguistTools
+				Network
+				PrintSupport
+				Svg
+				Widgets
+			OPTIONAL_COMPONENTS
+				DBus
+		)
+		message(STATUS "USE_qt5=ON: building against Qt ${Qt5Widgets_VERSION}")
+	else()
+		set(qtver 6)
+		if(DEFINED ENV{WIRESHARK_QT6_PREFIX_PATH})
+			list(APPEND CMAKE_PREFIX_PATH $ENV{WIRESHARK_QT6_PREFIX_PATH})
+		endif()
 
-	find_package(Qt6 6.2 REQUIRED
-		COMPONENTS
-			Core
-			Concurrent
-			Gui
-			LinguistTools
-			Network
-			PrintSupport
-			Svg
-			Widgets
-		OPTIONAL_COMPONENTS
-			DBus
-	)
+		find_package(Qt6 6.2 REQUIRED
+			COMPONENTS
+				Core
+				Concurrent
+				Gui
+				LinguistTools
+				Network
+				PrintSupport
+				Svg
+				Widgets
+			OPTIONAL_COMPONENTS
+				DBus
+		)
 
-	if (SPEEXDSP_FOUND)
-		find_package(Qt6 ${Qt6_VERSION} REQUIRED OPTIONAL_COMPONENTS Multimedia)
-	endif()
+		if (SPEEXDSP_FOUND)
+			find_package(Qt6 ${Qt6_VERSION} REQUIRED OPTIONAL_COMPONENTS Multimedia)
+		endif()
 
-	if (WIN32 AND Qt6Widgets_VERSION VERSION_LESS 6.5.3)
-		message(WARNING "Qt 6.5.3 or later is required.")
-	endif()
-	if (APPLE AND Qt6Widgets_VERSION VERSION_LESS 6.5.3)
-		message(WARNING "Qt 6.5.3 or later is required.")
+		if (WIN32 AND Qt6Widgets_VERSION VERSION_LESS 6.5.3)
+			message(WARNING "Qt 6.5.3 or later is required.")
+		endif()
+		if (APPLE AND Qt6Widgets_VERSION VERSION_LESS 6.5.3)
+			message(WARNING "Qt 6.5.3 or later is required.")
+		endif()
 	endif()
 
 	set(QT_FOUND ON)
@@ -3299,9 +3320,15 @@ function(add_qt_default_translations _target)
 	# It might be possible to just call qt_deploy_translations from a
 	# POST_BUILD custom command, though.
 
-	get_target_property(QTPATHS_EXECUTABLE Qt6::qtpaths LOCATION)
+	if(USE_qt5)
+		get_target_property(QTPATHS_EXECUTABLE Qt5::qmake LOCATION)
+		set(_qt_query_flag "-query")
+	else()
+		get_target_property(QTPATHS_EXECUTABLE Qt6::qtpaths LOCATION)
+		set(_qt_query_flag "--query")
+	endif()
 	execute_process(
-		COMMAND ${QTPATHS_EXECUTABLE} --query QT_INSTALL_TRANSLATIONS
+		COMMAND ${QTPATHS_EXECUTABLE} ${_qt_query_flag} QT_INSTALL_TRANSLATIONS
 		OUTPUT_VARIABLE QT_TRANSLATIONS_DIR
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
@@ -3330,12 +3357,12 @@ function(add_qt_default_translations _target)
 		set(QM_FILE "${PROJECT_BINARY_DIR}/translations/qt_${LANG}.qm")
 		set(TS_FILES "${QT_TRANSLATIONS_DIR}/qtbase_${LANG}.qm")
 		set(MULTIMEDIA_TS "${QT_TRANSLATIONS_DIR}/qtmultimedia_${LANG}.qm")
-		if(Qt6Multimedia_FOUND AND EXISTS "${MULTIMEDIA_TS}")
+		if(NOT USE_qt5 AND Qt6Multimedia_FOUND AND EXISTS "${MULTIMEDIA_TS}")
 			list(APPEND TS_FILES "${MULTIMEDIA_TS}")
 		endif()
 		add_custom_command(
 			OUTPUT ${QM_FILE}
-			COMMAND $<TARGET_FILE:Qt6::lconvert> -o ${QM_FILE} ${TS_FILES}
+			COMMAND $<TARGET_FILE:Qt${qtver}::lconvert> -o ${QM_FILE} ${TS_FILES}
 			COMMENT "Generated QM for ${LANG}..."
 			VERBATIM
 		)
@@ -3488,14 +3515,29 @@ if(BUILD_wireshark AND QT_FOUND)
 		add_qt_default_translations(wireshark)
 	endif()
 	if(ENABLE_MINIMAL_BUILD)
-		get_target_property(_qtpaths_exe Qt6::qtpaths LOCATION)
+		if(USE_qt5)
+			get_target_property(_qtpaths_exe Qt5::qmake LOCATION)
+			set(_qt_query_flag "-query")
+		else()
+			get_target_property(_qtpaths_exe Qt6::qtpaths LOCATION)
+			set(_qt_query_flag "--query")
+		endif()
 		execute_process(
-			COMMAND ${_qtpaths_exe} --query QT_INSTALL_TRANSLATIONS
+			COMMAND ${_qtpaths_exe} ${_qt_query_flag} QT_INSTALL_TRANSLATIONS
 			OUTPUT_VARIABLE _qt_translations_dir
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
-		# Stage zh_CN catalogs next to the exe for NSIS packaging.
-		add_custom_command(TARGET wireshark POST_BUILD
+		# Stage zh_CN catalogs next to the exe for packaging.
+		# Qt 5.14 ships qt_zh_CN.qm but often omits qtbase_zh_CN.qm; prefer
+		# qtbase when present, otherwise fall back to the combined qt_*.qm.
+		if(EXISTS "${_qt_translations_dir}/qtbase_zh_CN.qm")
+			set(_qt_zh_cn_src "${_qt_translations_dir}/qtbase_zh_CN.qm")
+		elseif(EXISTS "${_qt_translations_dir}/qt_zh_CN.qm")
+			set(_qt_zh_cn_src "${_qt_translations_dir}/qt_zh_CN.qm")
+		else()
+			set(_qt_zh_cn_src "")
+		endif()
+		set(_stage_zh_cn_cmds
 			COMMAND ${CMAKE_COMMAND} -E make_directory
 				"$<TARGET_FILE_DIR:wireshark>/translations"
 				"$<TARGET_FILE_DIR:wireshark>/languages"
@@ -3505,12 +3547,19 @@ if(BUILD_wireshark AND QT_FOUND)
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different
 				"${CMAKE_BINARY_DIR}/ui/qt/wireshark_zh_CN.qm"
 				"$<TARGET_FILE_DIR:wireshark>/languages/wireshark_zh_CN.qm"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-				"${_qt_translations_dir}/qtbase_zh_CN.qm"
-				"$<TARGET_FILE_DIR:wireshark>/translations/qtbase_zh_CN.qm"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-				"${_qt_translations_dir}/qtbase_zh_CN.qm"
-				"$<TARGET_FILE_DIR:wireshark>/translations/qt_zh_CN.qm"
+		)
+		if(_qt_zh_cn_src)
+			list(APPEND _stage_zh_cn_cmds
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					"${_qt_zh_cn_src}"
+					"$<TARGET_FILE_DIR:wireshark>/translations/qtbase_zh_CN.qm"
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					"${_qt_zh_cn_src}"
+					"$<TARGET_FILE_DIR:wireshark>/translations/qt_zh_CN.qm"
+			)
+		endif()
+		add_custom_command(TARGET wireshark POST_BUILD
+			${_stage_zh_cn_cmds}
 			COMMENT "Staging zh_CN translations for minimal package"
 		)
 	endif()

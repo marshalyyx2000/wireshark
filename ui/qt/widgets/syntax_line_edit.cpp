@@ -18,6 +18,7 @@
 
 #include <ui/qt/widgets/syntax_line_edit.h>
 
+#include <QtGlobal>
 #include <ui/qt/utils/qt_ui_utils.h>
 #include <ui/qt/utils/themes/themed_icon.h>
 #include <ui/qt/utils/theme_manager.h>
@@ -61,7 +62,7 @@ void SyntaxLineEdit::setCompleter(QCompleter *c)
     // Completion items are not guaranteed to be sorted (recent filters +
     // fields), so no setModelSorting.
     completer_->setMaxVisibleItems(max_completion_items_);
-    QObject::connect(completer_, static_cast<void (QCompleter::*)(const QString &)>(&QCompleter::activated),
+    QObject::connect(completer_, static_cast<void (QCompleter::*)(const QString &)>(QOverload<const QString &>::of(&QCompleter::activated)),
                      this, &SyntaxLineEdit::insertFieldCompletion);
 
     // Auto-completion is turned on.
@@ -113,7 +114,7 @@ QString SyntaxLineEdit::syntaxErrorMessageFull()
 
 QString SyntaxLineEdit::createSyntaxErrorMessageFull(
                                 const QString &filter, const QString &err_msg,
-                                qsizetype loc_start, size_t loc_length)
+                                WsSizeType loc_start, size_t loc_length)
 {
     QString msg = tr("Invalid filter: %1").arg(err_msg);
 
@@ -532,7 +533,11 @@ QStringList SyntaxLineEdit::splitLineUnderCursor()
     QPoint token_coords(getTokenUnderCursor());
 
     // Split line into preamble and word under cursor.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QString preamble = text().first(token_coords.x()).trimmed();
+#else
+    QString preamble = text().left(token_coords.x()).trimmed();
+#endif
     // This should be trimmed already
     QString token_word = text().mid(token_coords.x(), token_coords.y());
 

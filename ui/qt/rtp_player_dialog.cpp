@@ -1019,7 +1019,7 @@ void RtpPlayerDialog::updateWidgets()
     bool enable_stop = false;
     bool enable_timing = true;
     int count = ui->streamTreeWidget->topLevelItemCount();
-    qsizetype selected = ui->streamTreeWidget->selectedItems().count();
+    int selected = ui->streamTreeWidget->selectedItems().count();
 
     if (count < 1) {
         enable_play = false;
@@ -1208,7 +1208,7 @@ void RtpPlayerDialog::updateHintLabel()
     QString hint = "<small><i>";
     double start_pos = getStartPlayMarker();
     int row_count = ui->streamTreeWidget->topLevelItemCount();
-    qsizetype selected = ui->streamTreeWidget->selectedItems().count();
+    int selected = ui->streamTreeWidget->selectedItems().count();
     int not_muted = 0;
 
     hint += tr("%Ln stream(s)", "", row_count);
@@ -1652,7 +1652,7 @@ void RtpPlayerDialog::on_streamTreeWidget_itemSelectionChanged()
         }
     }
 
-    qsizetype selected = ui->streamTreeWidget->selectedItems().count();
+    int selected = ui->streamTreeWidget->selectedItems().count();
     if (selected == 0) {
         analyze_btn_->setEnabled(false);
         prepare_btn_->setEnabled(false);

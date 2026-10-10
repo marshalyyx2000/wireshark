@@ -12,6 +12,7 @@
 
 #include <ui/qt/widgets/packet_list_pane.h>
 
+#include <ui/qt/qt5_compat.h>
 #include <ui/qt/packet_list.h>
 #include <ui/qt/widgets/pinned_row_view.h>
 
@@ -485,7 +486,7 @@ bool PacketListPane::handleHeaderDrag(QHeaderView *header, QEvent *event)
         if (me->button() != Qt::LeftButton) {
             return false;
         }
-        int x = me->position().toPoint().x();
+        int x = ws_mouse_pos(me).x();
         int logical = header->logicalIndexAt(x);
         if (logical < 0) {
             return false;
@@ -498,7 +499,7 @@ bool PacketListPane::handleHeaderDrag(QHeaderView *header, QEvent *event)
         drag_pressed_ = true;
         drag_source_ = header;
         drag_section_ = logical;
-        drag_press_global_ = me->globalPosition().toPoint();
+        drag_press_global_ = ws_mouse_global_pos(me);
         drag_grab_dx_ = x - left;
         return false;
     }
@@ -510,7 +511,7 @@ bool PacketListPane::handleHeaderDrag(QHeaderView *header, QEvent *event)
         if (!(me->buttons() & Qt::LeftButton)) {
             return false;
         }
-        QPoint global = me->globalPosition().toPoint();
+        QPoint global = ws_mouse_global_pos(me);
         if (!drag_active_) {
             if ((global - drag_press_global_).manhattanLength() < QApplication::startDragDistance()) {
                 return false;
@@ -543,7 +544,7 @@ bool PacketListPane::handleHeaderDrag(QHeaderView *header, QEvent *event)
         int from = drag_section_;
         int target = -1;
         if (was_active) {
-            target = dragTargetSection(duplicate_header_strip_->mapFromGlobal(me->globalPosition().toPoint()).x(), from);
+            target = dragTargetSection(duplicate_header_strip_->mapFromGlobal(ws_mouse_global_pos(me)).x(), from);
         }
         drag_ghost_->setVisible(false);
         drag_pressed_ = false;

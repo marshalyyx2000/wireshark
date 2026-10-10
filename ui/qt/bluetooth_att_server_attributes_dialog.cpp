@@ -77,8 +77,8 @@ BluetoothAttServerAttributesDialog::BluetoothAttServerAttributesDialog(QWidget &
     loadGeometry(parent.width() * 4 / 5, parent.height() * 2 / 3);
 
     connect(ui->tableTreeWidget, &QTreeWidget::customContextMenuRequested, this, &BluetoothAttServerAttributesDialog::tableContextMenu);
-    connect(ui->interfaceComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &BluetoothAttServerAttributesDialog::interfaceCurrentIndexChanged);
-    connect(ui->deviceComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &BluetoothAttServerAttributesDialog::deviceCurrentIndexChanged);
+    connect(ui->interfaceComboBox, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)), this, &BluetoothAttServerAttributesDialog::interfaceCurrentIndexChanged);
+    connect(ui->deviceComboBox, static_cast<void (QComboBox::*)(int)>(QOverload<int>::of(&QComboBox::currentIndexChanged)), this, &BluetoothAttServerAttributesDialog::deviceCurrentIndexChanged);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
     connect(ui->removeDuplicatesCheckBox, &QCheckBox::checkStateChanged, this, &BluetoothAttServerAttributesDialog::removeDuplicatesStateChanged);
 #else
