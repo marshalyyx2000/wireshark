@@ -1608,7 +1608,8 @@ mms_normalize_objref(wmem_allocator_t *scope, const char *s)
 }
 
 static bool mms_path_is_rcb(const char *path);
-static const char *mms_rcb_struct_attr_name(int idx);
+static bool mms_path_is_urcb(const char *path);
+static const char *mms_rcb_struct_attr_name(const char *path, int idx);
 
 static char *
 mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int depth)
@@ -1620,7 +1621,7 @@ mms_struct_child_path(wmem_allocator_t *scope, const char *base, int idx, int de
         const char *rcb_attr;
 
         /* Whole-RCB read: map structure members to IEC 61850 names. */
-        rcb_attr = mms_path_is_rcb(base) ? mms_rcb_struct_attr_name(idx) : NULL;
+        rcb_attr = mms_path_is_rcb(base) ? mms_rcb_struct_attr_name(base, idx) : NULL;
         if (rcb_attr) {
             return wmem_strdup_printf(scope, "%s.%s", base, rcb_attr);
         }
@@ -1886,13 +1887,52 @@ mms_path_is_rcb(const char *path)
     return false;
 }
 
+/* URCB uses FC RP; BRCB uses FC BR. Prefer FC markers over name heuristics. */
+static bool
+mms_path_is_urcb(const char *path)
+{
+    if (!path) {
+        return false;
+    }
+    if (strstr(path, "$RP$") || strstr(path, ".RP.")) {
+        return true;
+    }
+    if (strstr(path, "$BR$") || strstr(path, ".BR.")) {
+        return false;
+    }
+    if (g_strrstr(path, "urcb") || g_strrstr(path, "URCB")) {
+        return true;
+    }
+    return false;
+}
+
 /*
  * Map RCB structure component index (1-based) to IEC 61850-7-2 attribute
- * name. OptFlds=5, TrgOps=8 for both BRCB and URCB.
+ * name. URCB inserts Resv after RptEna (OptFlds=6, TrgOps=9);
+ * BRCB has no Resv there (OptFlds=5, TrgOps=8).
  */
 static const char *
-mms_rcb_struct_attr_name(int idx)
+mms_rcb_struct_attr_name(const char *path, int idx)
 {
+    if (mms_path_is_urcb(path)) {
+        switch (idx) {
+        case 1:  return "RptID";
+        case 2:  return "RptEna";
+        case 3:  return "Resv";
+        case 4:  return "DatSet";
+        case 5:  return "ConfRev";
+        case 6:  return "OptFlds";
+        case 7:  return "BufTm";
+        case 8:  return "SqNum";
+        case 9:  return "TrgOps";
+        case 10: return "IntgPd";
+        case 11: return "Gi";
+        case 12: return "Owner";
+        default: return NULL;
+        }
+    }
+
+    /* BRCB (buffered) */
     switch (idx) {
     case 1:  return "RptID";
     case 2:  return "RptEna";
@@ -1904,14 +1944,16 @@ mms_rcb_struct_attr_name(int idx)
     case 8:  return "TrgOps";
     case 9:  return "IntgPd";
     case 10: return "Gi";
-    case 11: return "PurgeBuf"; /* URCB: Resv in some models */
+    case 11: return "PurgeBuf";
     case 12: return "EntryID";
     case 13: return "TimeOfEntry";
+    case 14: return "ResvTms";
+    case 15: return "Owner";
     default: return NULL;
     }
 }
 
-/* OptFlds / TrgOps by leaf name or RCB structure index (.s5 / .s8). */
+/* OptFlds / TrgOps by leaf name or RCB structure index (.sN fallback). */
 static int
 mms_rcb_bitstring_kind(const char *path)
 {
@@ -1919,11 +1961,15 @@ mms_rcb_bitstring_kind(const char *path)
         return 0; /* none */
     }
     if (mms_path_ends_with_attr(path, "OptFlds") ||
-        (mms_path_is_rcb(path) && mms_path_ends_with_attr(path, "s5"))) {
+        (mms_path_is_urcb(path) && mms_path_ends_with_attr(path, "s6")) ||
+        (mms_path_is_rcb(path) && !mms_path_is_urcb(path) &&
+         mms_path_ends_with_attr(path, "s5"))) {
         return 1; /* OptFlds */
     }
     if (mms_path_ends_with_attr(path, "TrgOps") ||
-        (mms_path_is_rcb(path) && mms_path_ends_with_attr(path, "s8"))) {
+        (mms_path_is_urcb(path) && mms_path_ends_with_attr(path, "s9")) ||
+        (mms_path_is_rcb(path) && !mms_path_is_urcb(path) &&
+         mms_path_ends_with_attr(path, "s8"))) {
         return 2; /* TrgOps */
     }
     return 0;
