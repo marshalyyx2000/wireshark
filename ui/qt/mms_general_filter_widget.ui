@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>520</width>
-    <height>280</height>
+    <height>240</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -35,7 +35,7 @@
    <item>
     <widget class="QGroupBox" name="refGroup">
      <property name="title">
-      <string>输入 / 参引</string>
+      <string>输入 / 匹配</string>
      </property>
      <layout class="QFormLayout" name="refLayout">
       <item row="0" column="0" colspan="2">
@@ -57,16 +57,16 @@
        </layout>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="dataRefLabel">
+       <widget class="QLabel" name="stringMatchLabel">
         <property name="text">
-         <string>Data Reference</string>
+         <string>字符串</string>
         </property>
        </widget>
       </item>
       <item row="1" column="1">
-       <widget class="QLineEdit" name="dataRefEdit">
+       <widget class="QLineEdit" name="stringMatchEdit">
         <property name="placeholderText">
-         <string>分段模糊查询（空格分隔，不区分大小写）</string>
+         <string>通用匹配，分段模糊（空格分隔，不区分大小写）</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>
@@ -74,30 +74,13 @@
        </widget>
       </item>
       <item row="2" column="0">
-       <widget class="QLabel" name="objRefLabel">
-        <property name="text">
-         <string>Object Reference</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="objRefEdit">
-        <property name="placeholderText">
-         <string>分段模糊查询（空格分隔，不区分大小写）</string>
-        </property>
-        <property name="clearButtonEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
        <widget class="QLabel" name="invokeIdLabel">
         <property name="text">
          <string>InvokeID</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="2" column="1">
        <widget class="QLineEdit" name="invokeIdEdit">
         <property name="placeholderText">
          <string>invoke = N</string>

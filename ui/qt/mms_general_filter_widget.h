@@ -1,6 +1,6 @@
 /** @file
  *
- * MMS general display-filter builder widget (refs + invokeID).
+ * MMS general display-filter builder widget (string match OR invokeID).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

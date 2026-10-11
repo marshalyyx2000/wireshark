@@ -451,7 +451,7 @@ QString IndustrialProtocolClassifyPanel::buildCombinedFilter() const
     }
     if (selected_proto_key_ == QLatin1String("mms")) {
         if (isGeneralFilterTabActive()) {
-            /* 通用过滤：仅选中 IP + 全部 MMS（及可选参引/InvokeID），不含报告范围 */
+            /* 通用过滤：选中 IP + 全部 MMS（字符串匹配 OR InvokeID），不含报告范围 */
             if (general_widget_->hasGeneralCriteria()) {
                 parts << general_widget_->buildFilter();
             }

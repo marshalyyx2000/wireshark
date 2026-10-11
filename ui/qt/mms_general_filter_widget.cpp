@@ -1,6 +1,6 @@
 /** @file
  *
- * MMS general display-filter builder widget (refs + invokeID).
+ * MMS general display-filter builder widget (string match + invokeID, OR).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -17,7 +17,7 @@
 #include <QLineEdit>
 #include <QTimer>
 
-using MmsFilterHelpers::appendRefFilter;
+using MmsFilterHelpers::buildPayloadStringMatch;
 
 MmsGeneralFilterWidget::MmsGeneralFilterWidget(QWidget *parent) :
     QWidget(parent),
@@ -27,14 +27,14 @@ MmsGeneralFilterWidget::MmsGeneralFilterWidget(QWidget *parent) :
     ui_->setupUi(this);
 
     filter_apply_timer_->setSingleShot(true);
-    filter_apply_timer_->setInterval(100);
+    /* Longer debounce: each apply rescans the capture; avoid per-keystroke cost. */
+    filter_apply_timer_->setInterval(350);
     connect(filter_apply_timer_, &QTimer::timeout, this, &MmsGeneralFilterWidget::onDebouncedFilterApply);
 
     ui_->invokeIdEdit->setValidator(new QIntValidator(0, INT_MAX, ui_->invokeIdEdit));
 
     connect(ui_->exactRefMatchCheck, &QCheckBox::toggled, this, &MmsGeneralFilterWidget::onCriteriaChanged);
-    connect(ui_->dataRefEdit, &QLineEdit::textChanged, this, &MmsGeneralFilterWidget::onCriteriaChanged);
-    connect(ui_->objRefEdit, &QLineEdit::textChanged, this, &MmsGeneralFilterWidget::onCriteriaChanged);
+    connect(ui_->stringMatchEdit, &QLineEdit::textChanged, this, &MmsGeneralFilterWidget::onCriteriaChanged);
     connect(ui_->invokeIdEdit, &QLineEdit::textChanged, this, &MmsGeneralFilterWidget::onCriteriaChanged);
     connect(ui_->realtimeFilterCheck, &QCheckBox::toggled, this, [this](bool checked) {
         if (checked) {
@@ -68,8 +68,7 @@ void MmsGeneralFilterWidget::resetAppliedFilterState()
 void MmsGeneralFilterWidget::clearCriteria()
 {
     ui_->exactRefMatchCheck->setChecked(false);
-    ui_->dataRefEdit->clear();
-    ui_->objRefEdit->clear();
+    ui_->stringMatchEdit->clear();
     ui_->invokeIdEdit->clear();
     last_emitted_filter_.clear();
     updatePreview();
@@ -77,10 +76,7 @@ void MmsGeneralFilterWidget::clearCriteria()
 
 bool MmsGeneralFilterWidget::hasGeneralCriteria() const
 {
-    if (!ui_->dataRefEdit->text().trimmed().isEmpty()) {
-        return true;
-    }
-    if (!ui_->objRefEdit->text().trimmed().isEmpty()) {
+    if (!ui_->stringMatchEdit->text().trimmed().isEmpty()) {
         return true;
     }
     bool ok = false;
@@ -94,22 +90,26 @@ QString MmsGeneralFilterWidget::buildFilter() const
         return QString();
     }
 
-    QStringList parts;
-    parts << QStringLiteral("mms");
-
     const bool exact_ref = ui_->exactRefMatchCheck->isChecked();
-    appendRefFilter(parts, QStringLiteral("mms.iec61850.data_reference"),
-                    ui_->dataRefEdit->text().trimmed(), exact_ref);
-    appendRefFilter(parts, QStringLiteral("mms.iec61850.object_reference"),
-                    ui_->objRefEdit->text().trimmed(), exact_ref);
+    const QString string_clause = buildPayloadStringMatch(ui_->stringMatchEdit->text(), exact_ref);
 
+    QString invoke_clause;
     bool ok = false;
     const int invoke_id = ui_->invokeIdEdit->text().trimmed().toInt(&ok);
     if (ok) {
-        parts << QStringLiteral("mms.invokeID == %1").arg(invoke_id);
+        invoke_clause = QStringLiteral("mms.invokeID == %1").arg(invoke_id);
     }
 
-    return parts.join(QStringLiteral(" && "));
+    QString match_clause;
+    if (!string_clause.isEmpty() && !invoke_clause.isEmpty()) {
+        match_clause = QStringLiteral("(%1 || %2)").arg(string_clause, invoke_clause);
+    } else if (!string_clause.isEmpty()) {
+        match_clause = string_clause;
+    } else {
+        match_clause = invoke_clause;
+    }
+
+    return QStringLiteral("mms && (%1)").arg(match_clause);
 }
 
 void MmsGeneralFilterWidget::updatePreview()

@@ -77,4 +77,109 @@ void appendRefFilter(QStringList &parts, const QString &field, const QString &te
     appendSegmentedContains(parts, field, text);
 }
 
+QString buildMultiFieldStringMatch(const QStringList &fields, const QString &text,
+                                   bool exact_match)
+{
+    if (text.trimmed().isEmpty() || fields.isEmpty()) {
+        return QString();
+    }
+
+    if (exact_match) {
+        QStringList alts;
+        for (const QString &field : fields) {
+            alts << ciEqualsClause(field, text.trimmed());
+        }
+        if (alts.size() == 1) {
+            return alts.first();
+        }
+        return QStringLiteral("(%1)").arg(alts.join(QStringLiteral(" || ")));
+    }
+
+    QStringList segment_clauses;
+    for (const QString &segment : filterSegments(text)) {
+        QStringList alts;
+        for (const QString &field : fields) {
+            alts << ciContainsClause(field, segment);
+        }
+        if (alts.size() == 1) {
+            segment_clauses << alts.first();
+        } else {
+            segment_clauses << QStringLiteral("(%1)").arg(alts.join(QStringLiteral(" || ")));
+        }
+    }
+    if (segment_clauses.isEmpty()) {
+        return QString();
+    }
+    if (segment_clauses.size() == 1) {
+        return segment_clauses.first();
+    }
+    return QStringLiteral("(%1)").arg(segment_clauses.join(QStringLiteral(" && ")));
+}
+
+QString escapeRegexLiteral(const QString &text)
+{
+    QString out;
+    out.reserve(text.size() * 2);
+    for (QChar c : text) {
+        switch (c.unicode()) {
+        case '\\':
+        case '.':
+        case '^':
+        case '$':
+        case '*':
+        case '+':
+        case '?':
+        case '(':
+        case ')':
+        case '[':
+        case ']':
+        case '{':
+        case '}':
+        case '|':
+            out += QLatin1Char('\\');
+            break;
+        default:
+            break;
+        }
+        out += c;
+    }
+    return out;
+}
+
+QString buildPayloadStringMatch(const QString &text, bool exact_match)
+{
+    if (text.trimmed().isEmpty()) {
+        return QString();
+    }
+
+    /* Exact: equality on a small field set (no _ws.col.info). */
+    if (exact_match) {
+        static const QStringList exact_fields = {
+            QStringLiteral("mms.Identifier"),
+            QStringLiteral("mms.domainId"),
+            QStringLiteral("mms.objectName_domain_specific_itemId"),
+            QStringLiteral("mms.iec61850.data_reference"),
+            QStringLiteral("mms.iec61850.object_reference"),
+            QStringLiteral("mms.iec61850.datset"),
+            QStringLiteral("mms.iec61850.rptid"),
+        };
+        return buildMultiFieldStringMatch(exact_fields, text, true);
+    }
+
+    /* Fuzzy: one case-insensitive regex scan of the MMS tvb per segment.
+     * Far cheaper than OR of many lower(field) contains clauses. */
+    QStringList segment_clauses;
+    for (const QString &segment : filterSegments(text)) {
+        const QString pattern = QStringLiteral("(?i)") + escapeRegexLiteral(segment);
+        segment_clauses << QStringLiteral("mms matches %1").arg(quoteFilterString(pattern));
+    }
+    if (segment_clauses.isEmpty()) {
+        return QString();
+    }
+    if (segment_clauses.size() == 1) {
+        return segment_clauses.first();
+    }
+    return QStringLiteral("(%1)").arg(segment_clauses.join(QStringLiteral(" && ")));
+}
+
 } // namespace MmsFilterHelpers
