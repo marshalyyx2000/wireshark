@@ -161,6 +161,25 @@ Plugins = lib/qt/plugins
 Translations = translations
 EOF
 
+# dumpcap often has file capabilities; glibc then ignores LD_LIBRARY_PATH and
+# $ORIGIN in RPATH (AT_SECURE). Register an absolute private lib path via
+# ld.so.conf.d in postinst. Also keep bin/ symlinks for non-cap binaries.
+echo "=== symlink private libs into bin/ (non-cap RPATH helper) ==="
+for f in "${PREFIX_DIR}/lib"/lib*.so*; do
+  base="$(basename "$f")"
+  ln -sfn "../lib/${base}" "${PREFIX_DIR}/bin/${base}"
+done
+if command -v patchelf >/dev/null 2>&1; then
+  echo "=== patchelf RPATH=\$ORIGIN:\$ORIGIN/../lib (extra) ==="
+  for elf in "${PREFIX_DIR}/bin/wireshark" "${PREFIX_DIR}/bin/tshark" "${PREFIX_DIR}/bin/dumpcap"; do
+    [[ -f "$elf" && ! -L "$elf" ]] || continue
+    patchelf --set-rpath '$ORIGIN:$ORIGIN/../lib' "$elf" 2>/dev/null || true
+  done
+fi
+# Staged ld.so.conf snippet (activated by postinst ldconfig).
+mkdir -p "${STAGE}/etc/ld.so.conf.d"
+echo "${INSTALL_ROOT}/lib" > "${STAGE}/etc/ld.so.conf.d/${PKG_NAME}.conf"
+
 # Launch wrappers: set LD_LIBRARY_PATH / QT_PLUGIN_PATH / data dir.
 # /usr/bin names must NOT collide with distro packages (wireshark-qt, tshark, …).
 write_wrapper() {
@@ -225,6 +244,11 @@ EOF
 cat > "${STAGE}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
+# Absolute private lib path — required when dumpcap has file capabilities
+# (AT_SECURE ignores LD_LIBRARY_PATH and $ORIGIN RPATH).
+if [ -f /etc/ld.so.conf.d/binyao-wireshark.conf ]; then
+  ldconfig || true
+fi
 DUMPCAP="/opt/binyao-wireshark/bin/dumpcap"
 if command -v setcap >/dev/null 2>&1 && [ -x "$DUMPCAP" ]; then
   setcap cap_net_raw,cap_net_admin=eip "$DUMPCAP" 2>/dev/null || true
@@ -243,6 +267,17 @@ fi
 exit 0
 EOF
 chmod 755 "${STAGE}/DEBIAN/prerm"
+
+cat > "${STAGE}/DEBIAN/postrm" <<'EOF'
+#!/bin/sh
+set -e
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+  rm -f /etc/ld.so.conf.d/binyao-wireshark.conf
+  ldconfig || true
+fi
+exit 0
+EOF
+chmod 755 "${STAGE}/DEBIAN/postrm"
 
 # Permissions: binaries executable; DEBIAN owned by root for dpkg-deb
 chmod 755 "${PREFIX_DIR}/bin/wireshark" "${PREFIX_DIR}/bin/tshark" "${PREFIX_DIR}/bin/dumpcap"
