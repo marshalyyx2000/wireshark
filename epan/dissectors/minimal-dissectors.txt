@@ -53,6 +53,7 @@ packet-sv.c
 
 # --- IEC 60870-5 (101/103/104 live in this file) ---
 packet-iec104.c
+packet-shandong-iec103.c
 
 # --- Modbus ---
 packet-mbtcp.c

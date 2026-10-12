@@ -3388,6 +3388,13 @@ void WiresharkMainWindow::connectModbusMenuActions()
     });
 }
 
+void WiresharkMainWindow::connectIec103MenuActions()
+{
+    connect(main_ui_->actionIec103ShandongMasterSlave, &QAction::triggered, this, [=]() {
+        applyCaptureDisplayFilter(QStringLiteral("shandong_iec103"), true);
+    });
+}
+
 void WiresharkMainWindow::connectCommonToolsMenuActions()
 {
     connect(main_ui_->actionCommonToolsNicPacketLoss, &QAction::triggered, this, [=]() {

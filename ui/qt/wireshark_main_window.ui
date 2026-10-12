@@ -523,6 +523,12 @@
     </property>
     <addaction name="actionModbusYushunVoltagePlate"/>
    </widget>
+   <widget class="QMenu" name="menuIec103">
+    <property name="title">
+     <string>103</string>
+    </property>
+    <addaction name="actionIec103ShandongMasterSlave"/>
+   </widget>
    <widget class="QMenu" name="menuCommonTools">
     <property name="title">
      <string>常用工具</string>
@@ -822,6 +828,7 @@
    <addaction name="menuStatistics"/>
    <addaction name="menuMms"/>
    <addaction name="menuModbus"/>
+   <addaction name="menuIec103"/>
    <addaction name="menuCommonTools"/>
    <addaction name="menuTelephony"/>
    <addaction name="menuWireless"/>
@@ -2994,6 +3001,14 @@
    </property>
    <property name="toolTip">
     <string>仅显示禹舜下端电压硬压板 MODBUS 报文 (yushun_modbus)</string>
+   </property>
+  </action>
+  <action name="actionIec103ShandongMasterSlave">
+   <property name="text">
+    <string>山东主子站103规约</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示山东主子站103规约报文 (shandong_iec103)</string>
    </property>
   </action>
   <action name="actionCommonToolsNicPacketLoss">

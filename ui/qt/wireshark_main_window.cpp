@@ -728,6 +728,7 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectAnalyzeMenuActions();
     connectMmsMenuActions();
     connectModbusMenuActions();
+    connectIec103MenuActions();
     connectCommonToolsMenuActions();
 #ifndef ENABLE_MINIMAL_BUILD
     connectStatisticsMenuActions();
@@ -2748,6 +2749,7 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionMmsReportFilter->setEnabled(have_captured_packets);
     main_ui_->actionMmsProcessAnalysis->setEnabled(have_captured_packets);
     main_ui_->actionModbusYushunVoltagePlate->setEnabled(have_captured_packets);
+    main_ui_->actionIec103ShandongMasterSlave->setEnabled(have_captured_packets);
 
 #ifndef ENABLE_MINIMAL_BUILD
     main_ui_->actionStatisticsCaptureFileProperties->setEnabled(have_captured_packets);

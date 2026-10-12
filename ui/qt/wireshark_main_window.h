@@ -1156,6 +1156,9 @@ private slots:
     /** @brief Connects MODBUS menu actions to their implementation slots. */
     void connectModbusMenuActions();
 
+    /** @brief Connects 103 menu actions to their implementation slots. */
+    void connectIec103MenuActions();
+
     /** @brief Connects 常用工具 menu actions to their implementation slots. */
     void connectCommonToolsMenuActions();
 
