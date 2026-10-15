@@ -17,6 +17,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
+#include <epan/tfs.h>
 #include <epan/wmem_scopes.h>
 #include <wsutil/array.h>
 #include <wsutil/str_util.h>
@@ -54,16 +55,46 @@ static dissector_handle_t shandong_iec103_handle;
 
 static int ett_shandong_iec103;
 static int ett_shandong_apci;
+static int ett_shandong_apci_len;
+static int ett_shandong_apci_ctrl;
+static int ett_shandong_apci_ctrl_b1;
+static int ett_shandong_apci_ctrl_b2;
+static int ett_shandong_apci_ctrl_b3;
+static int ett_shandong_apci_ctrl_b4;
 static int ett_shandong_asdu;
 static int ett_shandong_cp56time;
 static int ett_shandong_gen;
 static int ett_shandong_gen_entry;
 static int ett_shandong_attr;
 static int ett_shandong_file;
+static int ett_shandong_file_text;
 
 static int hf_start;
 static int hf_apdulen;
 static int hf_apdulen_ext;
+static int hf_apdulen_lo;
+static int hf_apdulen_hi;
+static int hf_apdulen_calc;
+static int hf_apci_ctrl;
+static int hf_apci_ctrl_b1;
+static int hf_apci_ctrl_b2;
+static int hf_apci_ctrl_b3;
+static int hf_apci_ctrl_b4;
+static int hf_apci_fmt_i;
+static int hf_apci_fmt_su;
+static int hf_apci_ns_lo;
+static int hf_apci_ns_hi;
+static int hf_apci_ns;
+static int hf_apci_nr_lo;
+static int hf_apci_nr_hi;
+static int hf_apci_nr;
+static int hf_apci_s_resv;
+static int hf_apci_u_startdt_act;
+static int hf_apci_u_startdt_con;
+static int hf_apci_u_stopdt_act;
+static int hf_apci_u_stopdt_con;
+static int hf_apci_u_testfr_act;
+static int hf_apci_u_testfr_con;
 static int hf_apcitype_i;
 static int hf_apcitype_su;
 static int hf_apcitx;
@@ -87,6 +118,7 @@ static int hf_ngd_cont;
 static int hf_ngd_count;
 static int hf_nog;
 static int hf_raw;
+static int hf_gen_entry;
 static int hf_cp56time;
 static int hf_cp56time_ms;
 static int hf_cp56time_min;
@@ -111,9 +143,15 @@ static int hf_endflag;
 static int hf_file_num;
 static int hf_filename;
 static int hf_file_entry;
+static int hf_file_chunk;
 static int hf_file_offset;
 static int hf_file_size;
 static int hf_file_data;
+static int hf_file_data_text;
+static int hf_file_data_line;
+static int hf_file_text;
+
+static dissector_handle_t xml_handle;
 static int hf_event_type;
 static int hf_fpt;
 static int hf_jpt;
@@ -129,21 +167,26 @@ static expert_field ei_apdu_bad_len;
 static expert_field ei_asdu_truncated;
 
 static const value_string apci_types[] = {
-	{ I_TYPE, "I" },
-	{ S_TYPE, "S" },
-	{ U_TYPE, "U" },
+	{ I_TYPE, "信息帧(I)" },
+	{ S_TYPE, "监视帧(S)" },
+	{ U_TYPE, "控制帧(U)" },
 	{ 0, NULL }
 };
 
-static const value_string u_types[] = {
-	{ 0x01, "STARTDT act" },
-	{ 0x02, "STARTDT con" },
-	{ 0x04, "STOPDT act" },
-	{ 0x08, "STOPDT con" },
-	{ 0x10, "TESTFR act" },
-	{ 0x20, "TESTFR con" },
+/* U 功能摘要（第1字节 bit2-7，不含格式位） */
+static const value_string u_func_vals[] = {
+	{ 0x04, "启动数据传输激活" },
+	{ 0x08, "启动数据传输确认" },
+	{ 0x10, "停止数据传输激活" },
+	{ 0x20, "停止数据传输确认" },
+	{ 0x40, "测试帧激活" },
+	{ 0x80, "测试帧确认" },
 	{ 0, NULL }
 };
+
+static const true_false_string tfs_apci_set = { "置位", "未置位" };
+/* bit0=0 → 信息帧(I)；bit0=1 → 非I */
+static const true_false_string tfs_apci_bit0_i = { "非信息帧", "信息帧(I)" };
 
 static const value_string asdu_type_vals[] = {
 	{ 1,   "ASDU1 Time-tagged message" },
@@ -251,6 +294,84 @@ bytes_are_valid_utf8(tvbuff_t *tvb, int offset, int len)
 	return true;
 }
 
+/* Drop leading orphan UTF-8 continuation bytes (10xxxxxx) from prior APDU. */
+static int
+skip_orphan_utf8_head(tvbuff_t *tvb, int offset, int len)
+{
+	int i = 0;
+
+	while (i < len && (tvb_get_uint8(tvb, offset + i) & 0xc0) == 0x80)
+		i++;
+	return i;
+}
+
+/* Drop a trailing incomplete UTF-8 sequence (common in ASDU file fragments). */
+static int
+trim_incomplete_utf8_tail(tvbuff_t *tvb, int offset, int len)
+{
+	int i;
+
+	if (len <= 0)
+		return 0;
+	i = len - 1;
+	/* Continuation bytes 10xxxxxx — walk back to lead byte. */
+	while (i > 0 && (tvb_get_uint8(tvb, offset + i) & 0xc0) == 0x80)
+		i--;
+	if (i < len - 1 || (tvb_get_uint8(tvb, offset + i) & 0x80) != 0) {
+		uint8_t c = tvb_get_uint8(tvb, offset + i);
+		int need = 0;
+
+		if ((c & 0xe0) == 0xc0)
+			need = 2;
+		else if ((c & 0xf0) == 0xe0)
+			need = 3;
+		else if ((c & 0xf8) == 0xf0)
+			need = 4;
+		else if ((c & 0x80) != 0)
+			return i; /* orphan continuation — drop it */
+		if (need > 0 && i + need > len)
+			return i; /* incomplete char at end */
+	}
+	return len;
+}
+
+/*
+ * Normalize a possibly-fragmented text chunk for display.
+ * Returns adjusted offset/len and chosen encoding (UTF-8 preferred for XML).
+ */
+static void
+normalize_file_text_chunk(tvbuff_t *tvb, int *offset, int *len, unsigned *encoding)
+{
+	int off = *offset;
+	int slim = trim_nul_len(tvb, off, *len);
+	int head, cut;
+
+	*encoding = ENC_UTF_8;
+	if (slim <= 0) {
+		*len = 0;
+		return;
+	}
+	head = skip_orphan_utf8_head(tvb, off, slim);
+	off += head;
+	slim -= head;
+	if (slim <= 0) {
+		*offset = off;
+		*len = 0;
+		return;
+	}
+	cut = trim_incomplete_utf8_tail(tvb, off, slim);
+	if (cut > 0)
+		slim = cut;
+	if (bytes_are_valid_utf8(tvb, off, slim)) {
+		*encoding = ENC_UTF_8;
+	} else {
+		/* True GBK/GB18030 body (no UTF-8 structure). */
+		*encoding = ENC_GB18030;
+	}
+	*offset = off;
+	*len = slim;
+}
+
 static void
 proto_tree_add_zh_string(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 	int offset, int len)
@@ -264,11 +385,80 @@ proto_tree_add_zh_string(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 	}
 	/*
 	 * Field IEDs typically emit GBK/GB18030 for OS8ASCII names.
-	 * Modern file payloads may already be UTF-8 — detect and prefer that.
+	 * File payloads (XML etc.) are often UTF-8 and may be fragmented —
+	 * trim an incomplete tail then prefer UTF-8 when the body is valid.
 	 */
-	if (bytes_are_valid_utf8(tvb, offset, slim))
+	if (bytes_are_valid_utf8(tvb, offset, slim)) {
 		encoding = ENC_UTF_8;
+	} else {
+		int cut = trim_incomplete_utf8_tail(tvb, offset, slim);
+
+		if (cut > 0 && cut < slim && bytes_are_valid_utf8(tvb, offset, cut)) {
+			slim = cut;
+			encoding = ENC_UTF_8;
+		}
+	}
 	proto_tree_add_item(tree, hfindex, tvb, offset, slim, encoding);
+}
+
+/*
+ * Show file body as one tree node per physical line so the UI renders
+ * real line breaks instead of escaped "\n" in a single FT_STRING.
+ * Fragments may start/end mid-UTF-8 char — normalize before decode.
+ */
+static void
+proto_tree_add_file_text(proto_tree *tree, int hfindex _U_, tvbuff_t *tvb,
+	int offset, int len)
+{
+	proto_item *pi;
+	proto_tree *pt;
+	int orig_off = offset;
+	int orig_len = len;
+	int pos, end;
+	unsigned encoding = ENC_UTF_8;
+
+	normalize_file_text_chunk(tvb, &offset, &len, &encoding);
+	if (len <= 0) {
+		proto_tree_add_none_format(tree, hf_file_data_text, tvb, orig_off, orig_len,
+			"File data (text)");
+		return;
+	}
+
+	pi = proto_tree_add_none_format(tree, hf_file_data_text, tvb, offset, len,
+		"File data (text)");
+	pt = proto_item_add_subtree(pi, ett_shandong_file_text);
+
+	pos = offset;
+	end = offset + len;
+	while (pos < end) {
+		int line_end = pos;
+		int next;
+		int line_off, line_len;
+		unsigned line_enc = encoding;
+
+		while (line_end < end) {
+			uint8_t c = tvb_get_uint8(tvb, line_end);
+			if (c == '\n' || c == '\r')
+				break;
+			line_end++;
+		}
+		line_off = pos;
+		line_len = line_end - pos;
+		/* Per-line normalize in case a cut sits mid-line at fragment edge. */
+		normalize_file_text_chunk(tvb, &line_off, &line_len, &line_enc);
+		if (line_len > 0)
+			proto_tree_add_item(pt, hf_file_data_line, tvb, line_off, line_len, line_enc);
+		else
+			proto_tree_add_string(pt, hf_file_data_line, tvb, pos, line_end - pos, "");
+		next = line_end;
+		if (next < end && tvb_get_uint8(tvb, next) == '\r')
+			next++;
+		if (next < end && tvb_get_uint8(tvb, next) == '\n')
+			next++;
+		if (next <= line_end)
+			break;
+		pos = next;
+	}
 }
 
 static bool
@@ -414,16 +604,53 @@ dissect_filename_field(proto_tree *tree, tvbuff_t *tvb, int *offset, int end, in
 	*offset += len;
 }
 
+/* True when chunk is mostly printable text (XML/cfg/ASCII/UTF-8). */
+static bool
+file_chunk_looks_text(tvbuff_t *tvb, int offset, int len)
+{
+	int i, printable = 0;
+	int head;
+	int off = offset;
+	int slim = len;
+
+	if (len <= 0)
+		return false;
+	head = skip_orphan_utf8_head(tvb, off, slim);
+	off += head;
+	slim -= head;
+	if (slim > 0) {
+		int cut = trim_incomplete_utf8_tail(tvb, off, slim);
+		if (cut > 0)
+			slim = cut;
+		if (bytes_are_valid_utf8(tvb, off, slim))
+			return true;
+	}
+	for (i = 0; i < len; i++) {
+		uint8_t c = tvb_get_uint8(tvb, offset + i);
+		if (c == 0)
+			break;
+		if (c == '\t' || c == '\n' || c == '\r' || (c >= 0x20 && c < 0x7f))
+			printable++;
+		else if (c >= 0x80)
+			printable++; /* allow high bytes; GBK/GB18030 text */
+		else
+			return false;
+	}
+	return printable * 10 >= len * 8; /* >= 80% printable */
+}
+
 static void
 dissect_file_payload(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
 {
 	proto_tree *ft;
 	proto_item *fi;
 	int rem;
+	int start = *offset;
 
 	if (*offset >= end)
 		return;
-	fi = proto_tree_add_item(tree, hf_file_data, tvb, *offset, end - *offset, ENC_NA);
+	fi = proto_tree_add_none_format(tree, hf_file_entry, tvb, *offset, end - *offset,
+		"File content");
 	ft = proto_item_add_subtree(fi, ett_shandong_file);
 	if (*offset < end) {
 		proto_tree_add_item(ft, hf_rii, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
@@ -439,9 +666,14 @@ dissect_file_payload(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
 	}
 	rem = end - *offset;
 	if (rem > 0) {
-		proto_tree_add_item(ft, hf_file_data, tvb, *offset, rem, ENC_NA);
+		if (file_chunk_looks_text(tvb, *offset, rem)) {
+			proto_tree_add_file_text(ft, hf_file_data_text, tvb, *offset, rem);
+		} else {
+			proto_tree_add_item(ft, hf_file_data, tvb, *offset, rem, ENC_NA);
+		}
 		*offset = end;
 	}
+	proto_item_set_len(fi, end - start);
 }
 
 /* SGCC A63/A65 group-title feature substrings (UTF-8) → layout label. */
@@ -631,8 +863,8 @@ dissect_generic_elements(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			proto_tree *gt;
 			uint8_t kod;
 
-			gi = proto_tree_add_none_format(tree, hf_raw, tvb, *offset, 3,
-				"Generic command element %u", i + 1);
+			gi = proto_tree_add_none_format(tree, hf_gen_entry, tvb, *offset, 3,
+				"通用分类命令元素 %u", i + 1);
 			gt = proto_item_add_subtree(gi, ett_shandong_gen_entry);
 			proto_tree_add_item(gt, hf_gen_gin_group, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 			(*offset)++;
@@ -660,8 +892,8 @@ dissect_generic_elements(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		uint8_t kod;
 		int start = *offset;
 
-		gi = proto_tree_add_none_format(tree, hf_raw, tvb, *offset, -1,
-			"Generic data set %u", i + 1);
+		gi = proto_tree_add_none_format(tree, hf_gen_entry, tvb, *offset, -1,
+			"通用分类数据元素 %u", i + 1);
 		gt = proto_item_add_subtree(gi, ett_shandong_gen_entry);
 
 		proto_tree_add_item(gt, hf_gen_gin_group, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
@@ -1042,16 +1274,138 @@ get_shandong_apdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset, void *d
 	return remaining;
 }
 
+/* 控制域四字节逐位中文解剖；返回帧类型，并通过 out_info 写 Info 摘要片段。 */
+static uint8_t
+dissect_apci_control(proto_tree *apci_tree, tvbuff_t *tvb, int offset,
+	wmem_strbuf_t *out_info)
+{
+	proto_item *ctrl_ti, *b_ti;
+	proto_tree *ctrl_tree, *b_tree;
+	uint8_t b1, b2, b3, b4, type;
+	uint16_t ns, nr;
+
+	b1 = tvb_get_uint8(tvb, offset);
+	b2 = tvb_get_uint8(tvb, offset + 1);
+	b3 = tvb_get_uint8(tvb, offset + 2);
+	b4 = tvb_get_uint8(tvb, offset + 3);
+
+	if ((b1 & 0x01) == 0)
+		type = I_TYPE;
+	else
+		type = b1 & 0x03;
+
+	ctrl_ti = proto_tree_add_item(apci_tree, hf_apci_ctrl, tvb, offset, 4, ENC_NA);
+	proto_item_append_text(ctrl_ti, ": %s", val_to_str_const(type, apci_types, "未知"));
+	ctrl_tree = proto_item_add_subtree(ctrl_ti, ett_shandong_apci_ctrl);
+
+	/* ---- 第1字节 ---- */
+	b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b1, tvb, offset, 1, b1,
+		"0x%02x", b1);
+	b_tree = proto_item_add_subtree(b_ti, ett_shandong_apci_ctrl_b1);
+
+	if (type == I_TYPE) {
+		ns = (uint16_t)((b1 >> 1) | ((uint16_t)b2 << 7));
+		nr = (uint16_t)((b3 >> 1) | ((uint16_t)b4 << 7));
+
+		proto_tree_add_item(b_tree, hf_apci_fmt_i, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_ns_lo, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [信息帧(I), N(S)低7位]");
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b2, tvb,
+			offset + 1, 1, b2, "0x%02x", b2);
+		b_tree = proto_item_add_subtree(b_ti, ett_shandong_apci_ctrl_b2);
+		proto_tree_add_item(b_tree, hf_apci_ns_hi, tvb, offset + 1, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [N(S)高8位]");
+
+		proto_tree_add_uint(ctrl_tree, hf_apci_ns, tvb, offset, 2, ns);
+		proto_tree_add_uint(apci_tree, hf_apcitx, tvb, offset, 4, ns);
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b3, tvb,
+			offset + 2, 1, b3, "0x%02x", b3);
+		b_tree = proto_item_add_subtree(b_ti, ett_shandong_apci_ctrl_b3);
+		proto_tree_add_item(b_tree, hf_apci_fmt_i, tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_nr_lo, tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [N(R)低7位]");
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b4, tvb,
+			offset + 3, 1, b4, "0x%02x", b4);
+		b_tree = proto_item_add_subtree(b_ti, ett_shandong_apci_ctrl_b4);
+		proto_tree_add_item(b_tree, hf_apci_nr_hi, tvb, offset + 3, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [N(R)高8位]");
+
+		proto_tree_add_uint(ctrl_tree, hf_apci_nr, tvb, offset + 2, 2, nr);
+		proto_tree_add_uint(apci_tree, hf_apcirx, tvb, offset, 4, nr);
+
+		wmem_strbuf_append_printf(out_info, "信息帧(I) N(S)=%u N(R)=%u", ns, nr);
+	} else if (type == S_TYPE) {
+		nr = (uint16_t)((b3 >> 1) | ((uint16_t)b4 << 7));
+
+		proto_tree_add_item(b_tree, hf_apci_fmt_su, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_s_resv, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [监视帧(S)]");
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b2, tvb,
+			offset + 1, 1, b2, "0x%02x", b2);
+		proto_item_append_text(b_ti, " [保留, 应为0]");
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b3, tvb,
+			offset + 2, 1, b3, "0x%02x", b3);
+		b_tree = proto_item_add_subtree(b_ti, ett_shandong_apci_ctrl_b3);
+		proto_tree_add_item(b_tree, hf_apci_fmt_i, tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_nr_lo, tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [N(R)低7位]");
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b4, tvb,
+			offset + 3, 1, b4, "0x%02x", b4);
+		b_tree = proto_item_add_subtree(b_ti, ett_shandong_apci_ctrl_b4);
+		proto_tree_add_item(b_tree, hf_apci_nr_hi, tvb, offset + 3, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [N(R)高8位]");
+
+		proto_tree_add_uint(ctrl_tree, hf_apci_nr, tvb, offset + 2, 2, nr);
+		proto_tree_add_uint(apci_tree, hf_apcirx, tvb, offset, 4, nr);
+
+		wmem_strbuf_append_printf(out_info, "监视帧(S) N(R)=%u", nr);
+	} else {
+		/* U 格式 */
+		proto_tree_add_item(b_tree, hf_apci_fmt_su, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_u_startdt_act, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_u_startdt_con, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_u_stopdt_act, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_u_stopdt_con, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_u_testfr_act, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(b_tree, hf_apci_u_testfr_con, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(b_ti, " [控制帧(U) %s]",
+			val_to_str_const(b1 & 0xfc, u_func_vals, "未知功能"));
+
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b2, tvb,
+			offset + 1, 1, b2, "0x%02x", b2);
+		proto_item_append_text(b_ti, " [保留, 应为0]");
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b3, tvb,
+			offset + 2, 1, b3, "0x%02x", b3);
+		proto_item_append_text(b_ti, " [保留, 应为0]");
+		b_ti = proto_tree_add_uint_format_value(ctrl_tree, hf_apci_ctrl_b4, tvb,
+			offset + 3, 1, b4, "0x%02x", b4);
+		proto_item_append_text(b_ti, " [保留, 应为0]");
+
+		proto_tree_add_uint(apci_tree, hf_apciutype, tvb, offset, 1, b1 & 0xfc);
+
+		wmem_strbuf_append_printf(out_info, "控制帧(U) %s",
+			val_to_str_const(b1 & 0xfc, u_func_vals, "未知功能"));
+	}
+
+	return type;
+}
+
 static int
 dissect_shandong_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-	proto_item *ti;
-	proto_tree *apci_tree;
+	proto_item *ti, *len_ti;
+	proto_tree *apci_tree, *len_tree;
 	int tcp_len = (int)tvb_reported_length(tvb);
 	unsigned off, body = 0, total = 0;
 	bool found = false;
-	uint8_t type, temp8;
-	uint32_t txid, rxid, utype;
+	uint8_t type;
+	uint8_t len_lo, len_hi;
 	wmem_strbuf_t *res;
 	int offset;
 
@@ -1059,6 +1413,7 @@ dissect_shandong_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
 	col_clear(pinfo->cinfo, COL_INFO);
 
 	ti = proto_tree_add_item(tree, proto_shandong_iec103, tvb, 0, -1, ENC_NA);
+	proto_item_set_text(ti, "山东主子站103规约");
 	apci_tree = proto_item_add_subtree(ti, ett_shandong_apci);
 
 	for (off = 0; (int)off + 2 < tcp_len; off++) {
@@ -1069,7 +1424,7 @@ dissect_shandong_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
 	}
 	if (!found) {
 		proto_tree_add_item(apci_tree, hf_raw, tvb, 0, tcp_len, ENC_NA);
-		col_set_str(pinfo->cinfo, COL_INFO, "TCP continuation / no valid APCI");
+		col_set_str(pinfo->cinfo, COL_INFO, "TCP续传/无有效APCI");
 		return tvb_captured_length(tvb);
 	}
 
@@ -1077,51 +1432,39 @@ dissect_shandong_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
 		proto_tree_add_item(apci_tree, hf_junk, tvb, 0, (int)off, ENC_NA);
 
 	offset = (int)off;
-	proto_tree_add_uint_format(apci_tree, hf_start, tvb, offset, 1, APCI_START, "START");
+
+	/* 1. 启动字符 */
+	proto_tree_add_uint_format_value(apci_tree, hf_start, tvb, offset, 1, APCI_START,
+		"0x%02x", APCI_START);
 	offset++;
-	proto_tree_add_item(apci_tree, hf_apdulen, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+
+	/* 2. APDU长度：低字节 + 高字节 + 合成 */
+	len_lo = tvb_get_uint8(tvb, offset);
+	len_hi = tvb_get_uint8(tvb, offset + 1);
+	len_ti = proto_tree_add_uint_format_value(apci_tree, hf_apdulen_calc, tvb, offset, 2, body,
+		"%u (= 低字节%u + 高字节%u×256, 含控制域+ASDU)",
+		body, len_lo, len_hi);
+	len_tree = proto_item_add_subtree(len_ti, ett_shandong_apci_len);
+	proto_tree_add_uint(len_tree, hf_apdulen_lo, tvb, offset, 1, len_lo);
+	proto_tree_add_uint(len_tree, hf_apdulen_hi, tvb, offset + 1, 1, len_hi);
+	proto_tree_add_uint(len_tree, hf_apdulen, tvb, offset, 2, body);
 	offset += 2;
 
 	if (body < APDU_MIN_LEN || body > APDU_MAX_BODY) {
 		expert_add_info_format(pinfo, ti, &ei_apdu_bad_len,
-			"Invalid APDU body length %u (allowed %d..%d)",
+			"APDU长度非法 %u (允许 %d..%d)",
 			body, APDU_MIN_LEN, APDU_MAX_BODY);
 		return tvb_captured_length(tvb);
 	}
 
 	proto_item_set_len(ti, (int)total);
 
-	temp8 = tvb_get_uint8(tvb, offset);
-	if ((temp8 & 0x01) == 0)
-		type = I_TYPE;
-	else
-		type = temp8 & 0x03;
-
 	res = wmem_strbuf_create(pinfo->pool);
-	wmem_strbuf_append_printf(res, "%s %s ",
-		(pinfo->srcport == pinfo->match_uint ? "->" : "<-"),
-		val_to_str_const(type, apci_types, "?"));
+	wmem_strbuf_append_printf(res, "%s ",
+		(pinfo->srcport == pinfo->match_uint ? "->" : "<-"));
 
-	if (type == I_TYPE)
-		proto_tree_add_item(apci_tree, hf_apcitype_i, tvb, offset, 4, ENC_LITTLE_ENDIAN);
-	else
-		proto_tree_add_item(apci_tree, hf_apcitype_su, tvb, offset, 4, ENC_LITTLE_ENDIAN);
-
-	switch (type) {
-	case I_TYPE:
-		proto_tree_add_item_ret_uint(apci_tree, hf_apcitx, tvb, offset, 4, ENC_LITTLE_ENDIAN, &txid);
-		proto_tree_add_item_ret_uint(apci_tree, hf_apcirx, tvb, offset, 4, ENC_LITTLE_ENDIAN, &rxid);
-		wmem_strbuf_append_printf(res, "(%u,%u)", txid, rxid);
-		break;
-	case S_TYPE:
-		proto_tree_add_item_ret_uint(apci_tree, hf_apcirx, tvb, offset, 4, ENC_LITTLE_ENDIAN, &rxid);
-		wmem_strbuf_append_printf(res, "(%u)", rxid);
-		break;
-	case U_TYPE:
-		proto_tree_add_item_ret_uint(apci_tree, hf_apciutype, tvb, offset, 4, ENC_LITTLE_ENDIAN, &utype);
-		wmem_strbuf_append_printf(res, "(%s)", val_to_str_const(utype, u_types, "?"));
-		break;
-	}
+	/* 3. 控制域逐字节逐位 */
+	type = dissect_apci_control(apci_tree, tvb, offset, res);
 
 	col_append_str(pinfo->cinfo, COL_INFO, wmem_strbuf_get_str(res));
 	proto_item_append_text(ti, ": %s", wmem_strbuf_get_str(res));
@@ -1167,25 +1510,76 @@ proto_register_shandong_iec103(void)
 {
 	static hf_register_info hf[] = {
 		{ &hf_start,
-		  { "Start", "shandong_iec103.start", FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+		  { "启动字符", "shandong_iec103.start", FT_UINT8, BASE_HEX, NULL, 0x0,
+		    "APCI启动字符, 固定为68H", HFILL }},
 		{ &hf_apdulen,
-		  { "ApduLen", "shandong_iec103.apdulen", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		  { "APDU长度", "shandong_iec103.apdulen", FT_UINT16, BASE_DEC, NULL, 0x0,
+		    "控制域+ASDU字节数(小端)", HFILL }},
 		{ &hf_apdulen_ext,
-		  { "ApduLen (legacy alias)", "shandong_iec103.apdulen_ext", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		  { "APDU长度(别名)", "shandong_iec103.apdulen_ext", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apdulen_lo,
+		  { "长度低字节", "shandong_iec103.apdulen.lo", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apdulen_hi,
+		  { "长度高字节", "shandong_iec103.apdulen.hi", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apdulen_calc,
+		  { "APDU长度", "shandong_iec103.apdulen.calc", FT_UINT16, BASE_DEC, NULL, 0x0,
+		    "长度=低字节+高字节×256, 表示控制域与ASDU总长度", HFILL }},
+		{ &hf_apci_ctrl,
+		  { "控制域", "shandong_iec103.apci.ctrl", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_ctrl_b1,
+		  { "控制域第1字节", "shandong_iec103.apci.ctrl.b1", FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_ctrl_b2,
+		  { "控制域第2字节", "shandong_iec103.apci.ctrl.b2", FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_ctrl_b3,
+		  { "控制域第3字节", "shandong_iec103.apci.ctrl.b3", FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_ctrl_b4,
+		  { "控制域第4字节", "shandong_iec103.apci.ctrl.b4", FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_fmt_i,
+		  { "格式位(bit0)", "shandong_iec103.apci.fmt_bit0", FT_BOOLEAN, 8, TFS(&tfs_apci_bit0_i), 0x01,
+		    "I格式要求为0", HFILL }},
+		{ &hf_apci_fmt_su,
+		  { "帧格式(bit1-0)", "shandong_iec103.apci.fmt", FT_UINT8, BASE_HEX, VALS(apci_types), 0x03,
+		    "01=监视帧(S), 11=控制帧(U)", HFILL }},
+		{ &hf_apci_ns_lo,
+		  { "发送序号N(S)低7位(bit7-1)", "shandong_iec103.apci.ns_lo", FT_UINT8, BASE_DEC, NULL, 0xfe, NULL, HFILL }},
+		{ &hf_apci_ns_hi,
+		  { "发送序号N(S)高8位", "shandong_iec103.apci.ns_hi", FT_UINT8, BASE_DEC, NULL, 0xff, NULL, HFILL }},
+		{ &hf_apci_ns,
+		  { "发送序号N(S)", "shandong_iec103.apci.ns", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_nr_lo,
+		  { "接收序号N(R)低7位(bit7-1)", "shandong_iec103.apci.nr_lo", FT_UINT8, BASE_DEC, NULL, 0xfe, NULL, HFILL }},
+		{ &hf_apci_nr_hi,
+		  { "接收序号N(R)高8位", "shandong_iec103.apci.nr_hi", FT_UINT8, BASE_DEC, NULL, 0xff, NULL, HFILL }},
+		{ &hf_apci_nr,
+		  { "接收序号N(R)", "shandong_iec103.apci.nr", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+		{ &hf_apci_s_resv,
+		  { "S格式保留位(bit7-2)", "shandong_iec103.apci.s_resv", FT_UINT8, BASE_HEX, NULL, 0xfc, NULL, HFILL }},
+		{ &hf_apci_u_startdt_act,
+		  { "启动数据传输激活(bit2)", "shandong_iec103.apci.u.startdt_act", FT_BOOLEAN, 8, TFS(&tfs_apci_set), 0x04, NULL, HFILL }},
+		{ &hf_apci_u_startdt_con,
+		  { "启动数据传输确认(bit3)", "shandong_iec103.apci.u.startdt_con", FT_BOOLEAN, 8, TFS(&tfs_apci_set), 0x08, NULL, HFILL }},
+		{ &hf_apci_u_stopdt_act,
+		  { "停止数据传输激活(bit4)", "shandong_iec103.apci.u.stopdt_act", FT_BOOLEAN, 8, TFS(&tfs_apci_set), 0x10, NULL, HFILL }},
+		{ &hf_apci_u_stopdt_con,
+		  { "停止数据传输确认(bit5)", "shandong_iec103.apci.u.stopdt_con", FT_BOOLEAN, 8, TFS(&tfs_apci_set), 0x20, NULL, HFILL }},
+		{ &hf_apci_u_testfr_act,
+		  { "测试帧激活(bit6)", "shandong_iec103.apci.u.testfr_act", FT_BOOLEAN, 8, TFS(&tfs_apci_set), 0x40, NULL, HFILL }},
+		{ &hf_apci_u_testfr_con,
+		  { "测试帧确认(bit7)", "shandong_iec103.apci.u.testfr_con", FT_BOOLEAN, 8, TFS(&tfs_apci_set), 0x80, NULL, HFILL }},
 		{ &hf_file_entry,
 		  { "File entry", "shandong_iec103.file_entry", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ &hf_apcitype_i,
-		  { "Type", "shandong_iec103.type", FT_UINT32, BASE_HEX, VALS(apci_types), 0x00000001, NULL, HFILL }},
+		  { "帧类型", "shandong_iec103.type", FT_UINT32, BASE_HEX, VALS(apci_types), 0x00000001, NULL, HFILL }},
 		{ &hf_apcitype_su,
-		  { "Type", "shandong_iec103.type", FT_UINT32, BASE_HEX, VALS(apci_types), 0x00000003, NULL, HFILL }},
+		  { "帧类型", "shandong_iec103.type", FT_UINT32, BASE_HEX, VALS(apci_types), 0x00000003, NULL, HFILL }},
 		{ &hf_apcitx,
-		  { "Tx", "shandong_iec103.tx", FT_UINT32, BASE_DEC, NULL, 0x0000FFFE, NULL, HFILL }},
+		  { "发送序号N(S)", "shandong_iec103.tx", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_apcirx,
-		  { "Rx", "shandong_iec103.rx", FT_UINT32, BASE_DEC, NULL, 0xFFFE0000, NULL, HFILL }},
+		  { "接收序号N(R)", "shandong_iec103.rx", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_apciutype,
-		  { "UType", "shandong_iec103.utype", FT_UINT32, BASE_HEX, VALS(u_types), 0x000000FC, NULL, HFILL }},
+		  { "U功能", "shandong_iec103.utype", FT_UINT8, BASE_HEX, VALS(u_func_vals), 0x0, NULL, HFILL }},
 		{ &hf_junk,
-		  { "Leading junk", "shandong_iec103.junk", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		  { "前导无效数据", "shandong_iec103.junk", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ &hf_typeid,
 		  { "Type ID", "shandong_iec103.typeid", FT_UINT8, BASE_DEC, VALS(asdu_type_vals), 0x0, NULL, HFILL }},
 		{ &hf_vsq,
@@ -1220,6 +1614,8 @@ proto_register_shandong_iec103(void)
 		  { "NOG", "shandong_iec103.nog", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_raw,
 		  { "Data", "shandong_iec103.data", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_entry,
+		  { "通用分类元素", "shandong_iec103.gen.entry_item", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ &hf_cp56time,
 		  { "CP56Time2a", "shandong_iec103.cp56time", FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL, NULL, 0x0, NULL, HFILL }},
 		{ &hf_cp56time_ms,
@@ -1272,6 +1668,10 @@ proto_register_shandong_iec103(void)
 		  { "File size", "shandong_iec103.file_size", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_file_data,
 		  { "File data", "shandong_iec103.file_data", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_file_data_text,
+		  { "File data (text)", "shandong_iec103.file_data_text", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_file_data_line,
+		  { "Line", "shandong_iec103.file_data_line", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ &hf_event_type,
 		  { "Event type", "shandong_iec103.event_type", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_fpt,
@@ -1295,12 +1695,19 @@ proto_register_shandong_iec103(void)
 	static int *ett[] = {
 		&ett_shandong_iec103,
 		&ett_shandong_apci,
+		&ett_shandong_apci_len,
+		&ett_shandong_apci_ctrl,
+		&ett_shandong_apci_ctrl_b1,
+		&ett_shandong_apci_ctrl_b2,
+		&ett_shandong_apci_ctrl_b3,
+		&ett_shandong_apci_ctrl_b4,
 		&ett_shandong_asdu,
 		&ett_shandong_cp56time,
 		&ett_shandong_gen,
 		&ett_shandong_gen_entry,
 		&ett_shandong_attr,
 		&ett_shandong_file,
+		&ett_shandong_file_text,
 	};
 
 	static ei_register_info ei[] = {
