@@ -372,31 +372,54 @@ normalize_file_text_chunk(tvbuff_t *tvb, int *offset, int *len, unsigned *encodi
 	*len = slim;
 }
 
-static void
-proto_tree_add_zh_string(proto_tree *tree, int hfindex, tvbuff_t *tvb,
-	int offset, int len)
+/*
+ * Field IEDs typically emit GBK/GB18030 for OS8ASCII names.
+ * File payloads (XML etc.) are often UTF-8 and may be fragmented —
+ * trim an incomplete tail then prefer UTF-8 when the body is valid.
+ * Returns the byte length to decode (0 if empty).
+ */
+static int
+zh_string_span(tvbuff_t *tvb, int offset, int len, unsigned *encoding)
 {
 	int slim = trim_nul_len(tvb, offset, len);
-	unsigned encoding = ENC_GB18030;
 
-	if (slim <= 0) {
-		proto_tree_add_string(tree, hfindex, tvb, offset, len, "");
-		return;
-	}
-	/*
-	 * Field IEDs typically emit GBK/GB18030 for OS8ASCII names.
-	 * File payloads (XML etc.) are often UTF-8 and may be fragmented —
-	 * trim an incomplete tail then prefer UTF-8 when the body is valid.
-	 */
+	*encoding = ENC_GB18030;
+	if (slim <= 0)
+		return 0;
 	if (bytes_are_valid_utf8(tvb, offset, slim)) {
-		encoding = ENC_UTF_8;
+		*encoding = ENC_UTF_8;
 	} else {
 		int cut = trim_incomplete_utf8_tail(tvb, offset, slim);
 
 		if (cut > 0 && cut < slim && bytes_are_valid_utf8(tvb, offset, cut)) {
 			slim = cut;
-			encoding = ENC_UTF_8;
+			*encoding = ENC_UTF_8;
 		}
+	}
+	return slim;
+}
+
+static char *
+decode_zh_string(wmem_allocator_t *scope, tvbuff_t *tvb, int offset, int len)
+{
+	unsigned encoding;
+	int slim = zh_string_span(tvb, offset, len, &encoding);
+
+	if (slim <= 0)
+		return wmem_strdup(scope, "");
+	return (char *)tvb_get_string_enc(scope, tvb, offset, slim, encoding);
+}
+
+static void
+proto_tree_add_zh_string(proto_tree *tree, int hfindex, tvbuff_t *tvb,
+	int offset, int len)
+{
+	unsigned encoding;
+	int slim = zh_string_span(tvb, offset, len, &encoding);
+
+	if (slim <= 0) {
+		proto_tree_add_string(tree, hfindex, tvb, offset, len, "");
+		return;
 	}
 	proto_tree_add_item(tree, hfindex, tvb, offset, slim, encoding);
 }
@@ -1022,8 +1045,8 @@ dissect_asdu12(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
 }
 
 static void
-dissect_asdu_file_list(proto_tree *tree, tvbuff_t *tvb, int *offset, int end,
-	bool disturbance_list)
+dissect_asdu_file_list(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
+	int *offset, int end, bool disturbance_list)
 {
 	unsigned nfiles, i;
 	uint16_t n_le;
@@ -1059,12 +1082,24 @@ dissect_asdu_file_list(proto_tree *tree, tvbuff_t *tvb, int *offset, int end,
 		int start = *offset;
 		int avail = end - *offset;
 		int name_len;
+		const char *name;
 
 		fi = proto_tree_add_none_format(tree, hf_file_entry, tvb, *offset, -1,
 			"文件条目 (File entry) %u", i + 1);
 		ft = proto_item_add_subtree(fi, ett_shandong_file);
 		if (disturbance_list) {
 			name_len = (avail >= entry_len) ? entry_len : avail;
+		} else {
+			name_len = FILENAME_LEN;
+			if (name_len > avail)
+				name_len = avail;
+		}
+		name = decode_zh_string(pinfo->pool, tvb, *offset, name_len);
+		if (name && name[0] != '\0') {
+			proto_item_set_text(fi, "文件条目 (File entry) %u: %s",
+				i + 1, name);
+		}
+		if (disturbance_list) {
 			dissect_filename_field(ft, tvb, offset, end, name_len);
 		} else {
 			dissect_filename_field(ft, tvb, offset, end, FILENAME_LEN);
@@ -1298,7 +1333,7 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		if ((cot & 0x3f) == 0x14) {
 			dissect_asdu17(asdu_tree, tvb, &offset, end);
 		} else {
-			dissect_asdu_file_list(asdu_tree, tvb, &offset, end, true);
+			dissect_asdu_file_list(asdu_tree, pinfo, tvb, &offset, end, true);
 		}
 		break;
 	case 17:
@@ -1317,7 +1352,7 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		dissect_asdu_call_file_list(asdu_tree, tvb, &offset, end);
 		break;
 	case 102:
-		dissect_asdu_file_list(asdu_tree, tvb, &offset, end, false);
+		dissect_asdu_file_list(asdu_tree, pinfo, tvb, &offset, end, false);
 		break;
 	case 103:
 		dissect_asdu_call_file_content(asdu_tree, tvb, &offset, end);
