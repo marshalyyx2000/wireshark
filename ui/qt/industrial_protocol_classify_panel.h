@@ -17,6 +17,7 @@
 #include <QString>
 #include <QVector>
 
+class Iec103FilterWidget;
 class MmsGeneralFilterWidget;
 class MmsReportFilterWidget;
 class QTimer;
@@ -49,6 +50,7 @@ private slots:
     void onDebouncedFilterApply();
     void onReportRequestApply(const QString &filter, bool force);
     void onGeneralRequestApply(const QString &filter, bool force);
+    void onIec103RequestApply(const QString &filter, bool force);
     void onMmsFilterTabChanged(int index);
 
 private:
@@ -89,6 +91,7 @@ private:
     Ui::IndustrialProtocolClassifyPanel *ui_;
     MmsReportFilterWidget *report_widget_;
     MmsGeneralFilterWidget *general_widget_;
+    Iec103FilterWidget *iec103_widget_;
     QTimer *filter_timer_;
     QHash<QString, QSet<QString>> addrs_by_proto_;
     QHash<QString, AddrKind> addr_kind_;

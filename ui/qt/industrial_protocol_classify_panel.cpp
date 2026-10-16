@@ -8,6 +8,8 @@
 #include "industrial_protocol_classify_panel.h"
 #include <ui_industrial_protocol_classify_panel.h>
 
+#include "iec103_filter_widget.h"
+
 #include "mms_general_filter_widget.h"
 #include "mms_report_filter_widget.h"
 #include "wireshark_main_window.h"
@@ -89,6 +91,7 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
     ui_(new Ui::IndustrialProtocolClassifyPanel),
     report_widget_(new MmsReportFilterWidget(this)),
     general_widget_(new MmsGeneralFilterWidget(this)),
+    iec103_widget_(new Iec103FilterWidget(this)),
     filter_timer_(new QTimer(this)),
     selected_is_root_(false),
     selected_is_proto_(false)
@@ -107,6 +110,9 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
     general_widget_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     general_widget_->setPreviewVisible(false);
     ui_->generalFilterTabLayout->addWidget(general_widget_);
+
+    iec103_widget_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    ui_->iec103FilterLayout->addWidget(iec103_widget_);
 
     filter_timer_->setSingleShot(true);
     filter_timer_->setInterval(100);
@@ -132,6 +138,10 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
             this, &IndustrialProtocolClassifyPanel::updateHint);
     connect(general_widget_, &MmsGeneralFilterWidget::requestApplyFilter,
             this, &IndustrialProtocolClassifyPanel::onGeneralRequestApply);
+    connect(iec103_widget_, &Iec103FilterWidget::filterChanged,
+            this, &IndustrialProtocolClassifyPanel::updateHint);
+    connect(iec103_widget_, &Iec103FilterWidget::requestApplyFilter,
+            this, &IndustrialProtocolClassifyPanel::onIec103RequestApply);
 
     connect(&cap_file_, &CaptureFile::captureEvent, this, [this](CaptureEvent e) {
         if (e.captureContext() != CaptureEvent::File) {
@@ -396,7 +406,14 @@ void IndustrialProtocolClassifyPanel::applySearchFilter(const QString &text)
 
 void IndustrialProtocolClassifyPanel::updateReportPanelVisibility()
 {
-    ui_->reportContainer->setVisible(selected_proto_key_ == QLatin1String("mms"));
+    const bool mms_selected = selected_proto_key_ == QLatin1String("mms");
+    const bool iec103_ip_selected =
+        selected_proto_key_ == QLatin1String("103") &&
+        !selected_is_proto_ &&
+        !selected_addr_.isEmpty();
+
+    ui_->reportContainer->setVisible(mms_selected);
+    ui_->iec103FilterContainer->setVisible(iec103_ip_selected);
 }
 
 QString IndustrialProtocolClassifyPanel::buildTreeFilter() const
@@ -460,6 +477,9 @@ QString IndustrialProtocolClassifyPanel::buildCombinedFilter() const
             /* 报告过滤：始终限定 unconfirmed RPT（mms.unconfirmedService == 0） */
             parts << report_widget_->buildFilter();
         }
+    } else if (selected_proto_key_ == QLatin1String("103") &&
+               iec103_widget_->hasCriteria()) {
+        parts << iec103_widget_->buildFilter();
     }
     return parts.join(QStringLiteral(" && "));
 }
@@ -575,8 +595,10 @@ void IndustrialProtocolClassifyPanel::onClearClicked()
     ui_->protoTree->clearSelection();
     report_widget_->clearCriteria();
     general_widget_->clearCriteria();
+    iec103_widget_->clearCriteria();
     report_widget_->resetAppliedFilterState();
     general_widget_->resetAppliedFilterState();
+    iec103_widget_->resetAppliedFilterState();
 
     auto *mw = qobject_cast<WiresharkMainWindow *>(window());
     QWidget *w = parentWidget();
@@ -607,6 +629,14 @@ void IndustrialProtocolClassifyPanel::onReportRequestApply(const QString &, bool
 void IndustrialProtocolClassifyPanel::onGeneralRequestApply(const QString &, bool force)
 {
     if (!isGeneralFilterTabActive()) {
+        return;
+    }
+    applyCombinedFilter(force);
+}
+
+void IndustrialProtocolClassifyPanel::onIec103RequestApply(const QString &, bool force)
+{
+    if (selected_proto_key_ != QLatin1String("103")) {
         return;
     }
     applyCombinedFilter(force);

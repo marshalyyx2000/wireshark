@@ -74,6 +74,27 @@
     </widget>
    </item>
    <item>
+    <widget class="QWidget" name="iec103FilterContainer" native="true">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+     <layout class="QVBoxLayout" name="iec103FilterLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QWidget" name="reportContainer" native="true">
      <property name="visible">
       <bool>false</bool>

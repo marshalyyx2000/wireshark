@@ -778,6 +778,57 @@ dissect_kod103_attr(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
 	*offset = end;
 }
 
+/* Compact GID value for parent-item summary (ASDU10 tree title). */
+static void
+format_gid_value_summary(wmem_allocator_t *scope, tvbuff_t *tvb, int gid_off,
+	int gid_len, uint8_t datatype, uint8_t datasize, uint8_t datanumber,
+	uint8_t kod, char *buf, size_t buf_len)
+{
+	if (buf_len == 0)
+		return;
+	buf[0] = '\0';
+	if (gid_len <= 0) {
+		(void)snprintf(buf, buf_len, "-");
+		return;
+	}
+	if (kod == KOD_ATTR || datatype == GDD_STRUCT) {
+		(void)snprintf(buf, buf_len, "属性结构(%d字节)", gid_len);
+		return;
+	}
+	if (kod == KOD_DESC || datatype == GDD_OS8ASCII) {
+		int slim = trim_nul_len(tvb, gid_off, gid_len);
+		unsigned encoding = ENC_GB18030;
+		char *s;
+
+		if (slim <= 0) {
+			(void)snprintf(buf, buf_len, "\"\"");
+			return;
+		}
+		if (bytes_are_valid_utf8(tvb, gid_off, slim))
+			encoding = ENC_UTF_8;
+		s = (char *)tvb_get_string_enc(scope, tvb, gid_off, slim, encoding);
+		(void)snprintf(buf, buf_len, "\"%s\"", s ? s : "");
+		return;
+	}
+	if (datatype == GDD_UI && datasize == 2 && datanumber == 1 && gid_len >= 2) {
+		(void)snprintf(buf, buf_len, "%u", tvb_get_letohs(tvb, gid_off));
+		return;
+	}
+	if (datatype == GDD_UI && datasize == 1 && datanumber == 1 && gid_len >= 1) {
+		(void)snprintf(buf, buf_len, "%u", tvb_get_uint8(tvb, gid_off));
+		return;
+	}
+	if (datatype == GDD_R32 && datasize == 4 && datanumber == 1 && gid_len >= 4) {
+		(void)snprintf(buf, buf_len, "%g", (double)tvb_get_letohieee_float(tvb, gid_off));
+		return;
+	}
+	if (datatype == GDD_DPI && gid_len >= 1) {
+		(void)snprintf(buf, buf_len, "0x%02x", tvb_get_uint8(tvb, gid_off));
+		return;
+	}
+	(void)snprintf(buf, buf_len, "%d字节", gid_len);
+}
+
 static void
 dissect_gdd_gid(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
 	int *offset, int end, uint8_t kod)
@@ -861,20 +912,23 @@ dissect_generic_elements(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		for (i = 0; i < nds && *offset + 3 <= end; i++) {
 			proto_item *gi;
 			proto_tree *gt;
-			uint8_t kod;
+			uint8_t group, entry, kod;
 
+			group = tvb_get_uint8(tvb, *offset);
+			entry = tvb_get_uint8(tvb, *offset + 1);
+			kod = tvb_get_uint8(tvb, *offset + 2);
 			gi = proto_tree_add_none_format(tree, hf_gen_entry, tvb, *offset, 3,
-				"通用分类命令元素 %u", i + 1);
+				"通用分类命令元素 %u: 组号=%u 条目号=%u KOD=%s",
+				i + 1, group, entry,
+				val_to_str_const(kod, kod_vals, "未知"));
 			gt = proto_item_add_subtree(gi, ett_shandong_gen_entry);
 			proto_tree_add_item(gt, hf_gen_gin_group, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 			(*offset)++;
 			proto_tree_add_item(gt, hf_gen_gin_entry, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 			(*offset)++;
-			kod = tvb_get_uint8(tvb, *offset);
 			proto_tree_add_item(gt, hf_gen_kod, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 			(*offset)++;
 			proto_item_set_end(gi, tvb, *offset);
-			(void)kod;
 		}
 		return;
 	}
@@ -889,8 +943,16 @@ dissect_generic_elements(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	for (i = 0; i < nds && *offset + 3 <= end; i++) {
 		proto_item *gi;
 		proto_tree *gt;
-		uint8_t kod;
+		uint8_t group, entry, kod;
+		uint8_t datatype = 0, datasize = 0, datanumber = 0;
 		int start = *offset;
+		int gid_off;
+		int gid_len = 0;
+		char value_buf[96];
+
+		group = tvb_get_uint8(tvb, *offset);
+		entry = tvb_get_uint8(tvb, *offset + 1);
+		kod = tvb_get_uint8(tvb, *offset + 2);
 
 		gi = proto_tree_add_none_format(tree, hf_gen_entry, tvb, *offset, -1,
 			"通用分类数据元素 %u", i + 1);
@@ -900,9 +962,30 @@ dissect_generic_elements(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		(*offset)++;
 		proto_tree_add_item(gt, hf_gen_gin_entry, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 		(*offset)++;
-		kod = tvb_get_uint8(tvb, *offset);
 		proto_tree_add_item(gt, hf_gen_kod, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 		(*offset)++;
+
+		if (*offset + 3 <= end) {
+			datatype = tvb_get_uint8(tvb, *offset);
+			datasize = tvb_get_uint8(tvb, *offset + 1);
+			datanumber = tvb_get_uint8(tvb, *offset + 2);
+			gid_len = (int)datasize * (int)datanumber;
+			gid_off = *offset + 3;
+			if (gid_len < 0 || gid_off + gid_len > end)
+				gid_len = 0;
+			format_gid_value_summary(pinfo->pool, tvb, gid_off, gid_len,
+				datatype, datasize, datanumber, kod,
+				value_buf, sizeof value_buf);
+			proto_item_set_text(gi,
+				"通用分类数据元素 %u: 组号=%u 条目号=%u 数据类型=%s 实际值=%s",
+				i + 1, group, entry,
+				val_to_str_const(datatype, gdd_type_vals, "未知"),
+				value_buf);
+		} else {
+			proto_item_set_text(gi,
+				"通用分类数据元素 %u: 组号=%u 条目号=%u",
+				i + 1, group, entry);
+		}
 
 		dissect_gdd_gid(gt, pinfo, tvb, offset, end, kod);
 		proto_item_set_len(gi, *offset - start);
