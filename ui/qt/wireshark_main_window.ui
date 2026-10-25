@@ -815,6 +815,8 @@
     <property name="title">
      <string>&amp;Tools</string>
     </property>
+    <addaction name="actionToolsIec103WaveExport"/>
+    <addaction name="separator"/>
     <addaction name="actionToolsFirewallAclRules"/>
     <addaction name="actionToolsCredentials"/>
     <addaction name="actionToolsMacLookup"/>
@@ -3327,6 +3329,14 @@
   <action name="actionNewDisplayFilterExpression">
    <property name="toolTip">
     <string>Add a display filter button.</string>
+   </property>
+  </action>
+  <action name="actionToolsIec103WaveExport">
+   <property name="text">
+    <string>分析103录波报文提取录波文件</string>
+   </property>
+   <property name="toolTip">
+    <string>从南自网络103录波报文导出 COMTRADE cfg/hdr/dat 文件</string>
    </property>
   </action>
   <action name="actionToolsFirewallAclRules">

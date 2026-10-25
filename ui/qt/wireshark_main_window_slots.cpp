@@ -119,6 +119,7 @@ DIAG_ON(frame-larger-than=)
 #include "mms_process_analysis_dialog.h"
 #include "mms_report_filter_dialog.h"
 #include "nic_packet_loss_dialog.h"
+#include "iec103_wave_comtrade_export.h"
 #include "export_object_action.h"
 #include "export_object_dialog.h"
 #include "export_pdu_dialog.h"
@@ -201,7 +202,9 @@ DIAG_ON(frame-larger-than=)
 #include <functional>
 #include <QApplication>
 #include <QClipboard>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QProgressDialog>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
@@ -3395,6 +3398,43 @@ void WiresharkMainWindow::connectIec103MenuActions()
     });
     connect(main_ui_->actionIec103NariNetParse, &QAction::triggered, this, [=]() {
         applyCaptureDisplayFilter(QStringLiteral("nari_net_iec103"), true);
+    });
+
+    /* Also show in IEC103 menu so minimal build (no Tools menu) can export waves. */
+    main_ui_->menuIec103->addAction(main_ui_->actionToolsIec103WaveExport);
+
+    connect(main_ui_->actionToolsIec103WaveExport, &QAction::triggered, this, [=]() {
+        if (!capture_file_.isValid() || capture_file_.capFile()->count == 0) {
+            QMessageBox::warning(this, tr("103录波导出"),
+                                 tr("请先打开含报文的抓包文件。"));
+            return;
+        }
+
+        Iec103WaveExportRequest export_req;
+        if (!Iec103WaveComtradeExporter::promptExport(this, export_req))
+            return;
+
+        const QString dir = QFileDialog::getExistingDirectory(
+            this, tr("选择 COMTRADE 输出目录"));
+        if (dir.isEmpty())
+            return;
+
+        QProgressDialog progress(tr("正在分析录波报文..."), QString(), 0, 0, this);
+        progress.setWindowModality(Qt::WindowModal);
+        progress.setMinimumDuration(0);
+        progress.show();
+        QApplication::processEvents();
+
+        QString err_msg;
+        QString info_msg;
+        const bool success = Iec103WaveComtradeExporter::exportFromCapture(
+            capture_file_, export_req.fan, dir, export_req.dat_format, err_msg, &info_msg);
+        progress.close();
+
+        if (success)
+            QMessageBox::information(this, tr("103录波导出"), info_msg);
+        else
+            QMessageBox::warning(this, tr("103录波导出"), err_msg);
     });
 }
 

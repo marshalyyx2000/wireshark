@@ -325,6 +325,7 @@ set(WIRESHARK_QT_HEADERS
 	mms_process_time_column_widget.h
 	mms_filter_helpers.h
 	iec103_filter_widget.h
+	iec103_wave_comtrade_export.h
 	mms_general_filter_widget.h
 	mms_report_filter_dialog.h
 	mms_report_filter_widget.h
@@ -679,6 +680,7 @@ set(WIRESHARK_QT_SRC
 	mms_process_time_column_widget.cpp
 	mms_filter_helpers.cpp
 	iec103_filter_widget.cpp
+	iec103_wave_comtrade_export.cpp
 	mms_general_filter_widget.cpp
 	mms_report_filter_dialog.cpp
 	mms_report_filter_widget.cpp

@@ -17,12 +17,14 @@
 #include <epan/prefs.h>
 #include <epan/expert.h>
 #include <epan/conversation.h>
+#include <epan/tap.h>
 #include <epan/tfs.h>
 #include <epan/wmem_scopes.h>
 #include <wsutil/array.h>
 #include <wsutil/str_util.h>
 
 #include "packet-tcp.h"
+#include "packet-nari-wave-tap.h"
 
 void proto_register_nari_net_iec103(void);
 void proto_reg_handoff_nari_net_iec103(void);
@@ -59,6 +61,7 @@ void proto_reg_handoff_nari_net_iec103(void);
 #define GDD_STRUCT    23
 
 static int proto_nari_net_iec103;
+static int nari_wave_tap = -1;
 static dissector_handle_t nari_net_iec103_tcp_handle;
 static dissector_handle_t nari_net_iec103_udp_handle;
 
@@ -957,7 +960,15 @@ compute_nari_asdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset, void *d
 }
 
 static void
-dissect_asdu23(proto_tree *tree, tvbuff_t *tvb, int *offset, int end, uint8_t vsq)
+nari_wave_tap_queue(packet_info *pinfo, nari_wave_tap_data_t *data)
+{
+	if (nari_wave_tap != -1)
+		tap_queue_packet(nari_wave_tap, pinfo, data);
+}
+
+static void
+dissect_asdu23(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end,
+	uint8_t vsq, uint8_t asdu_addr)
 {
 	unsigned num = vsq & 0x7f;
 	unsigned i;
@@ -968,14 +979,19 @@ dissect_asdu23(proto_tree *tree, tvbuff_t *tvb, int *offset, int end, uint8_t vs
 		proto_tree *pt;
 		proto_tree *sof_tree;
 		int start = *offset;
+		uint16_t fan;
+		uint8_t sof;
+		nari_wave_tap_data_t tap_data;
 
 		pi = proto_tree_add_none_format(tree, hf_dist_entry, tvb, *offset, NARI_ASDU23_ENTRY_LEN,
 			"扰动表条目 %u", i + 1);
 		pt = proto_item_add_subtree(pi, ett_nari_dist_entry);
 
 		proto_tree_add_item(pt, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+		fan = tvb_get_letohs(tvb, *offset);
 		*offset += 2;
 		sof_pi = proto_tree_add_item(pt, hf_sof, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		sof = tvb_get_uint8(tvb, *offset);
 		sof_tree = proto_item_add_subtree(sof_pi, ett_nari_sof);
 		proto_tree_add_item(sof_tree, hf_sof_tp, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 		proto_tree_add_item(sof_tree, hf_sof_tm, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
@@ -983,6 +999,15 @@ dissect_asdu23(proto_tree *tree, tvbuff_t *tvb, int *offset, int end, uint8_t vs
 		proto_tree_add_item(sof_tree, hf_sof_otev, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 		(*offset)++;
 		dissect_cp56time(tvb, offset, pt);
+
+		memset(&tap_data, 0, sizeof(tap_data));
+		tap_data.kind = NARI_WAVE_TAP_ASDU23;
+		tap_data.asdu_addr = asdu_addr;
+		tap_data.fan = fan;
+		tap_data.sof = sof;
+		tvb_memcpy(tvb, tap_data.cp56time, start + 3, 7);
+		nari_wave_tap_queue(pinfo, &tap_data);
+
 		proto_item_set_len(pi, *offset - start);
 	}
 }
@@ -1000,9 +1025,12 @@ dissect_asdu30(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset,
 	unsigned i;
 	bool have_scale = false;
 	float rpv = 1.0f, rdv = 1.0f, rfa = 1.0f;
+	nari_wave_tap_data_t tap_data;
 
 	if (end - *offset < 10)
 		return;
+
+	memset(&tap_data, 0, sizeof(tap_data));
 
 	pi = proto_tree_add_none_format(tree, hf_dist_entry, tvb, *offset, end - *offset,
 		"扰动值 (Disturbance values)");
@@ -1046,6 +1074,9 @@ dissect_asdu30(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset,
 			float primary = nari_sdv_to_primary(sdv, rpv, rdv, rfa);
 			int entry_start = *offset;
 
+			if (tap_data.sdv_count < NARI_WAVE_MAX_SDV)
+				tap_data.sdv[tap_data.sdv_count++] = sdv;
+
 			if (have_scale) {
 				entry_pi = proto_tree_add_none_format(list_tree, hf_sdv_entry, tvb,
 					*offset, 2,
@@ -1075,6 +1106,16 @@ dissect_asdu30(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset,
 			proto_item_set_len(entry_pi, *offset - entry_start);
 		}
 	}
+
+	tap_data.kind = NARI_WAVE_TAP_ASDU30;
+	tap_data.asdu_addr = addr;
+	tap_data.fan = fan;
+	tap_data.acc = acc;
+	tap_data.ndv = ndv;
+	tap_data.nfe = nfe;
+	tap_data.sdv_count = (uint16_t)(tap_data.sdv_count);
+	nari_wave_tap_queue(pinfo, &tap_data);
+
 	proto_item_set_len(pi, *offset - start);
 }
 
@@ -1116,8 +1157,13 @@ dissect_asdu29_tags(proto_tree *tree, tvbuff_t *tvb, int *offset, int end,
 }
 
 static void
-dissect_asdu26(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
+dissect_asdu26(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end,
+	uint8_t asdu_addr)
 {
+	uint16_t fan, nof, int_us;
+	uint8_t noc, ch_info, noe;
+	nari_wave_tap_data_t tap_data;
+
 	if (end - *offset < NARI_ASDU26_BODY_LEN)
 		return;
 
@@ -1125,18 +1171,35 @@ dissect_asdu26(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
 	proto_tree_add_item(tree, hf_tov, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
 	(*offset)++;
 	proto_tree_add_item(tree, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	fan = tvb_get_letohs(tvb, *offset);
 	*offset += 2;
 	proto_tree_add_item(tree, hf_nof, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	nof = tvb_get_letohs(tvb, *offset);
 	*offset += 2;
 	proto_tree_add_item(tree, hf_noc, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	noc = tvb_get_uint8(tvb, *offset);
 	(*offset)++;
 	proto_tree_add_item(tree, hf_ch_info, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	ch_info = tvb_get_uint8(tvb, *offset);
 	(*offset)++;
 	proto_tree_add_item(tree, hf_noe, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	noe = tvb_get_uint8(tvb, *offset);
 	(*offset)++;
 	proto_tree_add_item(tree, hf_int, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	int_us = tvb_get_letohs(tvb, *offset);
 	*offset += 2;
 	dissect_binary_time(tvb, offset, tree);
+
+	memset(&tap_data, 0, sizeof(tap_data));
+	tap_data.kind = NARI_WAVE_TAP_ASDU26;
+	tap_data.asdu_addr = asdu_addr;
+	tap_data.fan = fan;
+	tap_data.nof = nof;
+	tap_data.noc = noc;
+	tap_data.ch_info = ch_info;
+	tap_data.noe = noe;
+	tap_data.int_us = int_us;
+	nari_wave_tap_queue(pinfo, &tap_data);
 }
 
 static void
@@ -1170,6 +1233,20 @@ dissect_asdu27(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset,
 	*offset += 4;
 
 	nari_store_channel_scale(pinfo, addr, fan, acc, rpv, rdv, rfa);
+
+	{
+		nari_wave_tap_data_t tap_data;
+
+		memset(&tap_data, 0, sizeof(tap_data));
+		tap_data.kind = NARI_WAVE_TAP_ASDU27;
+		tap_data.asdu_addr = addr;
+		tap_data.fan = fan;
+		tap_data.acc = acc;
+		tap_data.rpv = rpv;
+		tap_data.rdv = rdv;
+		tap_data.rfa = rfa;
+		nari_wave_tap_queue(pinfo, &tap_data);
+	}
 }
 
 static void
@@ -1271,14 +1348,14 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		dissect_generic_elements(tvb, pinfo, asdu_tree, &offset, end, true);
 		break;
 	case 23:
-		dissect_asdu23(asdu_tree, tvb, &offset, end, vsq);
+		dissect_asdu23(asdu_tree, pinfo, tvb, &offset, end, vsq, asdu_addr);
 		break;
 	case 24:
 	case 25:
 		dissect_dist_cmd_body(asdu_tree, tvb, &offset, end);
 		break;
 	case 26:
-		dissect_asdu26(asdu_tree, tvb, &offset, end);
+		dissect_asdu26(asdu_tree, pinfo, tvb, &offset, end, asdu_addr);
 		break;
 	case 27:
 		dissect_asdu27(asdu_tree, pinfo, tvb, &offset, end, asdu_addr);
@@ -1288,17 +1365,42 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 	case 29: {
 		uint8_t not = 0;
+		uint16_t fan29 = 0;
+		int tag_off;
+		unsigned ti;
+		nari_wave_tap_data_t tap_data;
+
+		memset(&tap_data, 0, sizeof(tap_data));
+		tap_data.kind = NARI_WAVE_TAP_ASDU29;
+		tap_data.asdu_addr = asdu_addr;
 
 		if (end - offset >= 2) {
 			proto_tree_add_item(asdu_tree, hf_fan, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+			fan29 = tvb_get_letohs(tvb, offset);
+			tap_data.fan = fan29;
 			offset += 2;
 		}
 		if (offset < end) {
 			not = tvb_get_uint8(tvb, offset);
 			proto_tree_add_item(asdu_tree, hf_not, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			tap_data.not_count = not;
 			offset++;
 		}
+		tag_off = offset;
 		dissect_asdu29_tags(asdu_tree, tvb, &offset, end, not);
+
+		for (ti = 0; ti < not && tap_data.tag_count < NARI_WAVE_MAX_TAGS; ti++) {
+			int pos = tag_off + (int)ti * NARI_ASDU29_TAG_LEN;
+
+			if (pos + NARI_ASDU29_TAG_LEN > end)
+				break;
+			tap_data.tags[tap_data.tag_count].tap = tvb_get_letohs(tvb, pos);
+			tap_data.tags[tap_data.tag_count].fun = tvb_get_uint8(tvb, pos + 2);
+			tap_data.tags[tap_data.tag_count].inf = tvb_get_uint8(tvb, pos + 3);
+			tap_data.tags[tap_data.tag_count].dpi = tvb_get_uint8(tvb, pos + 4) & 0x03;
+			tap_data.tag_count++;
+		}
+		nari_wave_tap_queue(pinfo, &tap_data);
 		break;
 		}
 	case 30: {
@@ -1677,6 +1779,8 @@ proto_register_nari_net_iec103(void)
 	expert_register_field_array(expert_mod, ei, array_length(ei));
 
 	prefs_register_protocol(proto_nari_net_iec103, NULL);
+
+	nari_wave_tap = register_tap(NARI_WAVE_TAP_NAME);
 
 	nari_net_iec103_tcp_handle = register_dissector("nari_net_iec103",
 		dissect_nari_net_iec103_tcp, proto_nari_net_iec103);
