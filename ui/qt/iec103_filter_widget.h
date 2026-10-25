@@ -46,12 +46,16 @@ private slots:
     void onCriteriaChanged();
     void onWaveDataClicked();
     void onWaveListClicked();
+    void onGenericAsduClicked();
+    void onWaveFlowClicked();
 
 private:
     void updateGroupVisibility();
+    void updateWaveButtonLabels();
     void updatePreview();
     void applyFilterIfRealtime(bool debounce = true);
     void setAsduValue(int typ);
+    void setAsduValues(const QList<int> &types);
     QList<int> parseAsduValues() const;
     bool asduIncludesGeneric() const;
     QString filterPrefix() const;

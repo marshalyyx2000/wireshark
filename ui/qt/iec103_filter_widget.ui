@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>300</width>
-    <height>220</height>
+    <height>280</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -50,7 +50,7 @@
    <item>
     <widget class="QGroupBox" name="criteriaGroup">
      <property name="title">
-      <string>103 属性搜索</string>
+      <string>103 ASDU 过滤</string>
      </property>
      <layout class="QFormLayout" name="criteriaLayout">
       <item row="0" column="0">
@@ -62,6 +62,9 @@
       </item>
       <item row="0" column="1">
        <widget class="QComboBox" name="variantCombo">
+        <property name="currentIndex">
+         <number>1</number>
+        </property>
         <item>
          <property name="text">
           <string>山东主子站103</string>
@@ -84,7 +87,7 @@
       <item row="1" column="1">
        <widget class="QLineEdit" name="asduEdit">
         <property name="placeholderText">
-         <string>类型标识，如 10 21 或 14</string>
+         <string>多个用空格分隔，如 10 21 或 23 30</string>
         </property>
         <property name="clearButtonEnabled">
          <bool>true</bool>
@@ -112,7 +115,24 @@
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="waveButtonLayout">
+    <layout class="QHBoxLayout" name="presetRow1">
+     <item>
+      <widget class="QPushButton" name="genericAsduButton">
+       <property name="text">
+        <string>ASDU10+21</string>
+       </property>
+       <property name="toolTip">
+        <string>同时显示通用分类数据与命令 (ASDU10、ASDU21)</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="waveListButton">
+       <property name="text">
+        <string>录波列表</string>
+       </property>
+      </widget>
+     </item>
      <item>
       <widget class="QPushButton" name="waveDataButton">
        <property name="text">
@@ -120,10 +140,17 @@
        </property>
       </widget>
      </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="presetRow2">
      <item>
-      <widget class="QPushButton" name="waveListButton">
+      <widget class="QPushButton" name="waveFlowButton">
        <property name="text">
-        <string>录波列表数据</string>
+        <string>录波全流程</string>
+       </property>
+       <property name="toolTip">
+        <string>显示录波列表、命令、准备、通道表、扰动值等全部录波相关 ASDU</string>
        </property>
       </widget>
      </item>

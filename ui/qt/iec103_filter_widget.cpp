@@ -49,7 +49,12 @@ Iec103FilterWidget::Iec103FilterWidget(QWidget *parent) :
             this, &Iec103FilterWidget::onWaveDataClicked);
     connect(ui_->waveListButton, &QPushButton::clicked,
             this, &Iec103FilterWidget::onWaveListClicked);
+    connect(ui_->genericAsduButton, &QPushButton::clicked,
+            this, &Iec103FilterWidget::onGenericAsduClicked);
+    connect(ui_->waveFlowButton, &QPushButton::clicked,
+            this, &Iec103FilterWidget::onWaveFlowClicked);
 
+    updateWaveButtonLabels();
     updateGroupVisibility();
     updatePreview();
 }
@@ -198,6 +203,7 @@ void Iec103FilterWidget::onDebouncedFilterApply()
 
 void Iec103FilterWidget::onCriteriaChanged()
 {
+    updateWaveButtonLabels();
     updateGroupVisibility();
     updatePreview();
     applyFilterIfRealtime(true);
@@ -205,10 +211,38 @@ void Iec103FilterWidget::onCriteriaChanged()
 
 void Iec103FilterWidget::setAsduValue(int typ)
 {
-    ui_->asduEdit->setText(QString::number(typ));
+    setAsduValues({typ});
+}
+
+void Iec103FilterWidget::setAsduValues(const QList<int> &types)
+{
+    QStringList nums;
+    for (int typ : types) {
+        nums << QString::number(typ);
+    }
+    ui_->asduEdit->setText(nums.join(QLatin1Char(' ')));
     updateGroupVisibility();
     updatePreview();
     applyFilterNow(true);
+}
+
+void Iec103FilterWidget::updateWaveButtonLabels()
+{
+    if (isNariNetVariant()) {
+        ui_->waveListButton->setText(tr("录波列表 (23)"));
+        ui_->waveListButton->setToolTip(tr("被记录的扰动表 ASDU23"));
+        ui_->waveDataButton->setText(tr("录波数据 (30)"));
+        ui_->waveDataButton->setToolTip(tr("传输扰动值 ASDU30（含 SDV 采样值）"));
+        ui_->waveFlowButton->setToolTip(
+            tr("录波相关 ASDU：23–31（列表、命令、准备、通道表、扰动值、传送结束）"));
+    } else {
+        ui_->waveListButton->setText(tr("录波列表 (16)"));
+        ui_->waveListButton->setToolTip(tr("录波文件列表 ASDU16"));
+        ui_->waveDataButton->setText(tr("录波数据 (14)"));
+        ui_->waveDataButton->setToolTip(tr("录波文件内容 ASDU14"));
+        ui_->waveFlowButton->setToolTip(
+            tr("录波相关 ASDU：13–17（召唤、文件内容、列表等）"));
+    }
 }
 
 void Iec103FilterWidget::onWaveDataClicked()
@@ -221,6 +255,20 @@ void Iec103FilterWidget::onWaveListClicked()
 {
     /* Shandong: ASDU16 file list; NARI: ASDU23 disturbance table */
     setAsduValue(isNariNetVariant() ? 23 : 16);
+}
+
+void Iec103FilterWidget::onGenericAsduClicked()
+{
+    setAsduValues({10, 21});
+}
+
+void Iec103FilterWidget::onWaveFlowClicked()
+{
+    if (isNariNetVariant()) {
+        setAsduValues({23, 24, 25, 26, 27, 28, 29, 30, 31});
+    } else {
+        setAsduValues({13, 14, 15, 16, 17});
+    }
 }
 
 void Iec103FilterWidget::applyFilterNow(bool force)

@@ -407,13 +407,10 @@ void IndustrialProtocolClassifyPanel::applySearchFilter(const QString &text)
 void IndustrialProtocolClassifyPanel::updateReportPanelVisibility()
 {
     const bool mms_selected = selected_proto_key_ == QLatin1String("mms");
-    const bool iec103_ip_selected =
-        selected_proto_key_ == QLatin1String("103") &&
-        !selected_is_proto_ &&
-        !selected_addr_.isEmpty();
+    const bool iec103_selected = selected_proto_key_ == QLatin1String("103");
 
     ui_->reportContainer->setVisible(mms_selected);
-    ui_->iec103FilterContainer->setVisible(iec103_ip_selected);
+    ui_->iec103FilterContainer->setVisible(iec103_selected);
 }
 
 QString IndustrialProtocolClassifyPanel::buildTreeFilter() const
