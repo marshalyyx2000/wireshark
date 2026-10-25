@@ -7,7 +7,7 @@ param(
     [string]$Config = $(if ($env:WIRESHARK_BUILD_CONFIG) { $env:WIRESHARK_BUILD_CONFIG } else { 'RelWithDebInfo' }),
     [string]$OutDir = $(if ($env:WIRESHARK_GREEN_DIR) { $env:WIRESHARK_GREEN_DIR } else { '' }),
     [string]$PackageId = 'Binyao',
-    [string]$Version = '0.10.5',
+    [string]$Version = '0.10.6',
     [switch]$NoZip
 )
 

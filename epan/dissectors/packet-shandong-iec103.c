@@ -35,6 +35,8 @@ void proto_reg_handoff_shandong_iec103(void);
 #define FILENAME_LEN         100
 /* Disturbance file list (ASDU16) per-entry stride observed on SGCC links */
 #define DIST_FILE_ENTRY_LEN  129
+#define DIST_BASE_NAME_LEN   64
+#define DIST_FILE_EXT_LEN    10
 
 #define I_TYPE 0
 #define S_TYPE 1
@@ -142,6 +144,7 @@ static int hf_gen_gid_float;
 static int hf_endflag;
 static int hf_file_num;
 static int hf_filename;
+static int hf_file_ext;
 static int hf_file_entry;
 static int hf_file_chunk;
 static int hf_file_offset;
@@ -224,6 +227,50 @@ static const value_string kod_vals[] = {
 	{ 0x67, "Attribute structure (KOD<103>)" },
 	{ 0, NULL }
 };
+
+/*
+ * Q/GDW 表 A40 控制方向、表 A41 监视方向。
+ * 同一 TYP 下由 INF 区分本地录波、简化录波、装置录波和通用文件。
+ * 规范同时给出 COT/FUN（列表 45/162，文件 46/163）；现场报文 FUN/COT
+ * 常与表值不同，因此按 TYP+INF 标注说明。
+ */
+static const struct {
+	uint8_t typ;
+	uint8_t inf;
+	const char *desc;
+} sgcc_file_service_descs[] = {
+	/* 表 A40 控制方向 */
+	{ 15,  0, "从子站本地调录波文件列表" },
+	{ 15,  1, "从子站本地调简化录波列表" },
+	{ 15,  2, "直接从装置调录波文件列表" },
+	{ 101, 0, "调通用文件列表" },
+	{ 13,  0, "从子站本地调录波文件" },
+	{ 13,  1, "从子站本地调简化录波文件" },
+	{ 13,  2, "直接从装置调录波文件" },
+	{ 103, 0, "调通用文件" },
+	/* 表 A41 监视方向 */
+	{ 16,  0, "子站本地召唤录波文件列表回应" },
+	{ 16,  1, "子站本地调简化录波列表回应" },
+	{ 16,  2, "从装置召唤录波文件列表回应" },
+	{ 102, 0, "调通用文件列表回应" },
+	{ 14,  0, "从子站本地调录波文件回应" },
+	{ 14,  1, "从子站本地调简化录波文件回应" },
+	{ 14,  2, "从装置调录波文件回应" },
+	{ 104, 0, "调通用文件回应" },
+};
+
+static const char *
+sgcc_file_service_desc(uint8_t typ, uint8_t inf)
+{
+	unsigned i;
+
+	for (i = 0; i < array_length(sgcc_file_service_descs); i++) {
+		if (sgcc_file_service_descs[i].typ == typ &&
+		    sgcc_file_service_descs[i].inf == inf)
+			return sgcc_file_service_descs[i].desc;
+	}
+	return NULL;
+}
 
 static const value_string endflag_vals[] = {
 	{ 0, "Last frame" },
@@ -697,6 +744,129 @@ dissect_file_payload(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
 		*offset = end;
 	}
 	proto_item_set_len(fi, end - start);
+}
+
+/* 表 A46：同一主文件名下，按后缀重复「10 字节后缀 + 4 字节长度 + 内容」。 */
+static bool
+dissect_a46_file_data(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
+	int *offset, int end, const char **base_name)
+{
+	const char *base;
+	uint16_t nfiles;
+	unsigned i;
+
+	*base_name = NULL;
+	if (end - *offset < DIST_BASE_NAME_LEN + 7 + 2 + DIST_FILE_EXT_LEN + 4)
+		return false;
+	/* Extension of the first part includes the dot, e.g. ".hdr". */
+	if (tvb_get_uint8(tvb, *offset + DIST_BASE_NAME_LEN + 7 + 2) != '.')
+		return false;
+
+	base = decode_zh_string(pinfo->pool, tvb, *offset, DIST_BASE_NAME_LEN);
+	*base_name = base;
+	dissect_filename_field(tree, tvb, offset, end, DIST_BASE_NAME_LEN);
+	dissect_cp56time(tvb, offset, tree);
+	nfiles = tvb_get_letohs(tvb, *offset);
+	proto_tree_add_item(tree, hf_file_num, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	*offset += 2;
+	if (nfiles > 16)
+		nfiles = 16;
+
+	for (i = 0; i < nfiles && *offset < end; i++) {
+		proto_item *pi;
+		proto_tree *pt;
+		const char *ext;
+		uint32_t flen;
+		int chunk;
+		int start;
+		int hdr;
+
+		hdr = DIST_FILE_EXT_LEN + 4;
+		if (end - *offset < hdr)
+			break;
+		start = *offset;
+		ext = decode_zh_string(pinfo->pool, tvb, *offset, DIST_FILE_EXT_LEN);
+		flen = tvb_get_letohl(tvb, *offset + DIST_FILE_EXT_LEN);
+		chunk = end - (*offset + hdr);
+		if (chunk < 0)
+			chunk = 0;
+		if ((uint32_t)chunk > flen)
+			chunk = (int)flen;
+
+		pi = proto_tree_add_none_format(tree, hf_file_entry, tvb, start,
+			hdr + chunk, "第%u个文件: %s%s (%u 字节)",
+			i + 1, base ? base : "", ext ? ext : "", flen);
+		if ((uint32_t)chunk < flen) {
+			proto_item_append_text(pi, ", 本帧 %d 字节, 后续帧继续", chunk);
+		}
+		pt = proto_item_add_subtree(pi, ett_shandong_file);
+		proto_tree_add_zh_string(pt, hf_file_ext, tvb, *offset, DIST_FILE_EXT_LEN);
+		*offset += DIST_FILE_EXT_LEN;
+		proto_tree_add_item(pt, hf_file_size, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+		*offset += 4;
+		if (chunk > 0) {
+			if (file_chunk_looks_text(tvb, *offset, chunk))
+				proto_tree_add_file_text(pt, hf_file_data_text, tvb, *offset, chunk);
+			else
+				proto_tree_add_item(pt, hf_file_data, tvb, *offset, chunk, ENC_NA);
+			*offset += chunk;
+		}
+		if ((uint32_t)chunk < flen)
+			break;
+	}
+	return true;
+}
+
+/*
+ * ASDU14：RII、结束标志、起始传输位置，随后是表 A46 文件数据。
+ * 起始位置为 0 时本帧从文件数据头部开始；否则只是后续分片。
+ */
+static void
+dissect_asdu14(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end)
+{
+	proto_item *fi;
+	proto_item *oi;
+	proto_tree *ft;
+	uint32_t xfer = 0;
+	int start = *offset;
+	const char *base = NULL;
+	bool parsed = false;
+
+	if (*offset >= end)
+		return;
+	fi = proto_tree_add_none_format(tree, hf_file_entry, tvb, *offset, end - *offset,
+		"录波文件内容 (Disturbance file)");
+	ft = proto_item_add_subtree(fi, ett_shandong_file);
+	if (*offset < end) {
+		proto_tree_add_item(ft, hf_rii, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+	}
+	if (*offset < end) {
+		proto_tree_add_item(ft, hf_endflag, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+	}
+	if (end - *offset >= 4) {
+		xfer = tvb_get_letohl(tvb, *offset);
+		oi = proto_tree_add_item(ft, hf_file_offset, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+		proto_item_append_text(oi, " (起始传输位置)");
+		*offset += 4;
+	}
+	if (xfer == 0)
+		parsed = dissect_a46_file_data(ft, pinfo, tvb, offset, end, &base);
+	if (parsed && base && base[0] != '\0')
+		proto_item_append_text(fi, ": %s", base);
+	if (!parsed && *offset < end) {
+		int rem = end - *offset;
+
+		if (xfer != 0)
+			proto_item_append_text(fi, ": 续传 @%u", xfer);
+		if (file_chunk_looks_text(tvb, *offset, rem))
+			proto_tree_add_file_text(ft, hf_file_data_text, tvb, *offset, rem);
+		else
+			proto_tree_add_item(ft, hf_file_data, tvb, *offset, rem, ENC_NA);
+		*offset = end;
+	}
+	proto_item_set_len(fi, *offset - start);
 }
 
 /* SGCC A63/A65 group-title feature substrings (UTF-8) → layout label. */
@@ -1247,7 +1417,21 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree_add_item(asdu_tree, hf_fun, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	offset++;
 	inf = tvb_get_uint8(tvb, offset);
-	proto_tree_add_item(asdu_tree, hf_inf, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	{
+		proto_item *inf_item;
+		const char *dir_desc = NULL;
+
+		inf_item = proto_tree_add_item(asdu_tree, hf_inf, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		/* ASDU16 COT=20 is the fault-history overlap, not a file-list reply. */
+		if (!(typ == 16 && (cot & 0x3f) == 0x14))
+			dir_desc = sgcc_file_service_desc(typ, inf);
+		if (dir_desc) {
+			proto_item_append_text(inf_item, " (%s)", dir_desc);
+			proto_item_append_text(asdu_item, ": %s", dir_desc);
+			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", dir_desc);
+		}
+		(void)fun;
+	}
 	offset++;
 
 	switch (typ) {
@@ -1323,7 +1507,7 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			dissect_filename_field(asdu_tree, tvb, &offset, end, end - offset);
 		break;
 	case 14:
-		dissect_file_payload(asdu_tree, tvb, &offset, end);
+		dissect_asdu14(asdu_tree, pinfo, tvb, &offset, end);
 		break;
 	case 15:
 		dissect_asdu_call_file_list(asdu_tree, tvb, &offset, end);
@@ -1780,6 +1964,8 @@ proto_register_shandong_iec103(void)
 		  { "文件个数 (File count)", "shandong_iec103.file_num", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_filename,
 		  { "文件名 (File name)", "shandong_iec103.filename", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_file_ext,
+		  { "后缀名 (Extension)", "shandong_iec103.file_ext", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ &hf_file_offset,
 		  { "传输偏移 (Transfer offset)", "shandong_iec103.file_offset", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 		{ &hf_file_size,

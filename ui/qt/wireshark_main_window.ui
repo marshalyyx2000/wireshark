@@ -528,6 +528,7 @@
      <string>103</string>
     </property>
     <addaction name="actionIec103ShandongMasterSlave"/>
+    <addaction name="actionIec103NariNetParse"/>
    </widget>
    <widget class="QMenu" name="menuCommonTools">
     <property name="title">
@@ -3009,6 +3010,14 @@
    </property>
    <property name="toolTip">
     <string>仅显示山东主子站103规约报文 (shandong_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103NariNetParse">
+   <property name="text">
+    <string>南自网络103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南自网络103规约报文 (nari_net_iec103)</string>
    </property>
   </action>
   <action name="actionCommonToolsNicPacketLoss">

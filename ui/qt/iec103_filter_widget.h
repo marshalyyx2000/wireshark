@@ -54,6 +54,8 @@ private:
     void setAsduValue(int typ);
     QList<int> parseAsduValues() const;
     bool asduIncludesGeneric() const;
+    QString filterPrefix() const;
+    bool isNariNetVariant() const;
 
     Ui::Iec103FilterWidget *ui_;
     QTimer *filter_apply_timer_;

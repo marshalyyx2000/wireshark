@@ -1,6 +1,6 @@
 /** @file
  *
- * Shandong / SGCC IEC 103 display-filter builder for classify panel.
+ * IEC 103 display-filter builder (Shandong / NARI network variants).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -11,6 +11,7 @@
 #include <climits>
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QIntValidator>
 #include <QLineEdit>
 #include <QPushButton>
@@ -33,6 +34,8 @@ Iec103FilterWidget::Iec103FilterWidget(QWidget *parent) :
     /* ASDU accepts multiple values (space/comma separated); no IntValidator */
     ui_->groupEdit->setValidator(new QIntValidator(0, 255, ui_->groupEdit));
 
+    connect(ui_->variantCombo, &QComboBox::currentIndexChanged,
+            this, &Iec103FilterWidget::onCriteriaChanged);
     connect(ui_->asduEdit, &QLineEdit::textChanged,
             this, &Iec103FilterWidget::onCriteriaChanged);
     connect(ui_->groupEdit, &QLineEdit::textChanged,
@@ -108,6 +111,17 @@ bool Iec103FilterWidget::asduIncludesGeneric() const
     return false;
 }
 
+bool Iec103FilterWidget::isNariNetVariant() const
+{
+    return ui_->variantCombo->currentIndex() == 1;
+}
+
+QString Iec103FilterWidget::filterPrefix() const
+{
+    return isNariNetVariant() ? QStringLiteral("nari_net_iec103")
+                              : QStringLiteral("shandong_iec103");
+}
+
 bool Iec103FilterWidget::hasCriteria() const
 {
     if (!parseAsduValues().isEmpty()) {
@@ -122,21 +136,22 @@ QString Iec103FilterWidget::buildFilter() const
 {
     QStringList parts;
     const QList<int> asdus = parseAsduValues();
+    const QString prefix = filterPrefix();
 
     if (asdus.size() == 1) {
-        parts << QStringLiteral("shandong_iec103.typeid == %1").arg(asdus.first());
+        parts << QStringLiteral("%1.typeid == %2").arg(prefix).arg(asdus.first());
     } else if (asdus.size() > 1) {
         QStringList nums;
         for (int asdu : asdus) {
             nums << QString::number(asdu);
         }
-        parts << QStringLiteral("shandong_iec103.typeid in {%1}").arg(nums.join(QLatin1String(", ")));
+        parts << QStringLiteral("%1.typeid in {%2}").arg(prefix, nums.join(QLatin1String(", ")));
     }
 
     bool group_ok = false;
     const int group = ui_->groupEdit->text().trimmed().toInt(&group_ok);
     if (group_ok && asduIncludesGeneric()) {
-        parts << QStringLiteral("shandong_iec103.gen.group == %1").arg(group);
+        parts << QStringLiteral("%1.gen.group == %2").arg(prefix).arg(group);
     }
 
     if (parts.isEmpty()) {
@@ -198,14 +213,14 @@ void Iec103FilterWidget::setAsduValue(int typ)
 
 void Iec103FilterWidget::onWaveDataClicked()
 {
-    /* ASDU14: disturbance / file content */
-    setAsduValue(14);
+    /* Shandong: ASDU14 file content; NARI: ASDU30 disturbance values */
+    setAsduValue(isNariNetVariant() ? 30 : 14);
 }
 
 void Iec103FilterWidget::onWaveListClicked()
 {
-    /* ASDU16: disturbance file list */
-    setAsduValue(16);
+    /* Shandong: ASDU16 file list; NARI: ASDU23 disturbance table */
+    setAsduValue(isNariNetVariant() ? 23 : 16);
 }
 
 void Iec103FilterWidget::applyFilterNow(bool force)

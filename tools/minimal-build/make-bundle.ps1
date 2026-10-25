@@ -274,7 +274,7 @@ $DefaultSrc = (Resolve-Path (Join-Path $ScriptDir '..\..')).Path
 $Src = if ($env:WIRESHARK_SRC_DIR) { $env:WIRESHARK_SRC_DIR } else { $DefaultSrc }
 $CMakeLists = Join-Path $Src 'CMakeLists.txt'
 $Version = Read-CMakeValue $CMakeLists 'PROJECT_VERSION'
-if (-not $Version) { $Version = '0.10.5' }
+if (-not $Version) { $Version = '0.10.6' }
 $ProductName = Read-CMakeValue $CMakeLists 'MINIMAL_PRODUCT_NAME'
 if (-not $ProductName) { $ProductName = '宾尧' }
 
