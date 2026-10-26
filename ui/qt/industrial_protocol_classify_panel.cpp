@@ -46,7 +46,7 @@ enum ItemKind {
 
 constexpr char kCombinedTapFilter[] =
     "mms || goose || r-goose || sv || mbtcp || yushun_modbus || "
-    "iec60870_5_103 || shandong_iec103 || nari_net_iec103 || iec60870_104 || iec60870_101";
+    "iec60870_5_103 || shandong_iec103 || nari_net_iec103 || iec60870_104 || yunnan_cfgfree_iec104 || iec60870_101";
 
 bool ipLessThan(const QString &a, const QString &b)
 {
@@ -79,7 +79,8 @@ IndustrialProtocolClassifyPanel::protocolDefs()
         {"modbus", "MODBUS", "mbtcp", "yushun_modbus", "(mbtcp || yushun_modbus)"},
         {"103", "103", "iec60870_5_103", "shandong_iec103",
          "(iec60870_5_103 || shandong_iec103 || nari_net_iec103)"},
-        {"104", "104", "iec60870_104", nullptr, "iec60870_104"},
+        {"104", "104", "iec60870_104", "yunnan_cfgfree_iec104",
+         "(iec60870_104 || yunnan_cfgfree_iec104)"},
         {"101", "101", "iec60870_101", nullptr, "iec60870_101"},
     };
     return defs;

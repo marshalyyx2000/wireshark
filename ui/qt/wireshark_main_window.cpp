@@ -729,6 +729,7 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectMmsMenuActions();
     connectModbusMenuActions();
     connectIec103MenuActions();
+    connectIec104MenuActions();
     connectCommonToolsMenuActions();
 #ifndef ENABLE_MINIMAL_BUILD
     connectStatisticsMenuActions();

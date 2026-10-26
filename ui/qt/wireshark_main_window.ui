@@ -530,6 +530,12 @@
     <addaction name="actionIec103ShandongMasterSlave"/>
     <addaction name="actionIec103NariNetParse"/>
    </widget>
+   <widget class="QMenu" name="menuIec104">
+    <property name="title">
+     <string>104</string>
+    </property>
+    <addaction name="actionIec104YunnanCfgFree"/>
+   </widget>
    <widget class="QMenu" name="menuCommonTools">
     <property name="title">
      <string>常用工具</string>
@@ -832,6 +838,7 @@
    <addaction name="menuMms"/>
    <addaction name="menuModbus"/>
    <addaction name="menuIec103"/>
+   <addaction name="menuIec104"/>
    <addaction name="menuCommonTools"/>
    <addaction name="menuTelephony"/>
    <addaction name="menuWireless"/>
@@ -3020,6 +3027,14 @@
    </property>
    <property name="toolTip">
     <string>仅显示南自网络103规约报文 (nari_net_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec104YunnanCfgFree">
+   <property name="text">
+    <string>云南免配置主子站104规约</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示云南免配置主子站104规约报文 (yunnan_cfgfree_iec104)</string>
    </property>
   </action>
   <action name="actionCommonToolsNicPacketLoss">

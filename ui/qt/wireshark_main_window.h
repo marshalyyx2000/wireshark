@@ -1159,6 +1159,9 @@ private slots:
     /** @brief Connects 103 menu actions to their implementation slots. */
     void connectIec103MenuActions();
 
+    /** @brief Connects 104 menu actions to their implementation slots. */
+    void connectIec104MenuActions();
+
     /** @brief Connects 常用工具 menu actions to their implementation slots. */
     void connectCommonToolsMenuActions();
 

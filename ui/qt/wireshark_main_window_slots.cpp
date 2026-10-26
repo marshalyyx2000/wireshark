@@ -3438,6 +3438,13 @@ void WiresharkMainWindow::connectIec103MenuActions()
     });
 }
 
+void WiresharkMainWindow::connectIec104MenuActions()
+{
+    connect(main_ui_->actionIec104YunnanCfgFree, &QAction::triggered, this, [=]() {
+        applyCaptureDisplayFilter(QStringLiteral("yunnan_cfgfree_iec104"), true);
+    });
+}
+
 void WiresharkMainWindow::connectCommonToolsMenuActions()
 {
     connect(main_ui_->actionCommonToolsNicPacketLoss, &QAction::triggered, this, [=]() {
