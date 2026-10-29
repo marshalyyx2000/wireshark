@@ -23,6 +23,7 @@
 
 #include <algorithm>
 
+#include <QAbstractItemView>
 #include <QAbstractSocket>
 #include <QHostAddress>
 #include <QTimer>
@@ -46,7 +47,8 @@ enum ItemKind {
 
 constexpr char kCombinedTapFilter[] =
     "mms || goose || r-goose || sv || mbtcp || yushun_modbus || "
-    "iec60870_5_103 || shandong_iec103 || nari_net_iec103 || iec60870_104 || yunnan_cfgfree_iec104 || iec60870_101";
+    "iec60870_5_103 || shandong_iec103 || nari_net_iec103 || xuji_net_iec103 || sznari_net_iec103 || "
+    "iec60870_104 || yunnan_cfgfree_iec104 || iec60870_101";
 
 bool ipLessThan(const QString &a, const QString &b)
 {
@@ -78,7 +80,7 @@ IndustrialProtocolClassifyPanel::protocolDefs()
         {"sv", "SV", "sv", nullptr, "sv"},
         {"modbus", "MODBUS", "mbtcp", "yushun_modbus", "(mbtcp || yushun_modbus)"},
         {"103", "103", "iec60870_5_103", "shandong_iec103",
-         "(iec60870_5_103 || shandong_iec103 || nari_net_iec103)"},
+         "(iec60870_5_103 || shandong_iec103 || nari_net_iec103 || xuji_net_iec103 || sznari_net_iec103)"},
         {"104", "104", "iec60870_104", "yunnan_cfgfree_iec104",
          "(iec60870_104 || yunnan_cfgfree_iec104)"},
         {"101", "101", "iec60870_101", nullptr, "iec60870_101"},
@@ -94,6 +96,7 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
     general_widget_(new MmsGeneralFilterWidget(this)),
     iec103_widget_(new Iec103FilterWidget(this)),
     filter_timer_(new QTimer(this)),
+    live_refresh_timer_(new QTimer(this)),
     selected_is_root_(false),
     selected_is_proto_(false)
 {
@@ -119,10 +122,19 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
     filter_timer_->setInterval(100);
     connect(filter_timer_, &QTimer::timeout, this, &IndustrialProtocolClassifyPanel::onDebouncedFilterApply);
 
+    /* Live capture updates arrive in bursts; debounce full retap. */
+    live_refresh_timer_->setSingleShot(true);
+    live_refresh_timer_->setInterval(1000);
+    connect(live_refresh_timer_, &QTimer::timeout,
+            this, &IndustrialProtocolClassifyPanel::onLiveCaptureRefreshTimeout);
+
     connect(ui_->searchEdit, &QLineEdit::textChanged,
             this, &IndustrialProtocolClassifyPanel::onSearchTextChanged);
+    ui_->protoTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     connect(ui_->protoTree, &QTreeWidget::itemClicked,
             this, &IndustrialProtocolClassifyPanel::onTreeItemClicked);
+    connect(ui_->protoTree, &QTreeWidget::itemSelectionChanged,
+            this, &IndustrialProtocolClassifyPanel::onTreeSelectionChanged);
     connect(ui_->protoTree, &QTreeWidget::currentItemChanged,
             this, &IndustrialProtocolClassifyPanel::onTreeCurrentItemChanged);
     connect(ui_->clearButton, &QPushButton::clicked,
@@ -145,13 +157,34 @@ IndustrialProtocolClassifyPanel::IndustrialProtocolClassifyPanel(QWidget &parent
             this, &IndustrialProtocolClassifyPanel::onIec103RequestApply);
 
     connect(&cap_file_, &CaptureFile::captureEvent, this, [this](CaptureEvent e) {
-        if (e.captureContext() != CaptureEvent::File) {
-            return;
-        }
-        if (e.eventType() == CaptureEvent::Finished ||
-            e.eventType() == CaptureEvent::Opened) {
-            file_closed_ = false;
-            refresh();
+        switch (e.captureContext()) {
+        case CaptureEvent::File:
+            if (e.eventType() == CaptureEvent::Finished ||
+                e.eventType() == CaptureEvent::Opened) {
+                file_closed_ = false;
+                live_refresh_timer_->stop();
+                refresh();
+            }
+            break;
+#ifdef HAVE_LIBPCAP
+        case CaptureEvent::Update:
+            /* New packets appended during live capture. */
+            if (e.eventType() == CaptureEvent::Finished) {
+                scheduleLiveCaptureRefresh();
+            }
+            break;
+        case CaptureEvent::Capture:
+            if (e.eventType() == CaptureEvent::Stopping ||
+                e.eventType() == CaptureEvent::Failed) {
+                live_refresh_timer_->stop();
+                if (!fileClosed() && cap_file_.isValid()) {
+                    refresh();
+                }
+            }
+            break;
+#endif
+        default:
+            break;
         }
     });
 
@@ -180,11 +213,37 @@ void IndustrialProtocolClassifyPanel::refresh()
         ui_->hintLabel->setText(tr("未打开抓包。打开文件后将自动枚举协议与地址。"));
         return;
     }
+    if (retapDepth() > 0) {
+        /* Nested retap is unsafe; try again shortly. */
+        scheduleLiveCaptureRefresh();
+        return;
+    }
     retap();
+}
+
+void IndustrialProtocolClassifyPanel::scheduleLiveCaptureRefresh()
+{
+    if (fileClosed() || !cap_file_.isValid()) {
+        return;
+    }
+    live_refresh_timer_->start();
+}
+
+void IndustrialProtocolClassifyPanel::onLiveCaptureRefreshTimeout()
+{
+    if (fileClosed() || !cap_file_.isValid() || !cap_file_.capFile()) {
+        return;
+    }
+    if (retapDepth() > 0) {
+        scheduleLiveCaptureRefresh();
+        return;
+    }
+    refresh();
 }
 
 void IndustrialProtocolClassifyPanel::captureFileClosing()
 {
+    live_refresh_timer_->stop();
     report_widget_->onCaptureFileClosing();
     removeTapListeners();
     WiresharkDialog::captureFileClosing();
@@ -192,6 +251,7 @@ void IndustrialProtocolClassifyPanel::captureFileClosing()
 
 void IndustrialProtocolClassifyPanel::captureFileClosed()
 {
+    live_refresh_timer_->stop();
     addrs_by_proto_.clear();
     addr_kind_.clear();
     selected_proto_key_.clear();
@@ -431,25 +491,36 @@ QString IndustrialProtocolClassifyPanel::buildTreeFilter() const
         return QString();
     }
 
-    if (selected_is_proto_ || selected_addr_.isEmpty()) {
+    if (selected_is_proto_) {
         return proto_filter;
     }
 
-    QString addr_term;
-    const AddrKind kind = addr_kind_.value(selected_addr_, AddrKind::IPv4);
-    switch (kind) {
-    case AddrKind::IPv6:
-        addr_term = QStringLiteral("ipv6.addr==%1").arg(selected_addr_);
-        break;
-    case AddrKind::Ethernet:
-        addr_term = QStringLiteral("eth.addr==%1").arg(selected_addr_);
-        break;
-    case AddrKind::IPv4:
-    default:
-        addr_term = QStringLiteral("ip.addr==%1").arg(selected_addr_);
-        break;
+    QStringList addr_terms;
+    const QSet<QString> addrs = selected_addrs_.isEmpty() && !selected_addr_.isEmpty()
+                                  ? QSet<QString>{selected_addr_}
+                                  : selected_addrs_;
+    for (const QString &addr : addrs) {
+        const AddrKind kind = addr_kind_.value(addr, AddrKind::IPv4);
+        switch (kind) {
+        case AddrKind::IPv6:
+            addr_terms << QStringLiteral("ipv6.addr==%1").arg(addr);
+            break;
+        case AddrKind::Ethernet:
+            addr_terms << QStringLiteral("eth.addr==%1").arg(addr);
+            break;
+        case AddrKind::IPv4:
+        default:
+            addr_terms << QStringLiteral("ip.addr==%1").arg(addr);
+            break;
+        }
     }
-    return QStringLiteral("(%1) && (%2)").arg(addr_term, proto_filter);
+    if (addr_terms.isEmpty()) {
+        return proto_filter;
+    }
+    const QString addr_filter = addr_terms.size() == 1
+                                    ? addr_terms.first()
+                                    : QStringLiteral("(%1)").arg(addr_terms.join(QStringLiteral(" || ")));
+    return QStringLiteral("(%1) && (%2)").arg(addr_filter, proto_filter);
 }
 
 bool IndustrialProtocolClassifyPanel::isGeneralFilterTabActive() const
@@ -544,8 +615,48 @@ void IndustrialProtocolClassifyPanel::onTreeItemClicked(QTreeWidgetItem *item, i
     if (!item) {
         return;
     }
-    onTreeCurrentItemChanged(item, nullptr);
+    onTreeSelectionChanged();
     filter_timer_->start();
+}
+
+void IndustrialProtocolClassifyPanel::onTreeSelectionChanged()
+{
+    selected_addrs_.clear();
+    selected_addr_.clear();
+    selected_proto_key_.clear();
+    selected_is_root_ = false;
+    selected_is_proto_ = false;
+
+    const QList<QTreeWidgetItem *> items = ui_->protoTree->selectedItems();
+    if (items.isEmpty()) {
+        updateReportPanelVisibility();
+        updateHint();
+        return;
+    }
+
+    for (QTreeWidgetItem *item : items) {
+        const int kind = item->data(0, kRoleKind).toInt();
+        switch (kind) {
+        case kKindRoot:
+            selected_is_root_ = true;
+            break;
+        case kKindProto:
+            selected_is_proto_ = true;
+            selected_proto_key_ = item->data(0, kRoleProtoKey).toString();
+            break;
+        case kKindAddr:
+            selected_proto_key_ = item->data(0, kRoleProtoKey).toString();
+            selected_addrs_.insert(item->data(0, kRoleAddr).toString());
+            break;
+        default:
+            break;
+        }
+    }
+    if (!selected_addrs_.isEmpty()) {
+        selected_addr_ = *selected_addrs_.begin();
+    }
+    updateReportPanelVisibility();
+    updateHint();
 }
 
 void IndustrialProtocolClassifyPanel::onTreeCurrentItemChanged(QTreeWidgetItem *current,
@@ -553,6 +664,7 @@ void IndustrialProtocolClassifyPanel::onTreeCurrentItemChanged(QTreeWidgetItem *
 {
     selected_proto_key_.clear();
     selected_addr_.clear();
+    selected_addrs_.clear();
     selected_is_root_ = false;
     selected_is_proto_ = false;
 
@@ -587,6 +699,7 @@ void IndustrialProtocolClassifyPanel::onClearClicked()
 {
     selected_proto_key_.clear();
     selected_addr_.clear();
+    selected_addrs_.clear();
     selected_is_root_ = false;
     selected_is_proto_ = false;
     last_applied_filter_.clear();

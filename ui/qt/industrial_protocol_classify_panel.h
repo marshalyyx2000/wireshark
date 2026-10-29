@@ -45,6 +45,7 @@ protected:
 private slots:
     void onSearchTextChanged(const QString &text);
     void onTreeItemClicked(QTreeWidgetItem *item, int column);
+    void onTreeSelectionChanged();
     void onTreeCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void onClearClicked();
     void onDebouncedFilterApply();
@@ -52,6 +53,7 @@ private slots:
     void onGeneralRequestApply(const QString &filter, bool force);
     void onIec103RequestApply(const QString &filter, bool force);
     void onMmsFilterTabChanged(int index);
+    void onLiveCaptureRefreshTimeout();
 
 private:
     enum class AddrKind {
@@ -85,6 +87,7 @@ private:
     void applyCombinedFilter(bool force = false);
     void rememberAddress(const QString &proto_key, const address *addr, AddrKind kind);
     void collectAddressesForPacket(packet_info *pinfo, const QString &proto_key);
+    void scheduleLiveCaptureRefresh();
 
     static const QVector<ProtoDef> &protocolDefs();
 
@@ -93,11 +96,13 @@ private:
     MmsGeneralFilterWidget *general_widget_;
     Iec103FilterWidget *iec103_widget_;
     QTimer *filter_timer_;
+    QTimer *live_refresh_timer_;
     QHash<QString, QSet<QString>> addrs_by_proto_;
     QHash<QString, AddrKind> addr_kind_;
     QString last_applied_filter_;
     QString selected_proto_key_;
     QString selected_addr_;
+    QSet<QString> selected_addrs_;
     bool selected_is_root_;
     bool selected_is_proto_;
 };
