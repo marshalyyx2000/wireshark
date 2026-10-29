@@ -3399,6 +3399,12 @@ void WiresharkMainWindow::connectIec103MenuActions()
     connect(main_ui_->actionIec103NariNetParse, &QAction::triggered, this, [=]() {
         applyCaptureDisplayFilter(QStringLiteral("nari_net_iec103"), true);
     });
+    connect(main_ui_->actionIec103XujiNetParse, &QAction::triggered, this, [=]() {
+        applyCaptureDisplayFilter(QStringLiteral("xuji_net_iec103"), true);
+    });
+    connect(main_ui_->actionIec103SznariNetParse, &QAction::triggered, this, [=]() {
+        applyCaptureDisplayFilter(QStringLiteral("sznari_net_iec103"), true);
+    });
 
     /* Also show in IEC103 menu so minimal build (no Tools menu) can export waves. */
     main_ui_->menuIec103->addAction(main_ui_->actionToolsIec103WaveExport);

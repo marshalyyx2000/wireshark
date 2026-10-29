@@ -54,6 +54,9 @@ packet-sv.c
 # --- IEC 60870-5 (101/103/104 live in this file) ---
 packet-iec104.c
 packet-shandong-iec103.c
+packet-iec103-net-apci2404-common.c
+packet-xuji-net-iec103.c
+packet-sznari-net-iec103.c
 packet-yunnan-cfgfree-iec104.c
 packet-nari-net-iec103.c
 

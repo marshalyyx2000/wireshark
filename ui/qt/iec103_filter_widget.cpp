@@ -121,8 +121,29 @@ bool Iec103FilterWidget::isNariNetVariant() const
     return ui_->variantCombo->currentIndex() == 1;
 }
 
+bool Iec103FilterWidget::isXujiNetVariant() const
+{
+    return ui_->variantCombo->currentIndex() == 2;
+}
+
+bool Iec103FilterWidget::isSznariNetVariant() const
+{
+    return ui_->variantCombo->currentIndex() == 3;
+}
+
+bool Iec103FilterWidget::isNetWaveVariant() const
+{
+    return isNariNetVariant() || isXujiNetVariant() || isSznariNetVariant();
+}
+
 QString Iec103FilterWidget::filterPrefix() const
 {
+    if (isSznariNetVariant()) {
+        return QStringLiteral("sznari_net_iec103");
+    }
+    if (isXujiNetVariant()) {
+        return QStringLiteral("xuji_net_iec103");
+    }
     return isNariNetVariant() ? QStringLiteral("nari_net_iec103")
                               : QStringLiteral("shandong_iec103");
 }
@@ -228,7 +249,7 @@ void Iec103FilterWidget::setAsduValues(const QList<int> &types)
 
 void Iec103FilterWidget::updateWaveButtonLabels()
 {
-    if (isNariNetVariant()) {
+    if (isNetWaveVariant()) {
         ui_->waveListButton->setText(tr("录波列表 (23)"));
         ui_->waveListButton->setToolTip(tr("被记录的扰动表 ASDU23"));
         ui_->waveDataButton->setText(tr("录波数据 (30)"));
@@ -247,14 +268,14 @@ void Iec103FilterWidget::updateWaveButtonLabels()
 
 void Iec103FilterWidget::onWaveDataClicked()
 {
-    /* Shandong: ASDU14 file content; NARI: ASDU30 disturbance values */
-    setAsduValue(isNariNetVariant() ? 30 : 14);
+    /* Shandong: ASDU14 file content; NARI/Xuji: ASDU30 disturbance values */
+    setAsduValue(isNetWaveVariant() ? 30 : 14);
 }
 
 void Iec103FilterWidget::onWaveListClicked()
 {
-    /* Shandong: ASDU16 file list; NARI: ASDU23 disturbance table */
-    setAsduValue(isNariNetVariant() ? 23 : 16);
+    /* Shandong: ASDU16 file list; NARI/Xuji: ASDU23 disturbance table */
+    setAsduValue(isNetWaveVariant() ? 23 : 16);
 }
 
 void Iec103FilterWidget::onGenericAsduClicked()
@@ -264,7 +285,7 @@ void Iec103FilterWidget::onGenericAsduClicked()
 
 void Iec103FilterWidget::onWaveFlowClicked()
 {
-    if (isNariNetVariant()) {
+    if (isNetWaveVariant()) {
         setAsduValues({23, 24, 25, 26, 27, 28, 29, 30, 31});
     } else {
         setAsduValues({13, 14, 15, 16, 17});

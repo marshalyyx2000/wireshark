@@ -529,6 +529,8 @@
     </property>
     <addaction name="actionIec103ShandongMasterSlave"/>
     <addaction name="actionIec103NariNetParse"/>
+    <addaction name="actionIec103XujiNetParse"/>
+    <addaction name="actionIec103SznariNetParse"/>
    </widget>
    <widget class="QMenu" name="menuIec104">
     <property name="title">
@@ -3027,6 +3029,22 @@
    </property>
    <property name="toolTip">
     <string>仅显示南自网络103规约报文 (nari_net_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103XujiNetParse">
+   <property name="text">
+    <string>许继网络103规约</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示许继网络103规约报文 (xuji_net_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103SznariNetParse">
+   <property name="text">
+    <string>深圳南瑞网络103规约</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示深圳南瑞网络103规约报文 (sznari_net_iec103)</string>
    </property>
   </action>
   <action name="actionIec104YunnanCfgFree">

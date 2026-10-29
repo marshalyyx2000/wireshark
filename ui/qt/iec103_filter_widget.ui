@@ -75,6 +75,16 @@
           <string>南自网络103</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>许继网络103</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>深圳南瑞网络103</string>
+         </property>
+        </item>
        </widget>
       </item>
       <item row="1" column="0">

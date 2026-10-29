@@ -1653,6 +1653,9 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-sftp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-sgsap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-shandong-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-iec103-net-apci2404-common.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-net-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sznari-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-yunnan-cfgfree-iec104.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nari-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-shicp.c

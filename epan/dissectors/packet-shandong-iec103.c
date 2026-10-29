@@ -23,6 +23,7 @@
 #include <wsutil/str_util.h>
 
 #include "packet-tcp.h"
+#include "packet-iec103-net-apci2404-common.h"
 
 void proto_register_shandong_iec103(void);
 void proto_reg_handoff_shandong_iec103(void);
@@ -1801,6 +1802,16 @@ dissect_shandong_iec103_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	}
 	if (!found)
 		return 0;
+
+	/* 许继网络103：2 字节 COT，FUN 在 ASDU 第 7 字节 */
+	if (body > APCI_CTRL_LEN) {
+		int asdu_off = (int)off + APCI_HDR_LEN + APCI_CTRL_LEN;
+		int asdu_len = (int)body - APCI_CTRL_LEN;
+
+		if (asdu_off + asdu_len <= (int)remaining &&
+		    iec103_net_apci2404_asdu_prefers_vendor(tvb, asdu_off, asdu_len))
+			return 0;
+	}
 
 	tcp_dissect_pdus(tvb, pinfo, tree, true, APCI_HDR_LEN + APCI_CTRL_LEN,
 		get_shandong_apdu_len, dissect_shandong_apdu, data);

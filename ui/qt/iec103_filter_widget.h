@@ -60,6 +60,9 @@ private:
     bool asduIncludesGeneric() const;
     QString filterPrefix() const;
     bool isNariNetVariant() const;
+    bool isXujiNetVariant() const;
+    bool isSznariNetVariant() const;
+    bool isNetWaveVariant() const;
 
     Ui::Iec103FilterWidget *ui_;
     QTimer *filter_apply_timer_;
