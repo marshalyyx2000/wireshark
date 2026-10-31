@@ -14,6 +14,7 @@
 
 #include <QColor>
 #include <QHash>
+#include <QSet>
 #include <QVector>
 
 class MmsProcessDiagramWidget;
@@ -48,6 +49,7 @@ private slots:
     void onBackgroundColorChanged(int index);
     void onDiagramVerticalScroll(int value);
     void onExplainVerticalScroll(int value);
+    void onSearchTextChanged(const QString &text);
 
 private:
     struct EventRow {
@@ -57,6 +59,10 @@ private:
         QString dst;
         QString arrow_label;
         QString explanation;
+        mms_process_kind_t kind;
+        uint32_t invoke_id;
+        bool has_invoke_id;
+        QString search_refs; /* RCB / dataset / request object refs */
         int src_col;
         int dst_col;
         int list_row;
@@ -70,6 +76,7 @@ private:
 
     void retap();
     void rebuild();
+    void applyFilterAndRefresh();
     void selectIndex(int index);
     void syncDiagramSize();
     void jumpToFrame(uint32_t framenum);
@@ -77,10 +84,14 @@ private:
     void initBackgroundColorCombo();
     static QString arrowLabelForKind(mms_process_kind_t kind);
     static QString buildExplanation(const mms_process_tap_data *tap);
+    static QString normalizeRefForSearch(const QString &ref);
+    static QStringList parseSearchTokens(const QString &text);
+    static bool refsMatchTokens(const QString &search_refs, const QStringList &tokens);
 
     Ui::MmsProcessAnalysisDialog *ui_;
     MmsProcessDiagramWidget *diagram_;
     MmsProcessTimeColumnWidget *time_column_;
+    QVector<EventRow> all_rows_;
     QVector<EventRow> rows_;
     QStringList columns_;
     QHash<QString, int> col_index_;

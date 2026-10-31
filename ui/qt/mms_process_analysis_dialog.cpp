@@ -22,13 +22,16 @@
 #include <QComboBox>
 #include <QFrame>
 #include <QHostAddress>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPalette>
+#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QSet>
 
 namespace {
 
@@ -128,6 +131,8 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
             this, &MmsProcessAnalysisDialog::onDiagramEventDoubleClicked);
     connect(ui_->bgColorCombo, QOverload<int>::of(&QComboBox::activated),
             this, &MmsProcessAnalysisDialog::onBackgroundColorChanged);
+    connect(ui_->searchEdit, &QLineEdit::textChanged,
+            this, &MmsProcessAnalysisDialog::onSearchTextChanged);
 
     /* Keep time column, diagram, and explain list vertically aligned. */
     connect(ui_->diagramScroll->verticalScrollBar(), &QScrollBar::valueChanged,
@@ -318,9 +323,51 @@ QString MmsProcessAnalysisDialog::buildExplanation(const mms_process_tap_data *t
     return text;
 }
 
+QString MmsProcessAnalysisDialog::normalizeRefForSearch(const QString &ref)
+{
+    QString s = ref.trimmed().toLower();
+    s.replace(QLatin1Char('/'), QLatin1Char('$'));
+    s.replace(QLatin1Char('.'), QLatin1Char('$'));
+    return s;
+}
+
+QStringList MmsProcessAnalysisDialog::parseSearchTokens(const QString &text)
+{
+    const QStringList raw = text.split(QRegularExpression(QStringLiteral("\\s+")),
+                                       Qt::SkipEmptyParts);
+    QStringList tokens;
+    tokens.reserve(raw.size());
+    for (const QString &t : raw) {
+        const QString n = normalizeRefForSearch(t);
+        if (!n.isEmpty()) {
+            tokens.append(n);
+        }
+    }
+    return tokens;
+}
+
+bool MmsProcessAnalysisDialog::refsMatchTokens(const QString &search_refs,
+                                               const QStringList &tokens)
+{
+    if (tokens.isEmpty()) {
+        return true;
+    }
+    const QString hay = normalizeRefForSearch(search_refs);
+    if (hay.isEmpty()) {
+        return false;
+    }
+    for (const QString &tok : tokens) {
+        if (!hay.contains(tok)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void MmsProcessAnalysisDialog::tapReset(void *tapdata)
 {
     auto *dlg = static_cast<MmsProcessAnalysisDialog *>(tapdata);
+    dlg->all_rows_.clear();
     dlg->rows_.clear();
     dlg->columns_.clear();
     dlg->col_index_.clear();
@@ -344,20 +391,34 @@ tap_packet_status MmsProcessAnalysisDialog::tapPacket(void *tapdata, packet_info
     const QString tap_label = QString::fromUtf8(proc->arrow_label).trimmed();
     row.arrow_label = tap_label.isEmpty() ? arrowLabelForKind(proc->kind) : tap_label;
     row.explanation = buildExplanation(proc);
-    dlg->rows_.append(row);
-
-    for (const QString &ip : {row.src, row.dst}) {
-        if (!ip.isEmpty() && !dlg->columns_.contains(ip)) {
-            dlg->columns_.append(ip);
+    row.kind = proc->kind;
+    row.has_invoke_id = proc->has_invoke_id;
+    row.invoke_id = proc->invoke_id;
+    row.search_refs = QString::fromUtf8(proc->search_refs).trimmed();
+    if (row.search_refs.isEmpty()) {
+        QStringList parts;
+        const QString obj = QString::fromUtf8(proc->object_ref).trimmed();
+        const QString rcb = QString::fromUtf8(proc->rcb_ref).trimmed();
+        const QString ds = QString::fromUtf8(proc->dataset_ref).trimmed();
+        if (!obj.isEmpty()) {
+            parts << obj;
         }
+        if (!rcb.isEmpty()) {
+            parts << rcb;
+        }
+        if (!ds.isEmpty()) {
+            parts << ds;
+        }
+        row.search_refs = parts.join(QLatin1Char(' '));
     }
+    dlg->all_rows_.append(row);
 
     return TAP_PACKET_DONT_REDRAW;
 }
 
 void MmsProcessAnalysisDialog::tapDraw(void *tapdata)
 {
-    static_cast<MmsProcessAnalysisDialog *>(tapdata)->rebuild();
+    static_cast<MmsProcessAnalysisDialog *>(tapdata)->applyFilterAndRefresh();
 }
 
 void MmsProcessAnalysisDialog::retap()
@@ -373,6 +434,7 @@ void MmsProcessAnalysisDialog::retap()
 
     beginRetapPackets();
     removeTapListeners();
+    all_rows_.clear();
     rows_.clear();
     columns_.clear();
     col_index_.clear();
@@ -387,6 +449,70 @@ void MmsProcessAnalysisDialog::retap()
     cap_file_.retapPackets();
     removeTapListeners();
     endRetapPackets();
+}
+
+void MmsProcessAnalysisDialog::onSearchTextChanged(const QString &)
+{
+    applyFilterAndRefresh();
+}
+
+void MmsProcessAnalysisDialog::applyFilterAndRefresh()
+{
+    const QStringList tokens = parseSearchTokens(ui_->searchEdit->text());
+
+    std::sort(all_rows_.begin(), all_rows_.end(), [](const EventRow &a, const EventRow &b) {
+        if (a.rel_secs != b.rel_secs) {
+            return a.rel_secs < b.rel_secs;
+        }
+        return a.framenum < b.framenum;
+    });
+
+    rows_.clear();
+    columns_.clear();
+    col_index_.clear();
+
+    if (tokens.isEmpty()) {
+        rows_ = all_rows_;
+    } else {
+        QSet<uint32_t> matched_invokes;
+        QVector<bool> hit(all_rows_.size(), false);
+
+        for (int i = 0; i < all_rows_.size(); i++) {
+            const EventRow &row = all_rows_.at(i);
+            if (!refsMatchTokens(row.search_refs, tokens)) {
+                continue;
+            }
+            hit[i] = true;
+            if (row.kind == MMS_PROCESS_KIND_REQUEST && row.has_invoke_id) {
+                matched_invokes.insert(row.invoke_id);
+            }
+        }
+        /* Request hit → also show paired response (same invokeID). */
+        if (!matched_invokes.isEmpty()) {
+            for (int i = 0; i < all_rows_.size(); i++) {
+                const EventRow &row = all_rows_.at(i);
+                if (row.kind == MMS_PROCESS_KIND_RESPONSE && row.has_invoke_id &&
+                    matched_invokes.contains(row.invoke_id)) {
+                    hit[i] = true;
+                }
+            }
+        }
+        for (int i = 0; i < all_rows_.size(); i++) {
+            if (hit.at(i)) {
+                rows_.append(all_rows_.at(i));
+            }
+        }
+    }
+
+    for (const EventRow &row : rows_) {
+        for (const QString &ip : {row.src, row.dst}) {
+            if (!ip.isEmpty() && !columns_.contains(ip)) {
+                columns_.append(ip);
+            }
+        }
+    }
+
+    rebuild();
 }
 
 void MmsProcessAnalysisDialog::rebuild()
@@ -454,8 +580,13 @@ void MmsProcessAnalysisDialog::rebuild()
     time_column_->setEvents(diagram_events);
     syncDiagramSize();
 
-    if (rows_.isEmpty()) {
+    const QStringList tokens = parseSearchTokens(ui_->searchEdit->text());
+    if (all_rows_.isEmpty()) {
         ui_->hintLabel->setText(tr("当前抓包中未找到 MMS 站控层过程事件。"));
+    } else if (!tokens.isEmpty()) {
+        ui_->hintLabel->setText(tr("参引搜索：显示 %1 / %2 条（按时序）。双击可跳转报文。")
+                                    .arg(rows_.size())
+                                    .arg(all_rows_.size()));
     } else {
         ui_->hintLabel->setText(tr("共 %1 条事件，%2 个 IP。双击说明行或时序图可跳转到对应报文。")
                                     .arg(rows_.size())

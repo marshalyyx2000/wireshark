@@ -2212,11 +2212,49 @@ mms_process_result_zh(mms_actx_private_data_t *mms_priv, char *dst, size_t dst_l
 }
 
 static void
+mms_process_search_refs_append(char *dst, size_t dst_len, const char *src)
+{
+    char norm[MMS_RPT_TAP_STR_LEN];
+
+    if (!dst || dst_len == 0 || !src || !src[0]) {
+        return;
+    }
+    mms_process_ref_normalize(norm, sizeof(norm), src);
+    if (norm[0] == '\0') {
+        return;
+    }
+    if (dst[0] != '\0') {
+        (void)g_strlcat(dst, " ", dst_len);
+    }
+    (void)g_strlcat(dst, norm, dst_len);
+}
+
+static void
+mms_process_fill_rw_search_refs(mms_actx_private_data_t *mms_priv, char *dst, size_t dst_len)
+{
+    if (!dst || dst_len == 0) {
+        return;
+    }
+    dst[0] = '\0';
+    if (mms_priv && mms_priv->mms_trans_p && mms_priv->mms_trans_p->read_var_paths) {
+        unsigned n = wmem_array_get_count(mms_priv->mms_trans_p->read_var_paths);
+        char **paths = (char **)wmem_array_get_raw(mms_priv->mms_trans_p->read_var_paths);
+        for (unsigned i = 0; i < n; i++) {
+            mms_process_search_refs_append(dst, dst_len, paths[i]);
+        }
+    }
+    if (dst[0] == '\0' && mms_priv && mms_priv->itemid_str) {
+        mms_process_search_refs_append(dst, dst_len, mms_priv->itemid_str);
+    }
+}
+
+static void
 mms_queue_process_tap_ex(packet_info *pinfo, mms_process_kind_t kind,
                          const char *arrow_label, const char *rcb_ref,
                          const char *reason_zh, const char *values,
                          bool has_invoke_id, uint32_t invoke_id,
-                         const char *object_ref, const char *result_zh)
+                         const char *object_ref, const char *result_zh,
+                         const char *dataset_ref, const char *search_refs)
 {
     if (!have_tap_listener(mms_process_tap)) {
         return;
@@ -2256,6 +2294,25 @@ mms_queue_process_tap_ex(packet_info *pinfo, mms_process_kind_t kind,
         (void)g_strlcpy(mms_process_tap_pdu.result_zh, result_zh,
                         sizeof(mms_process_tap_pdu.result_zh));
     }
+    if (dataset_ref && dataset_ref[0] != '\0') {
+        mms_process_ref_normalize(mms_process_tap_pdu.dataset_ref,
+                                  sizeof(mms_process_tap_pdu.dataset_ref), dataset_ref);
+    }
+    if (search_refs && search_refs[0] != '\0') {
+        (void)g_strlcpy(mms_process_tap_pdu.search_refs, search_refs,
+                        sizeof(mms_process_tap_pdu.search_refs));
+    } else {
+        /* Fallback: object + RCB + dataset. */
+        mms_process_search_refs_append(mms_process_tap_pdu.search_refs,
+                                       sizeof(mms_process_tap_pdu.search_refs),
+                                       mms_process_tap_pdu.object_ref);
+        mms_process_search_refs_append(mms_process_tap_pdu.search_refs,
+                                       sizeof(mms_process_tap_pdu.search_refs),
+                                       mms_process_tap_pdu.rcb_ref);
+        mms_process_search_refs_append(mms_process_tap_pdu.search_refs,
+                                       sizeof(mms_process_tap_pdu.search_refs),
+                                       mms_process_tap_pdu.dataset_ref);
+    }
 
     char *src = address_to_str(pinfo->pool, &pinfo->src);
     char *dst = address_to_str(pinfo->pool, &pinfo->dst);
@@ -2275,7 +2332,7 @@ mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
                        const char *reason_zh, const char *values)
 {
     mms_queue_process_tap_ex(pinfo, kind, arrow_label, rcb_ref, reason_zh, values,
-                             false, 0, NULL, NULL);
+                             false, 0, NULL, NULL, NULL, NULL);
 }
 
 static void
@@ -2285,6 +2342,7 @@ mms_queue_process_rw_tap(packet_info *pinfo, mms_actx_private_data_t *mms_priv,
     char object_ref[MMS_RPT_TAP_STR_LEN];
     char result_zh[MMS_PROCESS_RESULT_ZH_LEN];
     char arrow[MMS_PROCESS_ARROW_LABEL_LEN];
+    char search_refs[MMS_PROCESS_VALUES_LEN];
     bool is_write;
     const char *stem;
 
@@ -2299,19 +2357,22 @@ mms_queue_process_rw_tap(packet_info *pinfo, mms_actx_private_data_t *mms_priv,
     is_write = (mms_priv->mms_trans_p->conf_serv_pdu_type_req ==
                 MMS_IEC_61850_CONF_SERV_PDU_WRITE);
     mms_process_last_object_ref(mms_priv, object_ref, sizeof(object_ref));
+    mms_process_fill_rw_search_refs(mms_priv, search_refs, sizeof(search_refs));
     stem = mms_process_path_service_stem(is_write, object_ref);
 
     if (is_request) {
         snprintf(arrow, sizeof(arrow), "%s请求(服务序号:%u)", stem,
                  (unsigned)mms_priv->invokeid);
         mms_queue_process_tap_ex(pinfo, MMS_PROCESS_KIND_REQUEST, arrow, NULL, NULL, NULL,
-                                 true, (uint32_t)mms_priv->invokeid, object_ref, NULL);
+                                 true, (uint32_t)mms_priv->invokeid, object_ref, NULL,
+                                 NULL, search_refs);
     } else {
         mms_process_result_zh(mms_priv, result_zh, sizeof(result_zh));
         snprintf(arrow, sizeof(arrow), "%s服务回复(服务序号:%u)",
                  is_write ? "写" : "读", (unsigned)mms_priv->invokeid);
         mms_queue_process_tap_ex(pinfo, MMS_PROCESS_KIND_RESPONSE, arrow, NULL, NULL, NULL,
-                                 true, (uint32_t)mms_priv->invokeid, object_ref, result_zh);
+                                 true, (uint32_t)mms_priv->invokeid, object_ref, result_zh,
+                                 NULL, search_refs);
     }
 }
 
@@ -10110,10 +10171,18 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                             }
                             {
                                 const char *rcb = mms_priv->rpt_rptid;
+                                const char *ds = mms_priv->rpt_datset_raw
+                                    ? mms_priv->rpt_datset_raw
+                                    : mms_priv->rpt_datset;
+                                char search_refs[MMS_PROCESS_VALUES_LEN];
+
                                 if (!rcb || !rcb[0]) {
-                                    rcb = mms_priv->rpt_datset;
+                                    rcb = ds;
                                 }
-                                mms_queue_process_tap(actx->pinfo,
+                                search_refs[0] = '\0';
+                                mms_process_search_refs_append(search_refs, sizeof(search_refs), rcb);
+                                mms_process_search_refs_append(search_refs, sizeof(search_refs), ds);
+                                mms_queue_process_tap_ex(actx->pinfo,
                                     MMS_PROCESS_KIND_REPORT_PDU,
                                     "报告服务",
                                     rcb,
@@ -10121,7 +10190,8 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                     (mms_priv->rpt_values_summary &&
                                      mms_priv->rpt_values_count > 0)
                                         ? wmem_strbuf_get_str(mms_priv->rpt_values_summary)
-                                        : NULL);
+                                        : NULL,
+                                    false, 0, NULL, NULL, ds, search_refs);
                             }
                         }else if((mms_priv->mms_trans_p)&&(mms_priv->mms_trans_p->itemid==IEC61850_ITEM_ID_OPER)){
                             col_append_str(actx->pinfo->cinfo, COL_INFO, "Unconfirmed-CommandTermination");

@@ -47,6 +47,10 @@ typedef struct mms_process_tap_data {
     bool has_invoke_id;
     char object_ref[MMS_RPT_TAP_STR_LEN];
     char result_zh[MMS_PROCESS_RESULT_ZH_LEN];
+    /* Dataset ObjectReference for reports (may differ from rcb_ref / RptID). */
+    char dataset_ref[MMS_RPT_TAP_STR_LEN];
+    /* Space-joined refs for UI multi-token search (RCB / dataset / request paths). */
+    char search_refs[MMS_PROCESS_VALUES_LEN];
 } mms_process_tap_data;
 
 typedef struct mms_rpt_tap_data {

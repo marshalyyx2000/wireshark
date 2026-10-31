@@ -37,13 +37,42 @@
       </widget>
      </item>
      <item>
+      <widget class="QLabel" name="searchLabel">
+       <property name="text">
+        <string>参引搜索</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="searchEdit">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+         <horstretch>1</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="placeholderText">
+        <string>多段空格分隔，匹配报告控制块/数据集/请求对象参引；请求命中时带上回应</string>
+       </property>
+       <property name="clearButtonEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="toolTip">
+        <string>在报告控制块、数据集、请求对象参引中搜索。空格分隔多段，需同时匹配。命中请求时自动包含对应回应，结果仍按时序排列。</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="toolbarSpacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Fixed</enum>
+       </property>
        <property name="sizeHint" stdset="0">
         <size>
-         <width>40</width>
+         <width>8</width>
          <height>20</height>
         </size>
        </property>
