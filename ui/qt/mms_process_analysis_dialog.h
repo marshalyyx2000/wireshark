@@ -46,6 +46,8 @@ private slots:
     void onDiagramEventClicked(int index);
     void onDiagramEventDoubleClicked(int index);
     void onBackgroundColorChanged(int index);
+    void onDiagramVerticalScroll(int value);
+    void onExplainVerticalScroll(int value);
 
 private:
     struct EventRow {

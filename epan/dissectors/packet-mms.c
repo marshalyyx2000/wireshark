@@ -2121,40 +2121,102 @@ mms_process_ref_normalize(char *dst, size_t dst_len, const char *src)
         return;
     }
     (void)g_strlcpy(dst, src, dst_len);
+    /* DOMAIN/LN.FC.DO or DOMAIN/LN$FC$DO -> DOMAIN$LN$FC$DO */
     for (char *p = dst; *p; p++) {
-        if (*p == '/') {
+        if (*p == '/' || *p == '.') {
             *p = '$';
         }
     }
 }
 
+/* Last ObjectName path from Read/Write request (file-scoped), '$'-normalized. */
 static void
-mms_process_ref_from_item(asn1_ctx_t *actx, mms_actx_private_data_t *mms_priv,
-                          char *dst, size_t dst_len)
+mms_process_last_object_ref(mms_actx_private_data_t *mms_priv, char *dst, size_t dst_len)
 {
     const char *src = NULL;
 
-    if (mms_priv && mms_priv->itemid_str &&
-        (g_strrstr(mms_priv->itemid_str, "$BR$") || g_strrstr(mms_priv->itemid_str, "$RP$"))) {
-        src = mms_priv->itemid_str;
-    } else if (mms_priv && mms_priv->itemid_str && mms_priv->itemid_str[0]) {
-        src = mms_priv->itemid_str;
-    } else {
-        char *more = private_data_get_moreCinfo(actx);
-        while (more && *more == ' ') {
-            more++;
+    if (!dst || dst_len == 0) {
+        return;
+    }
+    dst[0] = '\0';
+    if (mms_priv && mms_priv->mms_trans_p && mms_priv->mms_trans_p->read_var_paths) {
+        unsigned n = wmem_array_get_count(mms_priv->mms_trans_p->read_var_paths);
+        if (n > 0) {
+            char **paths = (char **)wmem_array_get_raw(mms_priv->mms_trans_p->read_var_paths);
+            src = paths[n - 1];
         }
-        if (more && *more) {
-            src = more;
+    }
+    if (!src || !src[0]) {
+        if (mms_priv && mms_priv->itemid_str && mms_priv->itemid_str[0]) {
+            src = mms_priv->itemid_str;
         }
     }
     mms_process_ref_normalize(dst, dst_len, src);
 }
 
+static const char *
+mms_process_path_service_stem(bool is_write, const char *object_ref)
+{
+    if (object_ref && (strstr(object_ref, "$SG$") || strstr(object_ref, "$SE$"))) {
+        return is_write ? "写当前定值区" : "读当前定值区";
+    }
+    if (object_ref && (strstr(object_ref, "$BR$") || strstr(object_ref, "$RP$"))) {
+        return is_write ? "写报告控制块" : "读报告控制块";
+    }
+    return is_write ? "写数据" : "读数据";
+}
+
 static void
-mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
-                       const char *arrow_label, const char *rcb_ref,
-                       const char *reason_zh, const char *values)
+mms_process_result_zh(mms_actx_private_data_t *mms_priv, char *dst, size_t dst_len)
+{
+    unsigned fail = 0, ok = 0;
+
+    if (!dst || dst_len == 0) {
+        return;
+    }
+    dst[0] = '\0';
+    if (mms_priv && mms_priv->col_result_buf &&
+        wmem_strbuf_get_len(mms_priv->col_result_buf) > 0) {
+        const char *s = wmem_strbuf_get_str(mms_priv->col_result_buf);
+        const char *p = s;
+        while (p && *p) {
+            while (*p == ' ' || *p == ',') {
+                p++;
+            }
+            if (!*p) {
+                break;
+            }
+            if (g_ascii_strncasecmp(p, "failure", 7) == 0) {
+                fail++;
+            } else {
+                ok++;
+            }
+            while (*p && *p != ',') {
+                p++;
+            }
+        }
+        if (fail > 0 && ok > 0) {
+            (void)g_strlcpy(dst, "部分成功", dst_len);
+        } else if (fail > 0) {
+            (void)g_strlcpy(dst, "失败", dst_len);
+        } else {
+            (void)g_strlcpy(dst, "成功", dst_len);
+        }
+        return;
+    }
+    if (mms_priv && mms_priv->success == 1) {
+        (void)g_strlcpy(dst, "成功", dst_len);
+    } else {
+        (void)g_strlcpy(dst, "失败", dst_len);
+    }
+}
+
+static void
+mms_queue_process_tap_ex(packet_info *pinfo, mms_process_kind_t kind,
+                         const char *arrow_label, const char *rcb_ref,
+                         const char *reason_zh, const char *values,
+                         bool has_invoke_id, uint32_t invoke_id,
+                         const char *object_ref, const char *result_zh)
 {
     if (!have_tap_listener(mms_process_tap)) {
         return;
@@ -2180,6 +2242,20 @@ mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
         (void)g_strlcpy(mms_process_tap_pdu.values, values,
                         sizeof(mms_process_tap_pdu.values));
     }
+    mms_process_tap_pdu.has_invoke_id = has_invoke_id;
+    mms_process_tap_pdu.invoke_id = invoke_id;
+    if (object_ref && object_ref[0] != '\0') {
+        mms_process_ref_normalize(mms_process_tap_pdu.object_ref,
+                                  sizeof(mms_process_tap_pdu.object_ref), object_ref);
+        if (mms_process_tap_pdu.rcb_ref[0] == '\0') {
+            (void)g_strlcpy(mms_process_tap_pdu.rcb_ref, mms_process_tap_pdu.object_ref,
+                            sizeof(mms_process_tap_pdu.rcb_ref));
+        }
+    }
+    if (result_zh) {
+        (void)g_strlcpy(mms_process_tap_pdu.result_zh, result_zh,
+                        sizeof(mms_process_tap_pdu.result_zh));
+    }
 
     char *src = address_to_str(pinfo->pool, &pinfo->src);
     char *dst = address_to_str(pinfo->pool, &pinfo->dst);
@@ -2191,6 +2267,52 @@ mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
     }
 
     tap_queue_packet(mms_process_tap, pinfo, &mms_process_tap_pdu);
+}
+
+static void
+mms_queue_process_tap(packet_info *pinfo, mms_process_kind_t kind,
+                       const char *arrow_label, const char *rcb_ref,
+                       const char *reason_zh, const char *values)
+{
+    mms_queue_process_tap_ex(pinfo, kind, arrow_label, rcb_ref, reason_zh, values,
+                             false, 0, NULL, NULL);
+}
+
+static void
+mms_queue_process_rw_tap(packet_info *pinfo, mms_actx_private_data_t *mms_priv,
+                         bool is_request)
+{
+    char object_ref[MMS_RPT_TAP_STR_LEN];
+    char result_zh[MMS_PROCESS_RESULT_ZH_LEN];
+    char arrow[MMS_PROCESS_ARROW_LABEL_LEN];
+    bool is_write;
+    const char *stem;
+
+    if (!mms_priv || !mms_priv->mms_trans_p) {
+        return;
+    }
+    if (mms_priv->mms_trans_p->conf_serv_pdu_type_req != MMS_IEC_61850_CONF_SERV_PDU_READ &&
+        mms_priv->mms_trans_p->conf_serv_pdu_type_req != MMS_IEC_61850_CONF_SERV_PDU_WRITE) {
+        return;
+    }
+
+    is_write = (mms_priv->mms_trans_p->conf_serv_pdu_type_req ==
+                MMS_IEC_61850_CONF_SERV_PDU_WRITE);
+    mms_process_last_object_ref(mms_priv, object_ref, sizeof(object_ref));
+    stem = mms_process_path_service_stem(is_write, object_ref);
+
+    if (is_request) {
+        snprintf(arrow, sizeof(arrow), "%s请求(服务序号:%u)", stem,
+                 (unsigned)mms_priv->invokeid);
+        mms_queue_process_tap_ex(pinfo, MMS_PROCESS_KIND_REQUEST, arrow, NULL, NULL, NULL,
+                                 true, (uint32_t)mms_priv->invokeid, object_ref, NULL);
+    } else {
+        mms_process_result_zh(mms_priv, result_zh, sizeof(result_zh));
+        snprintf(arrow, sizeof(arrow), "%s服务回复(服务序号:%u)",
+                 is_write ? "写" : "读", (unsigned)mms_priv->invokeid);
+        mms_queue_process_tap_ex(pinfo, MMS_PROCESS_KIND_RESPONSE, arrow, NULL, NULL, NULL,
+                                 true, (uint32_t)mms_priv->invokeid, object_ref, result_zh);
+    }
 }
 
 /*****************************************************************************/
@@ -9986,14 +10108,14 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 mms_tap_data.reason = mms_priv->rpt_first_reason;
                                 tap_queue_packet(mms_tap, actx->pinfo, &mms_tap_data);
                             }
-                            if (have_tap_listener(mms_process_tap)) {
+                            {
                                 const char *rcb = mms_priv->rpt_rptid;
                                 if (!rcb || !rcb[0]) {
                                     rcb = mms_priv->rpt_datset;
                                 }
                                 mms_queue_process_tap(actx->pinfo,
                                     MMS_PROCESS_KIND_REPORT_PDU,
-                                    NULL,
+                                    "报告服务",
                                     rcb,
                                     mms_priv->rpt_first_reason_zh,
                                     (mms_priv->rpt_values_summary &&
@@ -10032,12 +10154,6 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_$BR$_OR_$RP$){
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "GetRCBValuesRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [GetRCBValuesRequest]");
-                                    {
-                                        char rcb[MMS_RPT_TAP_STR_LEN];
-                                        mms_process_ref_from_item(actx, mms_priv, rcb, sizeof(rcb));
-                                        mms_queue_process_tap(actx->pinfo,
-                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL, NULL);
-                                    }
                                 }else{
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "GetDataValueRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [GetDataValueRequest]");
@@ -10046,12 +10162,6 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 if(mms_priv->mms_trans_p->itemid == IEC61850_ITEM_ID_$BR$_OR_$RP$){
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetRCBValuesRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [SetRCBValuesRequest]");
-                                    {
-                                        char rcb[MMS_RPT_TAP_STR_LEN];
-                                        mms_process_ref_from_item(actx, mms_priv, rcb, sizeof(rcb));
-                                        mms_queue_process_tap(actx->pinfo,
-                                            MMS_PROCESS_KIND_REPORT_SERVICE, NULL, rcb, NULL, NULL);
-                                    }
                                 }else{
                                     col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SetDataValueRequest %s", private_data_get_moreCinfo(actx));
                                     proto_item_append_text(mms_priv->pdu_item, " [SetDataValueRequest]");
@@ -10060,6 +10170,7 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SelectWithValueRequest %s", private_data_get_moreCinfo(actx));
                                 proto_item_append_text(mms_priv->pdu_item, " [SelectWithValueRequest]");
                             }
+                            mms_queue_process_rw_tap(actx->pinfo, mms_priv, true);
                         }else if (mms_has_private_data(actx)){
                             col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s%s%s",
                                     private_data_get_preCinfo(actx), mms_MMSpdu_vals[branch_taken].strptr, private_data_get_moreCinfo(actx));
@@ -10118,6 +10229,7 @@ dissect_mms_MMSpdu(bool implicit_tag _U_, tvbuff_t *tvb _U_, unsigned offset _U_
                                 col_append_fstr(actx->pinfo->cinfo, COL_INFO, "SelectWithValueResponse %s", private_data_get_moreCinfo(actx));
                                 proto_item_append_text(mms_priv->pdu_item, " [SelectWithValueResponse]");
                             }
+                            mms_queue_process_rw_tap(actx->pinfo, mms_priv, false);
                         }else if(mms_has_private_data(actx)){
                             col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s%s%s",
                                     private_data_get_preCinfo(actx), mms_MMSpdu_vals[branch_taken].strptr, private_data_get_moreCinfo(actx));

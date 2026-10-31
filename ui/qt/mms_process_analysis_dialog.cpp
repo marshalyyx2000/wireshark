@@ -16,6 +16,7 @@
 
 #include <algorithm>
 
+#include <QAbstractItemView>
 #include <QAbstractSocket>
 #include <QColorDialog>
 #include <QComboBox>
@@ -81,7 +82,7 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
     background_color_(0xE8, 0xF5, 0xE9)
 {
     ui_->setupUi(this);
-    setWindowSubtitle(tr("站控层分析"));
+    setWindowSubtitle(tr("MMS服务过程分析"));
 
     diagram_ = ui_->diagramWidget;
     time_column_ = ui_->timeColumn;
@@ -102,6 +103,17 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
     ui_->timeVScroll->setWidget(time_column_);
     ui_->diagramScroll->setWidget(diagram_);
 
+    /* Align 说明 rows with diagram: same top margin + row height, pixel scroll. */
+    ui_->explainGroup->setTitle(QString());
+    ui_->explainGroup->setFlat(true);
+    ui_->explainLayout->setContentsMargins(0, 0, 0, 0);
+    ui_->explainLayout->setSpacing(0);
+    ui_->explainList->setUniformItemSizes(false);
+    ui_->explainList->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    ui_->explainList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui_->explainList->setSpacing(0);
+    ui_->explainList->setFrameShape(QFrame::NoFrame);
+
     initBackgroundColorCombo();
 
     connect(ui_->explainList, &QListWidget::itemClicked,
@@ -117,11 +129,13 @@ MmsProcessAnalysisDialog::MmsProcessAnalysisDialog(QWidget &parent, CaptureFile 
     connect(ui_->bgColorCombo, QOverload<int>::of(&QComboBox::activated),
             this, &MmsProcessAnalysisDialog::onBackgroundColorChanged);
 
-    /* Keep time column vertically aligned with the diagram; only the diagram scrolls horizontally. */
+    /* Keep time column, diagram, and explain list vertically aligned. */
     connect(ui_->diagramScroll->verticalScrollBar(), &QScrollBar::valueChanged,
-            ui_->timeVScroll->verticalScrollBar(), &QScrollBar::setValue);
+            this, &MmsProcessAnalysisDialog::onDiagramVerticalScroll);
     connect(ui_->timeVScroll->verticalScrollBar(), &QScrollBar::valueChanged,
             ui_->diagramScroll->verticalScrollBar(), &QScrollBar::setValue);
+    connect(ui_->explainList->verticalScrollBar(), &QScrollBar::valueChanged,
+            this, &MmsProcessAnalysisDialog::onExplainVerticalScroll);
 
     retap();
 }
@@ -237,9 +251,12 @@ QString MmsProcessAnalysisDialog::arrowLabelForKind(mms_process_kind_t kind)
 {
     switch (kind) {
     case MMS_PROCESS_KIND_REPORT_PDU:
-        return QObject::tr("报告报文");
     case MMS_PROCESS_KIND_REPORT_SERVICE:
         return QObject::tr("报告服务");
+    case MMS_PROCESS_KIND_REQUEST:
+        return QObject::tr("请求");
+    case MMS_PROCESS_KIND_RESPONSE:
+        return QObject::tr("回复");
     }
     return QString();
 }
@@ -249,18 +266,40 @@ QString MmsProcessAnalysisDialog::buildExplanation(const mms_process_tap_data *t
     if (!tap) {
         return QString();
     }
+
+    if (tap->kind == MMS_PROCESS_KIND_REQUEST) {
+        const QString obj = tap->object_ref[0] != '\0'
+                                ? QString::fromUtf8(tap->object_ref)
+                                : (tap->rcb_ref[0] != '\0'
+                                       ? QString::fromUtf8(tap->rcb_ref)
+                                       : QObject::tr("(未知)"));
+        return QObject::tr("请求对象: %1").arg(obj);
+    }
+
+    if (tap->kind == MMS_PROCESS_KIND_RESPONSE) {
+        const QString result = QString::fromUtf8(tap->result_zh).trimmed();
+        if (!result.isEmpty()) {
+            return result;
+        }
+        return QObject::tr("失败");
+    }
+
+    /* Report PDU / legacy report-service */
     QString text;
     if (tap->rcb_ref[0] != '\0') {
         text = QObject::tr("报告控制块:%1").arg(QString::fromUtf8(tap->rcb_ref));
     } else {
         text = QObject::tr("报告控制块:(未知)");
     }
-    const QString reason = QString::fromUtf8(tap->reason_zh).trimmed();
+    QString reason = QString::fromUtf8(tap->reason_zh).trimmed();
+    /* Align display wording with legacy MMS process UI. */
+    reason.replace(QStringLiteral("周期性"), QStringLiteral("周期上送"));
+    reason.replace(QStringLiteral("突发性"), QStringLiteral("突发上送"));
     if (!reason.isEmpty()) {
         text += QObject::tr(" 上送原因:%1").arg(reason);
     }
     /* Enumerate leaf values for spontaneous (data-change) reports: [0.5,0.7] */
-    if (reason.contains(QStringLiteral("突发性")) && tap->values[0] != '\0') {
+    if (reason.contains(QStringLiteral("突发")) && tap->values[0] != '\0') {
         QString vals = QString::fromUtf8(tap->values).trimmed();
         vals.replace(QStringLiteral(", "), QStringLiteral(","));
         while (vals.contains(QStringLiteral(",,"))) {
@@ -302,7 +341,8 @@ tap_packet_status MmsProcessAnalysisDialog::tapPacket(void *tapdata, packet_info
     row.rel_secs = nstimeToSeconds(proc->rel_ts);
     row.src = QString::fromUtf8(proc->src);
     row.dst = QString::fromUtf8(proc->dst);
-    row.arrow_label = arrowLabelForKind(proc->kind);
+    const QString tap_label = QString::fromUtf8(proc->arrow_label).trimmed();
+    row.arrow_label = tap_label.isEmpty() ? arrowLabelForKind(proc->kind) : tap_label;
     row.explanation = buildExplanation(proc);
     dlg->rows_.append(row);
 
@@ -368,6 +408,19 @@ void MmsProcessAnalysisDialog::rebuild()
     QVector<MmsProcessDiagramEvent> diagram_events;
     diagram_events.reserve(rows_.size());
 
+    /* Header spacer matches diagram/time-column topMargin so row 0 lines up. */
+    auto *header = new QListWidgetItem(tr("说明"));
+    header->setFlags(Qt::NoItemFlags);
+    header->setTextAlignment(Qt::AlignCenter);
+    header->setSizeHint(QSize(0, MmsProcessDiagramWidget::topMargin()));
+    {
+        QFont hf = ui_->explainList->font();
+        hf.setBold(true);
+        header->setFont(hf);
+    }
+    ui_->explainList->addItem(header);
+
+    const int row_h = MmsProcessDiagramWidget::rowHeight();
     for (int i = 0; i < rows_.size(); i++) {
         EventRow &row = rows_[i];
         row.list_row = i;
@@ -376,6 +429,7 @@ void MmsProcessAnalysisDialog::rebuild()
 
         auto *item = new QListWidgetItem(row.explanation);
         item->setData(Qt::UserRole, i);
+        item->setSizeHint(QSize(0, row_h));
         ui_->explainList->addItem(item);
 
         MmsProcessDiagramEvent dev;
@@ -389,13 +443,19 @@ void MmsProcessAnalysisDialog::rebuild()
         diagram_events.append(dev);
     }
 
+    /* Trailing spacer matches diagram bottomMargin so scroll ranges stay equal. */
+    auto *footer = new QListWidgetItem;
+    footer->setFlags(Qt::NoItemFlags);
+    footer->setSizeHint(QSize(0, 12));
+    ui_->explainList->addItem(footer);
+
     diagram_->setColumns(columns_);
     diagram_->setEvents(diagram_events);
     time_column_->setEvents(diagram_events);
     syncDiagramSize();
 
     if (rows_.isEmpty()) {
-        ui_->hintLabel->setText(tr("当前抓包中未找到 MMS 站控层报告事件。"));
+        ui_->hintLabel->setText(tr("当前抓包中未找到 MMS 站控层过程事件。"));
     } else {
         ui_->hintLabel->setText(tr("共 %1 条事件，%2 个 IP。双击说明行或时序图可跳转到对应报文。")
                                     .arg(rows_.size())
@@ -430,14 +490,23 @@ void MmsProcessAnalysisDialog::syncDiagramSize()
         ui_->diagramScroll->setWidget(diagram_);
     }
 
-    /* Keep vertical scroll ranges in sync. */
+    /* Keep vertical scroll ranges in sync across time / diagram / explain. */
     QScrollBar *dv = ui_->diagramScroll->verticalScrollBar();
     QScrollBar *tv = ui_->timeVScroll->verticalScrollBar();
+    QScrollBar *ev = ui_->explainList->verticalScrollBar();
     if (dv && tv) {
         tv->setRange(dv->minimum(), dv->maximum());
         tv->setPageStep(dv->pageStep());
         tv->setSingleStep(dv->singleStep());
         tv->setValue(dv->value());
+    }
+    if (dv && ev) {
+        /* Explain list content height tracks diagram rows; clamp to diagram range. */
+        ev->setSingleStep(dv->singleStep());
+        ev->setPageStep(dv->pageStep());
+        if (ev->value() != dv->value()) {
+            ev->setValue(dv->value());
+        }
     }
 }
 
@@ -457,9 +526,11 @@ void MmsProcessAnalysisDialog::selectIndex(int index)
     }
     diagram_->setSelectedIndex(index);
     time_column_->setSelectedIndex(index);
-    ui_->explainList->setCurrentRow(index);
-    if (QListWidgetItem *item = ui_->explainList->item(index)) {
-        ui_->explainList->scrollToItem(item);
+    /* Row 0 is the "说明" header spacer. */
+    const int list_row = index + 1;
+    ui_->explainList->setCurrentRow(list_row);
+    if (QListWidgetItem *item = ui_->explainList->item(list_row)) {
+        ui_->explainList->scrollToItem(item, QAbstractItemView::PositionAtCenter);
     }
 
     const int row_top = MmsProcessDiagramWidget::topMargin() +
@@ -473,6 +544,29 @@ void MmsProcessAnalysisDialog::selectIndex(int index)
     }
 
     ui_->hintLabel->setText(tr("帧 %1 — 双击可跳转").arg(rows_.at(index).framenum));
+}
+
+void MmsProcessAnalysisDialog::onDiagramVerticalScroll(int value)
+{
+    if (QScrollBar *tv = ui_->timeVScroll->verticalScrollBar()) {
+        if (tv->value() != value) {
+            tv->setValue(value);
+        }
+    }
+    if (QScrollBar *ev = ui_->explainList->verticalScrollBar()) {
+        if (ev->value() != value) {
+            ev->setValue(value);
+        }
+    }
+}
+
+void MmsProcessAnalysisDialog::onExplainVerticalScroll(int value)
+{
+    if (QScrollBar *dv = ui_->diagramScroll->verticalScrollBar()) {
+        if (dv->value() != value) {
+            dv->setValue(value);
+        }
+    }
 }
 
 void MmsProcessAnalysisDialog::onExplainItemClicked(QListWidgetItem *item)
