@@ -25,6 +25,9 @@ cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target tshark -- /nodeReuse:
 if errorlevel 1 exit /b 1
 cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target dumpcap -- /nodeReuse:false /m:8
 if errorlevel 1 exit /b 1
+echo === build serialdump extcap ===
+cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target serialdump -- /nodeReuse:false /m:8
+if errorlevel 1 exit /b 1
 cmake --build . --config %WIRESHARK_BUILD_CONFIG% --target copy_data_files -- /nodeReuse:false /m:8
 if errorlevel 1 exit /b 1
 

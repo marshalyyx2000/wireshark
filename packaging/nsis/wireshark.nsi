@@ -1247,8 +1247,11 @@ File "${STAGING_DIR}\text2pcap.html"
 
 SectionEnd ; "Tools"
 
+!endif ; ENABLE_MINIMAL_BUILD
+
 SectionGroup /e "External capture tools (extcap)" SecExtcapGroup
 
+!ifndef ENABLE_MINIMAL_BUILD
 Section /o "Androiddump" SecAndroiddump
 ;-------------------------------------------
   !insertmacro InstallExtcap "androiddump"
@@ -1286,9 +1289,15 @@ Section /o "UDPdump" SecUDPdump
   !insertmacro InstallExtcap "udpdump"
 SectionEnd
 !insertmacro CheckExtrasFlag "udpdump"
+!endif ; ENABLE_MINIMAL_BUILD
+
+Section "Serialdump (IEC 60870-5-101 serial)" SecSerialdump
+;-------------------------------------------
+  !insertmacro InstallExtcap "serialdump"
+SectionEnd
+!insertmacro CheckExtrasFlag "serialdump"
 
 SectionGroupEnd ; "External Capture (extcap)"
-!endif ; ENABLE_MINIMAL_BUILD
 
 Section "-Write Registry Keys"
   !ifdef QT_DIR
@@ -1297,7 +1306,9 @@ Section "-Write Registry Keys"
   !insertmacro ComponentInstalled "TShark" ${SecTShark}
 
   ; Store whether each extcap was selected or not
-!ifndef ENABLE_MINIMAL_BUILD
+!ifdef ENABLE_MINIMAL_BUILD
+  !insertmacro ComponentInstalled "Extcaps\serialdump" ${SecSerialdump}
+!else
   !insertmacro ComponentInstalled "Extcaps\androiddump" ${SecAndroiddump}
   !ifdef BUILD_etwdump
     !insertmacro ComponentInstalled "Extcaps\etwdump" ${SecEtwdump}
@@ -1662,6 +1673,7 @@ Delete "$INSTDIR\extcap\etwdump.*"
 Delete "$INSTDIR\extcap\randpktdump.*"
 Delete "$INSTDIR\extcap\sshdump.*"
 Delete "$INSTDIR\extcap\udpdump.*"
+Delete "$INSTDIR\extcap\serialdump.*"
 Delete "$INSTDIR\extcap\wifidump.*"
 Delete "$INSTDIR\gpl-2.0-standalone.html"
 Delete "$INSTDIR\Acknowledgements.md"

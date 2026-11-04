@@ -2444,9 +2444,12 @@ if (ASCIIDOCTOR_FOUND)
 	if(BUILD_sshdump AND LIBSSH_FOUND)
 		list(APPEND DOC_FILES ${CMAKE_BINARY_DIR}/doc/man_pages/sshdump.html)
 	endif()
-	if(BUILD_udpdump)
-		list(APPEND DOC_FILES ${CMAKE_BINARY_DIR}/doc/man_pages/udpdump.html)
-	endif()
+if(BUILD_udpdump)
+	list(APPEND DOC_FILES ${CMAKE_BINARY_DIR}/doc/man_pages/udpdump.html)
+endif()
+if(BUILD_serialdump)
+	list(APPEND DOC_FILES ${CMAKE_BINARY_DIR}/doc/man_pages/serialdump.html)
+endif()
 	if(BUILD_wifidump AND LIBSSH_FOUND)
 		list(APPEND DOC_FILES ${CMAKE_BINARY_DIR}/doc/man_pages/wifidump.html)
 	endif()
@@ -4648,6 +4651,7 @@ set(CLEAN_C_FILES
 	${falcodump_FILES}
 	${dumpcalls_FILES}
 	${udpdump_FILES}
+	${serialdump_FILES}
 	${text2pcap_FILES}
 	${mergecap_FILES}
 	${capinfos_FILES}

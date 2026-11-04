@@ -259,6 +259,22 @@ if(BUILD_udpdump)
 	add_dependencies(extcaps udpdump)
 endif()
 
+if(BUILD_serialdump AND WIN32)
+	# Standalone on purpose: no libwsutil/GLib dependency, so the binary runs
+	# from the extcap subdirectory without the program directory on PATH.
+	set(serialdump_FILES
+		serialdump.c
+	)
+
+	set_executable_resources(serialdump "serialdump")
+	add_executable(serialdump ${serialdump_FILES})
+	set_extcap_executable_properties(serialdump)
+	install(TARGETS serialdump RUNTIME DESTINATION ${EXTCAP_INSTALL_LIBDIR})
+	add_dependencies(extcaps serialdump)
+elseif(BUILD_serialdump)
+	#message( WARNING "serialdump is only implemented on Windows" )
+endif()
+
 if(BUILD_randpktdump)
 	set(randpktdump_LIBS
 		extcap-base

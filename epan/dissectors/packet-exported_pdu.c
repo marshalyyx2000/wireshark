@@ -18,8 +18,10 @@
 #include <epan/expert.h>
 #include <wsutil/array.h>
 #include "packet-e212.h"
+#ifndef ENABLE_MINIMAL_BUILD
 #include "packet-mtp3.h"
 #include "packet-dvbci.h"
+#endif
 #include "packet-tcp.h"
 
 void proto_register_exported_pdu(void);
@@ -239,7 +241,9 @@ dissect_3gpp_id(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tag_tree, int off
             } else {
                 cgi_item = proto_tree_add_bits_item(tag_tree, hf_exported_pdu_3gpp_cgi, tvb, bit_offset, 56, ENC_BIG_ENDIAN);
                 cgi_tree = proto_item_add_subtree(cgi_item, ett_exported_pdu_3gpp_cgi);
+#ifndef ENABLE_MINIMAL_BUILD
                 offset = dissect_e212_mcc_mnc(tvb, pinfo, cgi_tree, offset, E212_CGI, false);
+#endif
                 proto_tree_add_item(cgi_tree, hf_exported_pdu_3gpp_lac, tvb, offset, 2, ENC_BIG_ENDIAN);
                 proto_tree_add_item(cgi_tree, hf_exported_pdu_3gpp_ci, tvb, offset + 2, 2, ENC_BIG_ENDIAN);
             }
@@ -250,7 +254,9 @@ dissect_3gpp_id(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tag_tree, int off
             } else {
                 cgi_item = proto_tree_add_bits_item(tag_tree, hf_exported_pdu_3gpp_ecgi, tvb, bit_offset, 52, ENC_BIG_ENDIAN);
                 cgi_tree = proto_item_add_subtree(cgi_item, ett_exported_pdu_3gpp_cgi);
+#ifndef ENABLE_MINIMAL_BUILD
                 offset = dissect_e212_mcc_mnc(tvb, pinfo, cgi_tree, offset, E212_ECGI, false);
+#endif
                 bit_offset = offset * 8;
                 proto_tree_add_bits_item(cgi_tree, hf_exported_pdu_3gpp_eci, tvb, bit_offset, 28, ENC_BIG_ENDIAN);
             }
@@ -261,7 +267,9 @@ dissect_3gpp_id(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tag_tree, int off
             } else {
                 cgi_item = proto_tree_add_bits_item(tag_tree, hf_exported_pdu_3gpp_ncgi, tvb, bit_offset, 60, ENC_BIG_ENDIAN);
                 cgi_tree = proto_item_add_subtree(cgi_item, ett_exported_pdu_3gpp_cgi);
+#ifndef ENABLE_MINIMAL_BUILD
                 offset = dissect_e212_mcc_mnc(tvb, pinfo, cgi_tree, offset, E212_NRCGI, false);
+#endif
                 bit_offset = offset * 8;
                 proto_tree_add_bits_item(cgi_tree, hf_exported_pdu_3gpp_nci, tvb, bit_offset, 36, ENC_BIG_ENDIAN);
             }
@@ -289,7 +297,9 @@ dissect_exported_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* 
     const char *col_proto_str = NULL;
     const char *col_info_str = NULL;
     dissector_handle_t proto_handle;
+#ifndef ENABLE_MINIMAL_BUILD
     mtp3_addr_pc_t *mtp3_addr;
+#endif
     uint32_t pdu_port_type;
     uint32_t dvb_ci_dir;
     uint32_t dissector_table_val=0;
@@ -376,27 +386,38 @@ dissect_exported_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* 
                 break;
             case EXP_PDU_TAG_SS7_OPC:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_ss7_opc, tvb, offset, 4, ENC_BIG_ENDIAN);
+#ifdef ENABLE_MINIMAL_BUILD
+                /* SS7 point codes are not part of the industrial build. */
+                break;
+#else
                 mtp3_addr = wmem_new0(pinfo->pool, mtp3_addr_pc_t);
                 mtp3_addr->pc = tvb_get_ntohl(tvb, offset);
                 mtp3_addr->type = (Standard_Type)tvb_get_ntohs(tvb, offset+4);
                 mtp3_addr->ni = tvb_get_uint8(tvb, offset+6);
                 set_address(&pinfo->src, ss7pc_address_type, sizeof(mtp3_addr_pc_t), (uint8_t *) mtp3_addr);
                 break;
+#endif
             case EXP_PDU_TAG_SS7_DPC:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_ss7_dpc, tvb, offset, 4, ENC_BIG_ENDIAN);
+#ifdef ENABLE_MINIMAL_BUILD
+                break;
+#else
                 mtp3_addr = wmem_new0(pinfo->pool, mtp3_addr_pc_t);
                 mtp3_addr->pc = tvb_get_ntohl(tvb, offset);
                 mtp3_addr->type = (Standard_Type)tvb_get_ntohs(tvb, offset+4);
                 mtp3_addr->ni = tvb_get_uint8(tvb, offset+6);
                 set_address(&pinfo->dst, ss7pc_address_type, sizeof(mtp3_addr_pc_t), (uint8_t *) mtp3_addr);
                 break;
+#endif
             case EXP_PDU_TAG_ORIG_FNO:
                 proto_tree_add_item(tag_tree, hf_exported_pdu_orig_fno, tvb, offset, 4, ENC_BIG_ENDIAN);
                 break;
             case EXP_PDU_TAG_DVBCI_EVT:
                 proto_tree_add_item_ret_uint(tag_tree, hf_exported_pdu_dvbci_evt,
                         tvb, offset, 1, ENC_BIG_ENDIAN, &dvb_ci_dir);
+#ifndef ENABLE_MINIMAL_BUILD
                 dvbci_set_addrs((uint8_t)dvb_ci_dir, pinfo);
+#endif
                 break;
             case EXP_PDU_TAG_DISSECTOR_TABLE_NAME_NUM_VAL:
                 proto_tree_add_item_ret_uint(tag_tree, hf_exported_pdu_dis_table_val, tvb, offset, 4, ENC_BIG_ENDIAN, &dissector_table_val);
@@ -460,7 +481,11 @@ dissect_exported_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* 
                 proto_tree_add_item_ret_string(tag_tree, hf_exported_pdu_3gpp_ue_id_type, tvb, offset, type_sz, ENC_UTF_8 | ENC_NA, pinfo->pool, &id_type);
                 proto_tree_add_item_ret_string(tag_tree, hf_exported_pdu_3gpp_ue_id_value, tvb, offset + type_sz, tag_len - type_sz, ENC_UTF_8 | ENC_NA, pinfo->pool, &id_value);
                 if (strcmp((const char*)id_type, "IMSI") == 0)
+#ifndef ENABLE_MINIMAL_BUILD
                     add_assoc_imsi_item(tvb, pinfo, tag_tree, (const char*)id_value);
+#else
+                    ;  /* IMSI association lives in the 3GPP dissectors, not built here. */
+#endif
                 break;
             }
             case EXP_PDU_TAG_END_OF_OPT:
@@ -664,7 +689,7 @@ proto_register_exported_pdu(void)
         },
         { &hf_exported_pdu_dvbci_evt,
             { "DVB-CI event", "exported_pdu.dvb-ci.event",
-               FT_UINT8, BASE_HEX, VALS(dvbci_event), 0,
+               FT_UINT8, BASE_HEX, NULL, 0,
               NULL, HFILL }
         },
         { &hf_exported_pdu_exported_pdu,
@@ -805,7 +830,9 @@ proto_reg_handoff_exported_pdu(void)
         initialized = true;
     }
 
+#ifndef ENABLE_MINIMAL_BUILD
     ss7pc_address_type = address_type_get_by_name("AT_SS7PC");
+#endif
 
     /* Get the hf id of some fields from the IP dissectors to be able to use them here*/
     hf_ip_addr    = proto_registrar_get_id_byname("ip.addr");

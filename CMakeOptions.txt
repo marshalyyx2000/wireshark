@@ -41,6 +41,7 @@ else()
 	option(BUILD_sdjournal   "Build sdjournal" OFF)
 endif()
 option(BUILD_udpdump       "Build udpdump" ON)
+option(BUILD_serialdump    "Build serialdump (IEC 60870-5-101 over a serial port)" ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	cmake_dependent_option(BUILD_dumpcalls	"Build dumpcalls" ON "BUILD_stratoshark OR BUILD_strato" OFF)

@@ -67,6 +67,8 @@ packet-yushun-modbus.c
 # --- Infrastructure ---
 packet-data.c
 packet-frame.c
+# Serial extcap transport: each record is one exported PDU.
+packet-exported_pdu.c
 
 # --- Minimal stubs (dns/tls/dtls symbols without registering those protocols) ---
 packet-minimal-stubs.c
