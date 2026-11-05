@@ -2754,6 +2754,7 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionIec103NariNetParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103XujiNetParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103SznariNetParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103XujiSerialParse->setEnabled(have_captured_packets);
     main_ui_->actionToolsIec103WaveExport->setEnabled(have_captured_packets);
 
 #ifndef ENABLE_MINIMAL_BUILD

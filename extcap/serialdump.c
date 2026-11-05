@@ -318,6 +318,8 @@ list_config(void)
 	printf("value {arg=7}{value=auto}{display=Auto (from framing)}{default=true}\n");
 	printf("value {arg=7}{value=serial_raw}{display=串口原始数据 (中性)}\n");
 	printf("value {arg=7}{value=yushun_modbus}{display=禹舜MODBUS-下端电压硬压板}\n");
+	printf("value {arg=7}{value=xuji_serial_iec103}{display=许继串口IEC60870-5-103}\n");
+	printf("value {arg=7}{value=iec60870_5_103}{display=IEC 60870-5-103}\n");
 	printf("value {arg=7}{value=iec60870_101_frame}{display=IEC 60870-5-101}\n");
 }
 

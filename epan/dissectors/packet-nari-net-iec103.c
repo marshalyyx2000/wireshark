@@ -25,6 +25,7 @@
 
 #include "packet-tcp.h"
 #include "packet-nari-wave-tap.h"
+#include "packet-iec103-asdu6.h"
 
 void proto_register_nari_net_iec103(void);
 void proto_reg_handoff_nari_net_iec103(void);
@@ -64,6 +65,7 @@ static int proto_nari_net_iec103;
 static int nari_wave_tap = -1;
 static dissector_handle_t nari_net_iec103_tcp_handle;
 static dissector_handle_t nari_net_iec103_udp_handle;
+static dissector_handle_t iec103_asdu6_handle;
 
 static int ett_nari_net_iec103;
 static int ett_nari_asdu;
@@ -170,6 +172,7 @@ typedef struct {
 } nari_conv_info_t;
 
 static const value_string asdu_type_vals[] = {
+	{ 1,  "ASDU1  带时标的报文 (Time-tagged message)" },
 	{ 5,  "ASDU5  标识 (Identification)" },
 	{ 6,  "ASDU6  时间同步 (Time synchronization)" },
 	{ 7,  "ASDU7  总查询 (General interrogation)" },
@@ -1261,13 +1264,23 @@ dissect_asdu28(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
 }
 
 static void
-dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	proto_item *asdu_item;
 	proto_tree *asdu_tree;
 	int offset = 0;
 	int end = (int)tvb_reported_length(tvb);
 	uint8_t typ, vsq, cot, asdu_addr;
+	int asdu_proto = proto_nari_net_iec103;
+	const char *asdu_title = "南自网络103 ASDU";
+	const iec103_asdu6_data_t *call = (const iec103_asdu6_data_t *)data;
+
+	if (call != NULL) {
+		if (call->proto > 0)
+			asdu_proto = call->proto;
+		if (call->asdu_title != NULL)
+			asdu_title = call->asdu_title;
+	}
 
 	if (end < NARI_ASDU_HDR_LEN) {
 		if (end > 0)
@@ -1275,8 +1288,8 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		return;
 	}
 
-	asdu_item = proto_tree_add_item(tree, proto_nari_net_iec103, tvb, 0, end, ENC_NA);
-	proto_item_set_text(asdu_item, "南自网络103 ASDU");
+	asdu_item = proto_tree_add_item(tree, asdu_proto, tvb, 0, end, ENC_NA);
+	proto_item_set_text(asdu_item, "%s", asdu_title);
 	asdu_tree = proto_item_add_subtree(asdu_item, ett_nari_asdu);
 
 	typ = tvb_get_uint8(tvb, offset);
@@ -1306,6 +1319,15 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	offset++;
 
 	switch (typ) {
+	case 1:
+		/* DPI + CP56Time2a (+ optional SIN remaining as raw) — serial/common ASDU1. */
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_dpi, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		if (end - offset >= 7)
+			dissect_cp56time(tvb, &offset, asdu_tree);
+		break;
 	case 5:
 		if (offset < end) {
 			proto_tree_add_item(asdu_tree, hf_col, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -1437,7 +1459,15 @@ dissect_nari_asdu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
 
 	ti = proto_tree_add_item(tree, proto_nari_net_iec103, tvb, 0, -1, ENC_NA);
 	proto_item_set_text(ti, "南自网络103规约");
-	dissect_asdu(tvb, pinfo, tree);
+	dissect_asdu(tvb, pinfo, tree, NULL);
+	return tvb_captured_length(tvb);
+}
+
+/* Shared entry for FT1.2 serial / other transports that already isolated the ASDU. */
+static int
+dissect_iec103_asdu6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+	dissect_asdu(tvb, pinfo, tree, data);
 	return tvb_captured_length(tvb);
 }
 
@@ -1786,6 +1816,9 @@ proto_register_nari_net_iec103(void)
 		dissect_nari_net_iec103_tcp, proto_nari_net_iec103);
 	nari_net_iec103_udp_handle = register_dissector("nari_net_iec103_udp",
 		dissect_nari_net_iec103_udp, proto_nari_net_iec103);
+	/* 6-byte ASDU body only — reused by 许继串口103 FT1.2 frames. */
+	iec103_asdu6_handle = register_dissector("iec103_asdu6",
+		dissect_iec103_asdu6, proto_nari_net_iec103);
 }
 
 void

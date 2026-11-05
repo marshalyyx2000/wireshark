@@ -3418,8 +3418,13 @@ void WiresharkMainWindow::connectIec103MenuActions()
     connect(main_ui_->actionIec103SznariNetParse, &QAction::triggered, this, [=]() {
         applyCaptureDisplayFilter(QStringLiteral("sznari_net_iec103"), true);
     });
+    connect(main_ui_->actionIec103XujiSerialParse, &QAction::triggered, this, [=]() {
+        /* Neutral serial_raw (FT1.2 framed) captures: force 许继串口103 then filter.
+         * Same pattern as 禹舜 MODBUS menu over serial_raw. */
+        tryDecodeSerialRawAs("xuji_serial_iec103", QStringLiteral("xuji_serial_iec103"));
+    });
 
-    /* Also show in IEC103 menu so minimal build (no Tools menu) can export waves. */
+    /* Also show in 网络103 menu so minimal build (no Tools menu) can export waves. */
     main_ui_->menuIec103->addAction(main_ui_->actionToolsIec103WaveExport);
 
     connect(main_ui_->actionToolsIec103WaveExport, &QAction::triggered, this, [=]() {

@@ -525,12 +525,18 @@
    </widget>
    <widget class="QMenu" name="menuIec103">
     <property name="title">
-     <string>103</string>
+     <string>网络103</string>
     </property>
     <addaction name="actionIec103ShandongMasterSlave"/>
     <addaction name="actionIec103NariNetParse"/>
     <addaction name="actionIec103XujiNetParse"/>
     <addaction name="actionIec103SznariNetParse"/>
+   </widget>
+   <widget class="QMenu" name="menuIec103Serial">
+    <property name="title">
+     <string>串口103</string>
+    </property>
+    <addaction name="actionIec103XujiSerialParse"/>
    </widget>
    <widget class="QMenu" name="menuIec104">
     <property name="title">
@@ -840,6 +846,7 @@
    <addaction name="menuMms"/>
    <addaction name="menuModbus"/>
    <addaction name="menuIec103"/>
+   <addaction name="menuIec103Serial"/>
    <addaction name="menuIec104"/>
    <addaction name="menuCommonTools"/>
    <addaction name="menuTelephony"/>
@@ -3045,6 +3052,14 @@
    </property>
    <property name="toolTip">
     <string>仅显示深圳南瑞网络103规约报文 (sznari_net_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103XujiSerialParse">
+   <property name="text">
+    <string>许继串口103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为许继串口103，并过滤显示 (xuji_serial_iec103)</string>
    </property>
   </action>
   <action name="actionIec104YunnanCfgFree">

@@ -45,6 +45,7 @@ static dissector_handle_t iec60870_asdu_handle;
 static dissector_handle_t iec60870_104_handle;
 static dissector_handle_t iec60870_101_handle;
 static dissector_handle_t iec60870_101_frame_handle;
+static dissector_handle_t iec60870_5_103_frame_handle;
 static dissector_handle_t iec60870_5_103_handle;
 
 static reassembly_table iec60870_reassemble_table;
@@ -4792,6 +4793,12 @@ proto_register_iec60870_5_103(void)
 	proto_register_subtree_array(ett_serial, array_length(ett_serial));
 
 	iec60870_5_103_handle = register_dissector("iec60870_5_103", dissect_iec60870_5_103_tcp, proto_iec60870_5_103);
+	/*
+	 * Whole-frame entry for serialdump exported PDU / RTAC-style captures that
+	 * already contain one complete FT1.2 frame (not a TCP byte stream).
+	 */
+	iec60870_5_103_frame_handle = register_dissector("iec60870_5_103_frame",
+		dissect_iec60870_5_103, proto_iec60870_5_103);
 }
 
 void
