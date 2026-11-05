@@ -69,6 +69,8 @@ packet-data.c
 packet-frame.c
 # Serial extcap transport: each record is one exported PDU.
 packet-exported_pdu.c
+# Neutral serial raw dispatcher (menu try-decode).
+packet-serial-raw.c
 
 # --- Minimal stubs (dns/tls/dtls symbols without registering those protocols) ---
 packet-minimal-stubs.c

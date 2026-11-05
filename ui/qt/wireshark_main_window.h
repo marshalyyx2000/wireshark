@@ -1156,6 +1156,13 @@ private slots:
     /** @brief Connects MODBUS menu actions to their implementation slots. */
     void connectModbusMenuActions();
 
+    /**
+     * @brief Force serial_raw payloads to @p dissector_name, redissect, then filter.
+     * @param dissector_name Registered dissector name (e.g. yushun_modbus).
+     * @param filter         Display filter applied after redissection.
+     */
+    void tryDecodeSerialRawAs(const char *dissector_name, const QString &filter);
+
     /** @brief Connects 103 menu actions to their implementation slots. */
     void connectIec103MenuActions();
 

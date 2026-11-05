@@ -69,6 +69,7 @@ set(LIBWIRESHARK_PUBLIC_HEADERS
 	expert.h
 	export_object.h
 	exported_pdu.h
+	serial_raw.h
 	fifo_string_cache.h
 	filter_expressions.h
 	aggregation_fields.h

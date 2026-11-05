@@ -40,6 +40,8 @@
 #define EXP_PDU_TAG_END_OF_OPT 0
 
 #define DISSECTOR_NAME "iec60870_101_frame"
+#define DISSECTOR_NAME_YUSHUN "yushun_modbus"
+#define DISSECTOR_NAME_RAW "serial_raw"
 
 /* IEC 60870-5-101 FT1.2 frame boundaries. */
 #define IEC101_START_VAR 0x68
@@ -59,8 +61,21 @@ static const char *opt_parity = "even";
 static unsigned opt_stopbits = 1;
 static unsigned opt_linkaddrlen = 1;
 static const char *opt_framing = "ft12";
+static const char *opt_protocol; /* NULL = auto from framing */
 static const char *opt_fifo;
 static bool opt_capture;
+
+/* Exported-PDU dissector name written into each capture record. */
+static const char *
+effective_protocol(void)
+{
+	if (opt_protocol != NULL && opt_protocol[0] != '\0')
+		return opt_protocol;
+	/* Raw: neutral serial_raw; UI menus try-decode into a concrete protocol. */
+	if (strcmp(opt_framing, "raw") == 0)
+		return DISSECTOR_NAME_RAW;
+	return DISSECTOR_NAME;
+}
 
 /* --- Output -------------------------------------------------------------- */
 
@@ -117,17 +132,28 @@ write_pcap_header(void)
 	return true;
 }
 
-/* Wrap one FT1.2 frame in an exported PDU and write it as a pcap record. */
+/* Wrap one frame in an exported PDU and write it as a pcap record. */
 static bool
 write_frame(const uint8_t *frame, unsigned frame_len)
 {
-	static const char name[] = DISSECTOR_NAME;
-	const unsigned name_len = (unsigned)((sizeof(name) + 3) & ~3u);
+	const char *name = effective_protocol();
+	unsigned name_raw;
+	unsigned name_len;
+	uint8_t namebuf[64];
 	uint8_t rec_hdr[16];
 	uint8_t tlv[4];
 	uint8_t end_opt[4] = { 0, 0, 0, 0 };
-	uint32_t total = 4u + name_len + 4u + frame_len;
+	uint32_t total;
 	time_t now = time(NULL);
+
+	name_raw = (unsigned)strlen(name) + 1; /* include NUL */
+	name_len = (name_raw + 3u) & ~3u;
+	if (name_len > sizeof(namebuf))
+		return false;
+	memset(namebuf, 0, name_len);
+	memcpy(namebuf, name, strlen(name));
+
+	total = 4u + name_len + 4u + frame_len;
 
 	put_u32le(rec_hdr + 0, (uint32_t)now);
 	put_u32le(rec_hdr + 4, 0);
@@ -144,7 +170,7 @@ write_frame(const uint8_t *frame, unsigned frame_len)
 		return false;
 	if (fwrite(tlv, 1, sizeof(tlv), out) != sizeof(tlv))
 		return false;
-	if (fwrite(name, 1, name_len, out) != name_len)
+	if (fwrite(namebuf, 1, name_len, out) != name_len)
 		return false;
 	if (fwrite(end_opt, 1, sizeof(end_opt), out) != sizeof(end_opt))
 		return false;
@@ -285,6 +311,14 @@ list_config(void)
 		"{tooltip=How frames are delimited on the line}\n");
 	printf("value {arg=6}{value=ft12}{display=IEC 60870-5-101 FT1.2}{default=true}\n");
 	printf("value {arg=6}{value=raw}{display=Raw bytes (no framing)}\n");
+	printf("arg {number=7}{call=--protocol}{display=Payload protocol}"
+		"{type=selector}{default=auto}"
+		"{tooltip=Exported-PDU dissector for captured bytes. "
+		"Auto: FT1.2->IEC101, raw->serial_raw (neutral; try-decode in UI)}\n");
+	printf("value {arg=7}{value=auto}{display=Auto (from framing)}{default=true}\n");
+	printf("value {arg=7}{value=serial_raw}{display=串口原始数据 (中性)}\n");
+	printf("value {arg=7}{value=yushun_modbus}{display=禹舜MODBUS-下端电压硬压板}\n");
+	printf("value {arg=7}{value=iec60870_101_frame}{display=IEC 60870-5-101}\n");
 }
 
 static void
@@ -305,6 +339,8 @@ print_help(const char *argv0)
 	printf("  --stopbits <1|2>            stop bits, default 1\n");
 	printf("  --linkaddrlen <1|2>         FT1.2 link address length, default 1\n");
 	printf("  --framing <ft12|raw>        frame as FT1.2 (default) or raw chunks\n");
+	printf("  --protocol <name|auto>      exported-PDU dissector name "
+		"(auto: ft12->iec60870_101_frame, raw->serial_raw)\n");
 	printf("  --fifo <path>               write the capture here\n");
 	printf("  --capture                   start capturing\n");
 }
@@ -574,6 +610,10 @@ main(int argc, char *argv[])
 			opt_parity = a + 9;
 		} else if (strncmp(a, "--framing=", 10) == 0) {
 			opt_framing = a + 10;
+		} else if (strncmp(a, "--protocol=", 11) == 0) {
+			opt_protocol = a + 11;
+			if (strcmp(opt_protocol, "auto") == 0)
+				opt_protocol = NULL;
 		} else if (strncmp(a, "--extcap-version", 16) == 0) {
 			/* Accepted and ignored. */
 		} else if (strncmp(a, "--log-level", 11) == 0) {
@@ -590,6 +630,11 @@ main(int argc, char *argv[])
 		} else if (strcmp(a, "--framing") == 0) {
 			if (!need_value(argc, argv, &i, &opt_framing))
 				return EXIT_FAILURE;
+		} else if (strcmp(a, "--protocol") == 0) {
+			if (!need_value(argc, argv, &i, &opt_protocol))
+				return EXIT_FAILURE;
+			if (strcmp(opt_protocol, "auto") == 0)
+				opt_protocol = NULL;
 		} else if (strcmp(a, "--baudrate") == 0) {
 			if (!need_uint(argc, argv, &i, &opt_baudrate))
 				return EXIT_FAILURE;

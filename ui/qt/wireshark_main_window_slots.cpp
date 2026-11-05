@@ -59,6 +59,7 @@ DIAG_ON(frame-larger-than=)
 #include "epan/epan_dissect.h"
 #include "epan/filter_expressions.h"
 #include "epan/prefs.h"
+#include "epan/serial_raw.h"
 #include "epan/uat.h"
 #include "epan/uat-int.h"
 #include "epan/secrets.h"
@@ -895,6 +896,9 @@ void WiresharkMainWindow::captureFileClosing() {
     setTitlebarForCaptureFile();
     setForCapturedPackets(false);
     setForCaptureInProgress(false);
+
+    /* Drop serial_raw try-decode override so the next file starts neutral. */
+    serial_raw_set_payload_dissector(NULL);
 
     // Reset expert information indicator
     main_ui_->statusBar->captureFileClosing();
@@ -3384,10 +3388,19 @@ void WiresharkMainWindow::connectMmsMenuActions()
     });
 }
 
+void WiresharkMainWindow::tryDecodeSerialRawAs(const char *dissector_name, const QString &filter)
+{
+    serial_raw_set_payload_dissector(dissector_name);
+    redissectPackets();
+    applyCaptureDisplayFilter(filter, true);
+}
+
 void WiresharkMainWindow::connectModbusMenuActions()
 {
     connect(main_ui_->actionModbusYushunVoltagePlate, &QAction::triggered, this, [=]() {
-        applyCaptureDisplayFilter(QStringLiteral("yushun_modbus"), true);
+        /* Neutral serial_raw captures: force yushun then filter.
+         * TCP yushun captures: override is a no-op; filter still applies. */
+        tryDecodeSerialRawAs("yushun_modbus", QStringLiteral("yushun_modbus"));
     });
 }
 
