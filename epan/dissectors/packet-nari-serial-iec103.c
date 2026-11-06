@@ -1,0 +1,1912 @@
+/* packet-nari-serial-iec103.c
+ *
+ * NARI serial IEC 60870-5-103 (FT1.2).
+ * Link layer FT1.2; ASDU includes generic (10/21) and disturbance (23-31).
+ * Disturbance samples via nari-wave tap for COMTRADE export.
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+
+#include "config.h"
+
+#include <time.h>
+#include <string.h>
+
+#include <epan/packet.h>
+#include <epan/expert.h>
+#include <epan/conversation.h>
+#include <epan/tap.h>
+#include <epan/tfs.h>
+#include <epan/wmem_scopes.h>
+#include <wsutil/array.h>
+#include <wsutil/str_util.h>
+
+#include "packet-nari-wave-tap.h"
+
+void proto_register_nari_serial_iec103(void);
+void proto_reg_handoff_nari_serial_iec103(void);
+
+#define NARI_FT12_VAR            0x68
+#define NARI_FT12_FIXED          0x10
+#define NARI_FT12_SINGLE         0xE5
+#define NARI_FT12_STOP           0x16
+#define NARI_ASDU_HDR_LEN        6
+#define NARI_ASDU5_BODY_LEN      25
+#define NARI_ASDU6_BODY_LEN      7
+#define NARI_ASDU7_BODY_LEN      1
+#define NARI_ASDU20_BODY_LEN     1
+#define NARI_ASDU24_BODY_LEN     5
+#define NARI_ASDU25_BODY_LEN     5
+#define NARI_ASDU26_BODY_LEN     16 /* 2×未用 + TOV + FAN + NOF + NOC + 通道信息 + NOE + INT + 4字节时间 */
+#define NARI_ASDU27_BODY_LEN     18 /* 2×未用 + TOV + FAN + ACC + RPV + RDV + RFA (各4字节浮点) */
+#define NARI_ASDU28_BODY_LEN     4  /* 2×未用 + FAN(2) */
+#define NARI_ASDU29_BODY_MIN     3  /* FAN(2) + NOT */
+#define NARI_ASDU29_TAG_LEN      5  /* TAP(2) + FUN + INF + DPI */
+#define NARI_ASDU31_BODY_LEN     5
+#define NARI_ASDU23_ENTRY_LEN    10 /* FAN(2) + fault status(1) + CP56Time2a(7) */
+#define NARI_SDV_F16_DIVISOR     32768.0f
+#define NARI_SCALE_SLOTS         32
+
+#define KOD_VALUE  0x01
+#define KOD_DESC   0x0A
+
+#define GDD_OS8ASCII  1
+#define GDD_UI        3
+#define GDD_R32       7
+#define GDD_DPI       9
+#define GDD_STRUCT    23
+
+static int proto_nari_serial_iec103;
+static int nari_wave_tap = -1;
+static dissector_handle_t nari_serial_iec103_handle;
+
+static int ett_nari_serial_iec103;
+static int ett_nari_ctrl;
+static int ett_nari_asdu;
+static int ett_nari_cp56time;
+static int ett_nari_cp32time;
+static int ett_nari_gen;
+static int ett_nari_gen_entry;
+static int ett_nari_dist;
+static int ett_nari_dist_entry;
+static int ett_nari_sof;
+static int ett_nari_sdv;
+static int ett_nari_sdv_entry;
+
+static int hf_frame;
+static int hf_length;
+static int hf_length_dup;
+static int hf_ctrl;
+static int hf_ctrl_prm;
+static int hf_ctrl_fcb;
+static int hf_ctrl_fcv;
+static int hf_ctrl_acd;
+static int hf_ctrl_dfc;
+static int hf_ctrl_func;
+static int hf_linkaddr;
+static int hf_checksum;
+static int hf_stopchar;
+static int hf_spi;
+static int hf_nva;
+static int hf_point_name;
+static int hf_cp32time;
+static int hf_cp32time_ms;
+static int hf_cp32time_min;
+static int hf_cp32time_iv;
+static int hf_cp32time_hour;
+static int hf_cp32time_su;
+static int hf_typeid;
+static int hf_vsq;
+static int hf_vsq_sq;
+static int hf_vsq_num;
+static int hf_cot;
+static int hf_asdu_addr;
+static int hf_fun;
+static int hf_inf;
+static int hf_dpi;
+static int hf_scn;
+static int hf_rii;
+static int hf_ngd;
+static int hf_ngd_cont;
+static int hf_ngd_count;
+static int hf_nog;
+static int hf_raw;
+static int hf_gen_entry;
+static int hf_cp56time;
+static int hf_cp56time_ms;
+static int hf_cp56time_min;
+static int hf_cp56time_iv;
+static int hf_cp56time_hour;
+static int hf_cp56time_su;
+static int hf_cp56time_day;
+static int hf_cp56time_dow;
+static int hf_cp56time_month;
+static int hf_cp56time_year;
+static int hf_gen_gin_group;
+static int hf_gen_gin_entry;
+static int hf_gen_kod;
+static int hf_gen_datatype;
+static int hf_gen_datasize;
+static int hf_gen_datanumber;
+static int hf_gen_gid;
+static int hf_gen_desc;
+static int hf_gen_gid_ui;
+static int hf_gen_gid_float;
+static int hf_col;
+static int hf_dco;
+static int hf_tov;
+static int hf_fan;
+static int hf_acc;
+static int hf_ndv;
+static int hf_nfe;
+static int hf_sdv;
+static int hf_sdv_entry;
+static int hf_sdv_raw;
+static int hf_sdv_elem;
+static int hf_sdv_norm;
+static int hf_sdv_primary;
+static int hf_nof;
+static int hf_noc;
+static int hf_noe;
+static int hf_too;
+static int hf_rpv;
+static int hf_rdv;
+static int hf_rfa;
+static int hf_ret;
+static int hf_sof;
+static int hf_sof_tp;
+static int hf_sof_tm;
+static int hf_sof_test;
+static int hf_sof_otev;
+static int hf_dist_entry;
+static int hf_tag;
+static int hf_not;
+static int hf_tap;
+static int hf_int;
+static int hf_ch_info;
+static int hf_binary_time;
+static int hf_unused;
+
+static expert_field ei_asdu_truncated;
+static expert_field ei_asdu_unknown;
+static expert_field ei_sdv_no_scale;
+static expert_field ei_length_mismatch;
+static expert_field ei_frame_mismatch;
+static expert_field ei_stopchar_invalid;
+
+typedef struct {
+	guint32 key;
+	bool    set;
+	float   rpv;
+	float   rdv;
+	float   rfa;
+} nari_scale_slot_t;
+
+typedef struct {
+	nari_scale_slot_t slot[NARI_SCALE_SLOTS];
+} nari_conv_info_t;
+
+static const value_string asdu_type_vals[] = {
+	{ 1,  "ASDU1  带时标单点信息" },
+	{ 2,  "ASDU2  保护动作事件" },
+	{ 3,  "ASDU3  双点信息" },
+	{ 5,  "ASDU5  标识" },
+	{ 6,  "ASDU6  时间同步" },
+	{ 7,  "ASDU7  总查询" },
+	{ 8,  "ASDU8  总召启动/结束" },
+	{ 9,  "ASDU9  测量值" },
+	{ 10, "ASDU10 通用分类数据" },
+	{ 20, "ASDU20 一般命令" },
+	{ 21, "ASDU21 通用分类命令" },
+	{ 36, "ASDU36 脉冲电度" },
+	{ 43, "ASDU43 总查询遥信" },
+	{ 50, "ASDU50 遥测" },
+	{ 88, "ASDU88 电度冻结" },
+	{ 23, "ASDU23 被记录的扰动表 (List of recorded disturbances)" },
+	{ 24, "ASDU24 扰动数据传输的命令 (Disturbance data transmission command)" },
+	{ 25, "ASDU25 扰动数据传输的认可 (Acknowledgement of disturbance data transmission)" },
+	{ 26, "ASDU26 扰动数据传输准备就绪 (Disturbance data transmission ready)" },
+	{ 27, "ASDU27 被记录的通道传输准备就绪 (Ready for transmission of recorded channel)" },
+	{ 28, "ASDU28 带标志的状态变位传输准备就绪 (Ready for transmission of state change with tag)" },
+	{ 29, "ASDU29 传送带标志的状态变位 (Transmission of state change with tag)" },
+	{ 30, "ASDU30 传输扰动值 (Transmission of disturbance values)" },
+	{ 31, "ASDU31 传送结束 (End of transmission)" },
+	{ 0, NULL }
+};
+
+static const true_false_string tfs_sof_tp = {
+	"被记录的故障跳闸 (Tripped)",
+	"被记录的故障未跳闸 (Not tripped)"
+};
+static const true_false_string tfs_sof_tm = {
+	"扰动数据正在传输 (Transmitting)",
+	"扰动数据等待传输 (Waiting)"
+};
+static const true_false_string tfs_sof_test = {
+	"测试模式时记录的扰动数据 (Test mode)",
+	"正常操作时记录的扰动数据 (Normal operation)"
+};
+static const true_false_string tfs_sof_otev = {
+	"由其他事件触发 (Other event)",
+	"由启动/检出故障触发 (Startup/fault detection)"
+};
+
+static const value_string kod_vals[] = {
+	{ 0x01, "实际值 (Actual value)" },
+	{ 0x0A, "描述 (Description)" },
+	{ 0, NULL }
+};
+
+static const value_string gdd_type_vals[] = {
+	{ 1,  "OS8ASCII" },
+	{ 2,  "BS1" },
+	{ 3,  "UI" },
+	{ 4,  "I" },
+	{ 5,  "UF" },
+	{ 6,  "F" },
+	{ 7,  "R32.23" },
+	{ 9,  "DPI" },
+	{ 10, "SPI" },
+	{ 12, "TED" },
+	{ 22, "GSE" },
+	{ 23, "Data structure" },
+	{ 0, NULL }
+};
+
+/* B.6.26 命令类型 (TOO) — IEC 60870-5-103 扰动数据传输 */
+static const value_string too_vals[] = {
+	{ 1,  "选择故障 (Selection of fault)" },
+	{ 2,  "请求扰动数据 (Request disturbance data)" },
+	{ 3,  "终止扰动数据 (Termination of disturbance data)" },
+	{ 4,  "请求扰动表 (Request disturbance list)" },
+	{ 5,  "终止扰动表 (Termination of disturbance list)" },
+	{ 6,  "请求通道表及标志 (Request channel list and tags)" },
+	{ 7,  "终止通道表及标志 (Termination of channel list and tags)" },
+	{ 8,  "认可扰动数据传输 (Positive acknowledgement)" },
+	{ 9,  "否定认可 (Negative acknowledgement)" },
+	{ 16, "请求通道表及标志 (Request channel list and tags)" },
+	{ 17, "终止通道表及标志 (Termination of channel list and tags)" },
+	{ 18, "请求扰动表 (Request disturbance list)" },
+	{ 19, "终止扰动表 (Termination of disturbance list)" },
+	{ 20, "请求标志 (Request tags)" },
+	{ 21, "终止标志 (Termination of tags)" },
+	{ 22, "请求扰动表 (Request disturbance list)" },
+	{ 24, "请求被记录的扰动表 (Request list of recorded disturbances)" },
+	{ 32, "终止扰动数据传输 (Termination of disturbance data transmission)" },
+	{ 64, "按优先级请求扰动数据 (Request disturbance data by priority)" },
+	{ 68, "选择通道传输 (Selection of channel for transmission)" },
+	{ 0, NULL }
+};
+
+/* B.6.27 扰动值类型 (TOV) */
+static const value_string tov_vals[] = {
+	{ 1,   "瞬时值 (Instantaneous value)" },
+	{ 201, "幅值 (Amplitude value)" },
+	{ 0, NULL }
+};
+
+/* B.6.5 双点信息 (DPI) */
+static const value_string dpi_vals[] = {
+	{ 0, "不确定 (Indeterminate)" },
+	{ 1, "分/OFF (Off)" },
+	{ 2, "合/ON (On)" },
+	{ 3, "无效 (Invalid)" },
+	{ 0, NULL }
+};
+
+static const value_string frame_vals[] = {
+	{ NARI_FT12_VAR,    "可变帧长" },
+	{ NARI_FT12_FIXED,  "固定帧长" },
+	{ NARI_FT12_SINGLE, "单字符" },
+	{ 0, NULL }
+};
+
+static const value_string prm_vals[] = {
+	{ 0, "从站->主站" },
+	{ 1, "主站->从站" },
+	{ 0, NULL }
+};
+
+static const value_string func_pri_vals[] = {
+	{ 0,  "复位通信单元" },
+	{ 3,  "发送/确认 用户数据" },
+	{ 4,  "发送/无回答 用户数据" },
+	{ 7,  "复位帧计数位" },
+	{ 9,  "召唤链路状态" },
+	{ 10, "召唤1级数据" },
+	{ 11, "召唤2级数据" },
+	{ 0, NULL }
+};
+
+static const value_string func_sec_vals[] = {
+	{ 0,  "确认" },
+	{ 1,  "链路忙" },
+	{ 8,  "以数据响应" },
+	{ 9,  "无所召唤数据" },
+	{ 11, "响应链路状态" },
+	{ 0, NULL }
+};
+
+static const value_string cot_vals[] = {
+	{ 1,  "自发(突发)" },
+	{ 6,  "上电启动" },
+	{ 8,  "时间同步" },
+	{ 9,  "总召唤启动" },
+	{ 10, "总召唤结束" },
+	{ 20, "命令肯定认可" },
+	{ 21, "命令否定认可" },
+	{ 31, "扰动数据传输" },
+	{ 40, "写参数" },
+	{ 42, "读参数" },
+	{ 0, NULL }
+};
+
+static const value_string spi_vals[] = {
+	{ 0, "分/断开" },
+	{ 1, "合/投入" },
+	{ 0, NULL }
+};
+
+typedef struct {
+	uint8_t fun;
+	uint8_t inf;
+	const char *name;
+} nari_point_name_t;
+
+/* Example FUN=1 point names from 南瑞103点表清单.md */
+static const nari_point_name_t nari_point_names[] = {
+	{ 1, 92,  "1#进线 Ia" },
+	{ 1, 93,  "1#进线 Ib" },
+	{ 1, 94,  "1#进线 Ic" },
+	{ 1, 95,  "1#进线 In" },
+	{ 1, 96,  "1#进线 Ua" },
+	{ 1, 97,  "1#进线 Ub" },
+	{ 1, 98,  "1#进线 Uc" },
+	{ 1, 99,  "有功功率 P" },
+	{ 1, 100, "无功功率 Q" },
+	{ 1, 101, "功率因数 cos" },
+	{ 1, 102, "频率 f" },
+	{ 1, 103, "装置温度" },
+	{ 1, 149, "1#开关合位" },
+	{ 1, 150, "1#开关跳位" },
+	{ 1, 151, "弹簧未储能" },
+	{ 1, 152, "SF6气压低告警" },
+	{ 1, 153, "开关就地/远方" },
+	{ 1, 154, "装置告警总" },
+	{ 1, 155, "装置故障总" },
+	{ 1, 48,  "1#开关遥控" },
+	{ 1, 50,  "信号复归" },
+	{ 1, 6,   "正向有功电度" },
+	{ 1, 7,   "反向有功电度" },
+	{ 0, 0, NULL }
+};
+
+static const char *
+nari_lookup_point_name(uint8_t fun, uint8_t inf)
+{
+	const nari_point_name_t *p;
+	for (p = nari_point_names; p->name != NULL; p++) {
+		if (p->fun == fun && p->inf == inf)
+			return p->name;
+	}
+	return NULL;
+}
+
+/* ---- Chinese / padded string helpers (from packet-shandong-iec103.c) ---- */
+
+static int
+trim_nul_len(tvbuff_t *tvb, int offset, int len)
+{
+	while (len > 0 && tvb_get_uint8(tvb, offset + len - 1) == 0)
+		len--;
+	return len;
+}
+
+static bool
+bytes_are_valid_utf8(tvbuff_t *tvb, int offset, int len)
+{
+	int i = 0;
+
+	while (i < len) {
+		uint8_t c = tvb_get_uint8(tvb, offset + i);
+		int need, j;
+
+		if (c <= 0x7f) {
+			i++;
+			continue;
+		}
+		if ((c & 0xe0) == 0xc0)
+			need = 1;
+		else if ((c & 0xf0) == 0xe0)
+			need = 2;
+		else if ((c & 0xf8) == 0xf0)
+			need = 3;
+		else
+			return false;
+		if (i + need >= len)
+			return false;
+		if (c == 0xc0 || c == 0xc1 || c >= 0xf5)
+			return false;
+		for (j = 1; j <= need; j++) {
+			if ((tvb_get_uint8(tvb, offset + i + j) & 0xc0) != 0x80)
+				return false;
+		}
+		i += 1 + need;
+	}
+	return true;
+}
+
+static int
+trim_incomplete_utf8_tail(tvbuff_t *tvb, int offset, int len)
+{
+	int i;
+
+	if (len <= 0)
+		return 0;
+	i = len - 1;
+	while (i > 0 && (tvb_get_uint8(tvb, offset + i) & 0xc0) == 0x80)
+		i--;
+	if (i < len - 1 || (tvb_get_uint8(tvb, offset + i) & 0x80) != 0) {
+		uint8_t c = tvb_get_uint8(tvb, offset + i);
+		int need = 0;
+
+		if ((c & 0xe0) == 0xc0)
+			need = 2;
+		else if ((c & 0xf0) == 0xe0)
+			need = 3;
+		else if ((c & 0xf8) == 0xf0)
+			need = 4;
+		else if ((c & 0x80) != 0)
+			return i;
+		if (need > 0 && i + need > len)
+			return i;
+	}
+	return len;
+}
+
+static int
+zh_string_span(tvbuff_t *tvb, int offset, int len, unsigned *encoding)
+{
+	int slim = trim_nul_len(tvb, offset, len);
+
+	*encoding = ENC_GB18030;
+	if (slim <= 0)
+		return 0;
+	if (bytes_are_valid_utf8(tvb, offset, slim)) {
+		*encoding = ENC_UTF_8;
+	} else {
+		int cut = trim_incomplete_utf8_tail(tvb, offset, slim);
+
+		if (cut > 0 && cut < slim && bytes_are_valid_utf8(tvb, offset, cut)) {
+			slim = cut;
+			*encoding = ENC_UTF_8;
+		}
+	}
+	return slim;
+}
+
+static void
+proto_tree_add_zh_string(proto_tree *tree, int hfindex, tvbuff_t *tvb,
+	int offset, int len)
+{
+	unsigned encoding;
+	int slim = zh_string_span(tvb, offset, len, &encoding);
+
+	if (slim <= 0) {
+		proto_tree_add_string(tree, hfindex, tvb, offset, len, "");
+		return;
+	}
+	proto_tree_add_item(tree, hfindex, tvb, offset, slim, encoding);
+}
+
+static void
+dissect_cp56time(tvbuff_t *tvb, int *offset, proto_tree *tree)
+{
+	proto_item *ti;
+	proto_tree *tm_tree;
+	nstime_t datetime;
+	struct tm tm;
+	uint16_t ms;
+	uint8_t min, hour, day_dow, month, year;
+	int su;
+
+	if (tvb_reported_length_remaining(tvb, *offset) < 7)
+		return;
+
+	ms = tvb_get_letohs(tvb, *offset);
+	min = tvb_get_uint8(tvb, *offset + 2) & 0x3f;
+	hour = tvb_get_uint8(tvb, *offset + 3) & 0x1f;
+	su = (tvb_get_uint8(tvb, *offset + 3) & 0x80) ? 1 : 0;
+	day_dow = tvb_get_uint8(tvb, *offset + 4);
+	month = tvb_get_uint8(tvb, *offset + 5) & 0x0f;
+	year = tvb_get_uint8(tvb, *offset + 6) & 0x7f;
+
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_sec = ms / 1000;
+	tm.tm_min = min;
+	tm.tm_hour = hour;
+	tm.tm_mday = day_dow & 0x1f;
+	tm.tm_mon = month > 0 ? month - 1 : 0;
+	tm.tm_year = year;
+	if (tm.tm_year < 70)
+		tm.tm_year += 100;
+	tm.tm_isdst = su ? 1 : -1;
+
+	datetime.secs = mktime(&tm);
+	datetime.nsecs = (ms % 1000) * 1000000;
+
+	ti = proto_tree_add_time(tree, hf_cp56time, tvb, *offset, 7, &datetime);
+	tm_tree = proto_item_add_subtree(ti, ett_nari_cp56time);
+
+	proto_tree_add_item(tm_tree, hf_cp56time_ms, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	*offset += 2;
+	proto_tree_add_item(tm_tree, hf_cp56time_min, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp56time_iv, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tm_tree, hf_cp56time_hour, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp56time_su, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tm_tree, hf_cp56time_day, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp56time_dow, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tm_tree, hf_cp56time_month, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tm_tree, hf_cp56time_year, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+}
+
+/* Per-TCP-stream cache of ASDU27 RPV/RDV/RFA for ASDU30 primary-value calculation. */
+static guint32
+nari_scale_key(uint8_t addr, uint16_t fan, uint8_t acc)
+{
+	return ((guint32)addr << 24) | ((guint32)fan << 8) | (guint32)acc;
+}
+
+static nari_conv_info_t *
+nari_get_conv_info(packet_info *pinfo)
+{
+	conversation_t *conv;
+	nari_conv_info_t *info;
+
+	conv = find_or_create_conversation(pinfo);
+	info = (nari_conv_info_t *)conversation_get_proto_data(conv, proto_nari_serial_iec103);
+	if (info == NULL) {
+		info = wmem_new0(wmem_file_scope(), nari_conv_info_t);
+		conversation_add_proto_data(conv, proto_nari_serial_iec103, info);
+	}
+	return info;
+}
+
+static void
+nari_store_channel_scale(packet_info *pinfo, uint8_t addr, uint16_t fan, uint8_t acc,
+	float rpv, float rdv, float rfa)
+{
+	nari_conv_info_t *info;
+	guint32 key = nari_scale_key(addr, fan, acc);
+	unsigned i;
+
+	if (pinfo == NULL)
+		return;
+
+	info = nari_get_conv_info(pinfo);
+	for (i = 0; i < NARI_SCALE_SLOTS; i++) {
+		if (info->slot[i].set && info->slot[i].key == key)
+			goto update;
+	}
+	for (i = 0; i < NARI_SCALE_SLOTS; i++) {
+		if (!info->slot[i].set) {
+			info->slot[i].key = key;
+			info->slot[i].set = true;
+			goto update;
+		}
+	}
+	return;
+
+update:
+	info->slot[i].rpv = rpv;
+	info->slot[i].rdv = rdv;
+	info->slot[i].rfa = rfa;
+}
+
+static bool
+nari_lookup_channel_scale(packet_info *pinfo, uint8_t addr, uint16_t fan, uint8_t acc,
+	float *rpv, float *rdv, float *rfa)
+{
+	conversation_t *conv;
+	nari_conv_info_t *info;
+	guint32 key = nari_scale_key(addr, fan, acc);
+	unsigned i;
+
+	if (pinfo == NULL || rpv == NULL || rdv == NULL || rfa == NULL)
+		return false;
+
+	conv = find_conversation_pinfo(pinfo, 0);
+	if (conv == NULL)
+		return false;
+
+	info = (nari_conv_info_t *)conversation_get_proto_data(conv, proto_nari_serial_iec103);
+	if (info == NULL)
+		return false;
+
+	for (i = 0; i < NARI_SCALE_SLOTS; i++) {
+		if (info->slot[i].set && info->slot[i].key == key) {
+			*rpv = info->slot[i].rpv;
+			*rdv = info->slot[i].rdv;
+			*rfa = info->slot[i].rfa;
+			return true;
+		}
+	}
+	return false;
+}
+
+/* B.6.22 F16 + B.6.16–18: 一次值 = SDV × RFA × RPV / (RDV × 32768) */
+static float
+nari_sdv_to_primary(int16_t sdv, float rpv, float rdv, float rfa)
+{
+	if (rdv == 0.0f)
+		return 0.0f;
+	return ((float)sdv * rfa * rpv) / (rdv * NARI_SDV_F16_DIVISOR);
+}
+
+/* B.6.28 四个八位位组二进制时间 — 相对时间 (ms) */
+static void
+dissect_binary_time(tvbuff_t *tvb, int *offset, proto_tree *tree)
+{
+	if (tvb_reported_length_remaining(tvb, *offset) < 4)
+		return;
+	proto_tree_add_item(tree, hf_binary_time, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+	*offset += 4;
+}
+
+/* ASDU24/25/31 公共体: TOO + TOV + FAN(2) + ACC (B.6.26, B.6.27, B.6.6, B.6.1) */
+static void
+dissect_dist_cmd_body(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
+{
+	if (end - *offset < 5)
+		return;
+	proto_tree_add_item(tree, hf_too, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_tov, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	*offset += 2;
+	proto_tree_add_item(tree, hf_acc, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+}
+
+static void
+dissect_dist_unused2(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
+{
+	if (end - *offset < 2)
+		return;
+	proto_tree_add_item(tree, hf_unused, tvb, *offset, 2, ENC_NA);
+	*offset += 2;
+}
+
+static void
+format_gid_value_summary(wmem_allocator_t *scope, tvbuff_t *tvb, int gid_off,
+	int gid_len, uint8_t datatype, uint8_t datasize, uint8_t datanumber,
+	uint8_t kod, char *buf, size_t buf_len)
+{
+	if (buf_len == 0)
+		return;
+	buf[0] = '\0';
+	if (gid_len <= 0) {
+		(void)snprintf(buf, buf_len, "-");
+		return;
+	}
+	if (kod == KOD_DESC || datatype == GDD_OS8ASCII) {
+		int slim = trim_nul_len(tvb, gid_off, gid_len);
+		unsigned encoding = ENC_GB18030;
+		char *s;
+
+		if (slim <= 0) {
+			(void)snprintf(buf, buf_len, "\"\"");
+			return;
+		}
+		if (bytes_are_valid_utf8(tvb, gid_off, slim))
+			encoding = ENC_UTF_8;
+		s = (char *)tvb_get_string_enc(scope, tvb, gid_off, slim, encoding);
+		(void)snprintf(buf, buf_len, "\"%s\"", s ? s : "");
+		return;
+	}
+	if (datatype == GDD_UI && datasize == 2 && datanumber == 1 && gid_len >= 2) {
+		(void)snprintf(buf, buf_len, "%u", tvb_get_letohs(tvb, gid_off));
+		return;
+	}
+	if (datatype == GDD_UI && datasize == 1 && datanumber == 1 && gid_len >= 1) {
+		(void)snprintf(buf, buf_len, "%u", tvb_get_uint8(tvb, gid_off));
+		return;
+	}
+	if (datatype == GDD_R32 && datasize == 4 && datanumber == 1 && gid_len >= 4) {
+		(void)snprintf(buf, buf_len, "%g", (double)tvb_get_letohieee_float(tvb, gid_off));
+		return;
+	}
+	if (datatype == GDD_DPI && gid_len >= 1) {
+		(void)snprintf(buf, buf_len, "0x%02x", tvb_get_uint8(tvb, gid_off));
+		return;
+	}
+	(void)snprintf(buf, buf_len, "%d字节", gid_len);
+}
+
+static void
+dissect_gdd_gid(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb,
+	int *offset, int end, uint8_t kod)
+{
+	uint8_t datatype, datasize, datanumber;
+	int gid_len;
+
+	if (*offset + 3 > end) {
+		expert_add_info(pinfo, tree, &ei_asdu_truncated);
+		*offset = end;
+		return;
+	}
+	datatype = tvb_get_uint8(tvb, *offset);
+	proto_tree_add_item(tree, hf_gen_datatype, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	datasize = tvb_get_uint8(tvb, *offset);
+	proto_tree_add_item(tree, hf_gen_datasize, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	datanumber = tvb_get_uint8(tvb, *offset);
+	proto_tree_add_item(tree, hf_gen_datanumber, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+
+	gid_len = (int)datasize * (int)datanumber;
+	if (gid_len < 0 || *offset + gid_len > end) {
+		expert_add_info(pinfo, tree, &ei_asdu_truncated);
+		*offset = end;
+		return;
+	}
+	if (gid_len == 0)
+		return;
+
+	if (kod == KOD_DESC || datatype == GDD_OS8ASCII) {
+		proto_tree_add_zh_string(tree, hf_gen_desc, tvb, *offset, gid_len);
+		*offset += gid_len;
+		return;
+	}
+	if (datatype == GDD_UI && datasize == 2 && datanumber == 1) {
+		proto_tree_add_item(tree, hf_gen_gid_ui, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+		*offset += 2;
+		return;
+	}
+	if (datatype == GDD_UI && datasize == 1 && datanumber == 1) {
+		proto_tree_add_item(tree, hf_gen_gid_ui, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		return;
+	}
+	if (datatype == GDD_R32 && datasize == 4 && datanumber == 1) {
+		proto_tree_add_item(tree, hf_gen_gid_float, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+		*offset += 4;
+		return;
+	}
+	proto_tree_add_item(tree, hf_gen_gid, tvb, *offset, gid_len, ENC_NA);
+	*offset += gid_len;
+}
+
+static void
+dissect_generic_elements(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+	int *offset, int end, bool is_command)
+{
+	unsigned nds;
+	unsigned i;
+	uint8_t ngd;
+
+	if (*offset >= end)
+		return;
+
+	proto_tree_add_item(tree, hf_rii, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	if (*offset >= end)
+		return;
+
+	if (is_command) {
+		nds = tvb_get_uint8(tvb, *offset);
+		proto_tree_add_item(tree, hf_nog, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		for (i = 0; i < nds && *offset + 3 <= end; i++) {
+			proto_item *gi;
+			proto_tree *gt;
+			uint8_t group, entry, kod;
+
+			group = tvb_get_uint8(tvb, *offset);
+			entry = tvb_get_uint8(tvb, *offset + 1);
+			kod = tvb_get_uint8(tvb, *offset + 2);
+			gi = proto_tree_add_none_format(tree, hf_gen_entry, tvb, *offset, 3,
+				"通用分类命令元素 %u: 组号=%u 条目号=%u KOD=%s",
+				i + 1, group, entry,
+				val_to_str_const(kod, kod_vals, "未知"));
+			gt = proto_item_add_subtree(gi, ett_nari_gen_entry);
+			proto_tree_add_item(gt, hf_gen_gin_group, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+			(*offset)++;
+			proto_tree_add_item(gt, hf_gen_gin_entry, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+			(*offset)++;
+			proto_tree_add_item(gt, hf_gen_kod, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+			(*offset)++;
+			proto_item_set_end(gi, tvb, *offset);
+		}
+		return;
+	}
+
+	ngd = tvb_get_uint8(tvb, *offset);
+	nds = ngd & 0x3f;
+	proto_tree_add_item(tree, hf_ngd, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tree, hf_ngd_cont, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tree, hf_ngd_count, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+
+	for (i = 0; i < nds && *offset + 3 <= end; i++) {
+		proto_item *gi;
+		proto_tree *gt;
+		uint8_t group, entry, kod;
+		uint8_t datatype = 0, datasize = 0, datanumber = 0;
+		int start = *offset;
+		int gid_off;
+		int gid_len = 0;
+		char value_buf[96];
+
+		group = tvb_get_uint8(tvb, *offset);
+		entry = tvb_get_uint8(tvb, *offset + 1);
+		kod = tvb_get_uint8(tvb, *offset + 2);
+
+		gi = proto_tree_add_none_format(tree, hf_gen_entry, tvb, *offset, -1,
+			"通用分类数据元素 %u", i + 1);
+		gt = proto_item_add_subtree(gi, ett_nari_gen_entry);
+
+		proto_tree_add_item(gt, hf_gen_gin_group, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		proto_tree_add_item(gt, hf_gen_gin_entry, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		proto_tree_add_item(gt, hf_gen_kod, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+
+		if (*offset + 3 <= end) {
+			datatype = tvb_get_uint8(tvb, *offset);
+			datasize = tvb_get_uint8(tvb, *offset + 1);
+			datanumber = tvb_get_uint8(tvb, *offset + 2);
+			gid_len = (int)datasize * (int)datanumber;
+			gid_off = *offset + 3;
+			if (gid_len < 0 || gid_off + gid_len > end)
+				gid_len = 0;
+			format_gid_value_summary(pinfo->pool, tvb, gid_off, gid_len,
+				datatype, datasize, datanumber, kod,
+				value_buf, sizeof value_buf);
+			proto_item_set_text(gi,
+				"通用分类数据元素 %u: 组号=%u 条目号=%u 数据类型=%s 实际值=%s",
+				i + 1, group, entry,
+				val_to_str_const(datatype, gdd_type_vals, "未知"),
+				value_buf);
+		} else {
+			proto_item_set_text(gi,
+				"通用分类数据元素 %u: 组号=%u 条目号=%u",
+				i + 1, group, entry);
+		}
+
+		dissect_gdd_gid(gt, pinfo, tvb, offset, end, kod);
+		proto_item_set_len(gi, *offset - start);
+	}
+}
+
+static void
+nari_wave_tap_queue(packet_info *pinfo, nari_wave_tap_data_t *data)
+{
+	if (nari_wave_tap != -1)
+		tap_queue_packet(nari_wave_tap, pinfo, data);
+}
+
+static void
+dissect_asdu23(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end,
+	uint8_t vsq, uint8_t asdu_addr)
+{
+	unsigned num = vsq & 0x7f;
+	unsigned i;
+
+	for (i = 0; i < num && *offset + NARI_ASDU23_ENTRY_LEN <= end; i++) {
+		proto_item *pi;
+		proto_item *sof_pi;
+		proto_tree *pt;
+		proto_tree *sof_tree;
+		int start = *offset;
+		uint16_t fan;
+		uint8_t sof;
+		nari_wave_tap_data_t tap_data;
+
+		pi = proto_tree_add_none_format(tree, hf_dist_entry, tvb, *offset, NARI_ASDU23_ENTRY_LEN,
+			"扰动表条目 %u", i + 1);
+		pt = proto_item_add_subtree(pi, ett_nari_dist_entry);
+
+		proto_tree_add_item(pt, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+		fan = tvb_get_letohs(tvb, *offset);
+		*offset += 2;
+		sof_pi = proto_tree_add_item(pt, hf_sof, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		sof = tvb_get_uint8(tvb, *offset);
+		sof_tree = proto_item_add_subtree(sof_pi, ett_nari_sof);
+		proto_tree_add_item(sof_tree, hf_sof_tp, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(sof_tree, hf_sof_tm, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(sof_tree, hf_sof_test, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(sof_tree, hf_sof_otev, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		dissect_cp56time(tvb, offset, pt);
+
+		memset(&tap_data, 0, sizeof(tap_data));
+		tap_data.kind = NARI_WAVE_TAP_ASDU23;
+		tap_data.asdu_addr = asdu_addr;
+		tap_data.fan = fan;
+		tap_data.sof = sof;
+		tvb_memcpy(tvb, tap_data.cp56time, start + 3, 7);
+		nari_wave_tap_queue(pinfo, &tap_data);
+
+		proto_item_set_len(pi, *offset - start);
+	}
+}
+
+static void
+dissect_asdu30(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end,
+	uint8_t addr)
+{
+	uint16_t ndv, nfe, fan;
+	uint8_t acc;
+	int sdv_len;
+	proto_item *pi, *list_pi, *entry_pi, *scale_pi;
+	proto_tree *pt, *list_tree, *entry_tree;
+	int start = *offset;
+	unsigned i;
+	bool have_scale = false;
+	float rpv = 1.0f, rdv = 1.0f, rfa = 1.0f;
+	nari_wave_tap_data_t tap_data;
+
+	if (end - *offset < 10)
+		return;
+
+	memset(&tap_data, 0, sizeof(tap_data));
+
+	pi = proto_tree_add_none_format(tree, hf_dist_entry, tvb, *offset, end - *offset,
+		"扰动值 (Disturbance values)");
+	pt = proto_item_add_subtree(pi, ett_nari_dist);
+
+	dissect_dist_unused2(pt, tvb, offset, end);
+	proto_tree_add_item(pt, hf_tov, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(pt, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	fan = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+	proto_tree_add_item(pt, hf_acc, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	acc = tvb_get_uint8(tvb, *offset);
+	(*offset)++;
+	proto_tree_add_item(pt, hf_ndv, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	ndv = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+	proto_tree_add_item(pt, hf_nfe, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	nfe = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+
+	have_scale = nari_lookup_channel_scale(pinfo, addr, fan, acc, &rpv, &rdv, &rfa);
+	if (!have_scale) {
+		scale_pi = proto_tree_add_none_format(pt, hf_sdv, tvb, *offset, 0,
+			"一次值换算: 未找到同连接 ASDU27 的 RPV/RDV/RFA");
+		expert_add_info(pinfo, scale_pi, &ei_sdv_no_scale);
+	} else {
+		proto_tree_add_none_format(pt, hf_sdv, tvb, *offset, 0,
+			"一次值换算: RPV=%g RDV=%g RFA=%g (来自 ASDU27)", rpv, rdv, rfa);
+	}
+
+	sdv_len = (int)ndv * 2;
+	if (sdv_len > 0 && *offset + sdv_len <= end) {
+		list_pi = proto_tree_add_none_format(pt, hf_sdv, tvb, *offset, sdv_len,
+			"单个扰动值列表 (SDV × %u)", ndv);
+		list_tree = proto_item_add_subtree(list_pi, ett_nari_sdv);
+
+		for (i = 0; i < ndv && *offset + 2 <= end; i++) {
+			int16_t sdv = (int16_t)tvb_get_letohs(tvb, *offset);
+			float norm = (float)sdv / NARI_SDV_F16_DIVISOR;
+			float primary = nari_sdv_to_primary(sdv, rpv, rdv, rfa);
+			int entry_start = *offset;
+
+			if (tap_data.sdv_count < NARI_WAVE_MAX_SDV)
+				tap_data.sdv[tap_data.sdv_count++] = sdv;
+
+			if (have_scale) {
+				entry_pi = proto_tree_add_none_format(list_tree, hf_sdv_entry, tvb,
+					*offset, 2,
+					"扰动值 %u (元素 %u): SDV=%d, 一次值=%.6g",
+					i + 1, (unsigned)nfe + i, (int)sdv, primary);
+			} else {
+				entry_pi = proto_tree_add_none_format(list_tree, hf_sdv_entry, tvb,
+					*offset, 2,
+					"扰动值 %u (元素 %u): SDV=%d",
+					i + 1, (unsigned)nfe + i, (int)sdv);
+			}
+			entry_tree = proto_item_add_subtree(entry_pi, ett_nari_sdv_entry);
+			proto_tree_add_uint(entry_tree, hf_sdv_elem, tvb, entry_start, 2,
+				(unsigned)nfe + i);
+			proto_tree_add_int(entry_tree, hf_sdv_raw, tvb, entry_start, 2, sdv);
+			{
+				proto_item *ti;
+
+				ti = proto_tree_add_float(entry_tree, hf_sdv_norm, tvb, entry_start, 2, norm);
+				proto_item_set_generated(ti);
+				if (have_scale) {
+					ti = proto_tree_add_float(entry_tree, hf_sdv_primary, tvb, entry_start, 2, primary);
+					proto_item_set_generated(ti);
+				}
+			}
+			*offset += 2;
+			proto_item_set_len(entry_pi, *offset - entry_start);
+		}
+	}
+
+	tap_data.kind = NARI_WAVE_TAP_ASDU30;
+	tap_data.asdu_addr = addr;
+	tap_data.fan = fan;
+	tap_data.acc = acc;
+	tap_data.ndv = ndv;
+	tap_data.nfe = nfe;
+	tap_data.sdv_count = (uint16_t)(tap_data.sdv_count);
+	nari_wave_tap_queue(pinfo, &tap_data);
+
+	proto_item_set_len(pi, *offset - start);
+}
+
+static void
+dissect_asdu29_tags(proto_tree *tree, tvbuff_t *tvb, int *offset, int end,
+	uint8_t not)
+{
+	unsigned i;
+
+	for (i = 0; i < not && *offset + NARI_ASDU29_TAG_LEN <= end; i++) {
+		proto_item *pi;
+		proto_tree *pt;
+		int start = *offset;
+		uint16_t tap;
+		uint8_t fun, inf, dpi_byte, dpi;
+
+		tap = tvb_get_letohs(tvb, *offset);
+		fun = tvb_get_uint8(tvb, *offset + 2);
+		inf = tvb_get_uint8(tvb, *offset + 3);
+		dpi_byte = tvb_get_uint8(tvb, *offset + 4);
+		dpi = dpi_byte & 0x03;
+
+		pi = proto_tree_add_none_format(tree, hf_tag, tvb, *offset,
+			NARI_ASDU29_TAG_LEN,
+			"带标志的状态变位 %u: TAP=%u FUN=%u INF=%u DPI=%u (%s)",
+			i + 1, tap, fun, inf, dpi,
+			val_to_str_const(dpi, dpi_vals, "未知"));
+		pt = proto_item_add_subtree(pi, ett_nari_dist_entry);
+		proto_tree_add_item(pt, hf_tap, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+		*offset += 2;
+		proto_tree_add_item(pt, hf_fun, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		proto_tree_add_item(pt, hf_inf, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		proto_tree_add_item(pt, hf_dpi, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+		(*offset)++;
+		proto_item_set_len(pi, *offset - start);
+	}
+}
+
+static void
+dissect_asdu26(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end,
+	uint8_t asdu_addr)
+{
+	uint16_t fan, nof, int_us;
+	uint8_t noc, ch_info, noe;
+	nari_wave_tap_data_t tap_data;
+
+	if (end - *offset < NARI_ASDU26_BODY_LEN)
+		return;
+
+	dissect_dist_unused2(tree, tvb, offset, end);
+	proto_tree_add_item(tree, hf_tov, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	fan = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+	proto_tree_add_item(tree, hf_nof, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	nof = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+	proto_tree_add_item(tree, hf_noc, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	noc = tvb_get_uint8(tvb, *offset);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_ch_info, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	ch_info = tvb_get_uint8(tvb, *offset);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_noe, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	noe = tvb_get_uint8(tvb, *offset);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_int, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	int_us = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+	dissect_binary_time(tvb, offset, tree);
+
+	memset(&tap_data, 0, sizeof(tap_data));
+	tap_data.kind = NARI_WAVE_TAP_ASDU26;
+	tap_data.asdu_addr = asdu_addr;
+	tap_data.fan = fan;
+	tap_data.nof = nof;
+	tap_data.noc = noc;
+	tap_data.ch_info = ch_info;
+	tap_data.noe = noe;
+	tap_data.int_us = int_us;
+	nari_wave_tap_queue(pinfo, &tap_data);
+}
+
+static void
+dissect_asdu27(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, int *offset, int end,
+	uint8_t addr)
+{
+	uint16_t fan;
+	uint8_t acc;
+	float rpv, rdv, rfa;
+
+	if (end - *offset < NARI_ASDU27_BODY_LEN)
+		return;
+
+	dissect_dist_unused2(tree, tvb, offset, end);
+	proto_tree_add_item(tree, hf_tov, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	fan = tvb_get_letohs(tvb, *offset);
+	*offset += 2;
+	proto_tree_add_item(tree, hf_acc, tvb, *offset, 1, ENC_LITTLE_ENDIAN);
+	acc = tvb_get_uint8(tvb, *offset);
+	(*offset)++;
+	proto_tree_add_item(tree, hf_rpv, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+	rpv = tvb_get_letohieee_float(tvb, *offset);
+	*offset += 4;
+	proto_tree_add_item(tree, hf_rdv, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+	rdv = tvb_get_letohieee_float(tvb, *offset);
+	*offset += 4;
+	proto_tree_add_item(tree, hf_rfa, tvb, *offset, 4, ENC_LITTLE_ENDIAN);
+	rfa = tvb_get_letohieee_float(tvb, *offset);
+	*offset += 4;
+
+	nari_store_channel_scale(pinfo, addr, fan, acc, rpv, rdv, rfa);
+
+	{
+		nari_wave_tap_data_t tap_data;
+
+		memset(&tap_data, 0, sizeof(tap_data));
+		tap_data.kind = NARI_WAVE_TAP_ASDU27;
+		tap_data.asdu_addr = addr;
+		tap_data.fan = fan;
+		tap_data.acc = acc;
+		tap_data.rpv = rpv;
+		tap_data.rdv = rdv;
+		tap_data.rfa = rfa;
+		nari_wave_tap_queue(pinfo, &tap_data);
+	}
+}
+
+static void
+dissect_asdu28(proto_tree *tree, tvbuff_t *tvb, int *offset, int end)
+{
+	if (end - *offset < NARI_ASDU28_BODY_LEN)
+		return;
+
+	dissect_dist_unused2(tree, tvb, offset, end);
+	proto_tree_add_item(tree, hf_fan, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	*offset += 2;
+}
+
+static void
+dissect_cp32time(tvbuff_t *tvb, int *offset, proto_tree *tree)
+{
+	proto_item *ti;
+	proto_tree *tm_tree;
+	uint16_t ms;
+	uint8_t min, hour;
+
+	if (tvb_reported_length_remaining(tvb, *offset) < 4)
+		return;
+	ms = tvb_get_letohs(tvb, *offset);
+	min = tvb_get_uint8(tvb, *offset + 2) & 0x3f;
+	hour = tvb_get_uint8(tvb, *offset + 3) & 0x1f;
+	ti = proto_tree_add_none_format(tree, hf_cp32time, tvb, *offset, 4,
+		"时标 CP32Time2a: %02u:%02u.%03u", hour, min, ms);
+	tm_tree = proto_item_add_subtree(ti, ett_nari_cp32time);
+	proto_tree_add_item(tm_tree, hf_cp32time_ms, tvb, *offset, 2, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp32time_min, tvb, *offset + 2, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp32time_iv, tvb, *offset + 2, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp32time_hour, tvb, *offset + 3, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(tm_tree, hf_cp32time_su, tvb, *offset + 3, 1, ENC_LITTLE_ENDIAN);
+	*offset += 4;
+}
+
+static void
+dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+	proto_item *asdu_item;
+	proto_tree *asdu_tree;
+	int offset = 0;
+	int end = (int)tvb_reported_length(tvb);
+	uint8_t typ, vsq, cot, asdu_addr, fun, inf, num;
+	const char *pname;
+	int i;
+
+	if (end < NARI_ASDU_HDR_LEN) {
+		if (end > 0)
+			proto_tree_add_item(tree, hf_raw, tvb, 0, end, ENC_NA);
+		return;
+	}
+
+	asdu_item = proto_tree_add_item(tree, proto_nari_serial_iec103, tvb, 0, end, ENC_NA);
+	proto_item_set_text(asdu_item, "南瑞串口103 ASDU");
+	asdu_tree = proto_item_add_subtree(asdu_item, ett_nari_asdu);
+
+	typ = tvb_get_uint8(tvb, offset);
+	proto_tree_add_item(asdu_tree, hf_typeid, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	col_append_sep_str(pinfo->cinfo, COL_INFO, ", ",
+		val_to_str_const(typ, asdu_type_vals, "ASDU"));
+	offset++;
+
+	vsq = tvb_get_uint8(tvb, offset);
+	num = vsq & 0x7f;
+	proto_tree_add_item(asdu_tree, hf_vsq, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(asdu_tree, hf_vsq_sq, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	proto_tree_add_item(asdu_tree, hf_vsq_num, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	offset++;
+
+	cot = tvb_get_uint8(tvb, offset);
+	proto_tree_add_item(asdu_tree, hf_cot, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " COT=%u(%s)", cot,
+		val_to_str_const(cot, cot_vals, "?"));
+	offset++;
+
+	asdu_addr = tvb_get_uint8(tvb, offset);
+	proto_tree_add_item(asdu_tree, hf_asdu_addr, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	offset++;
+
+	fun = tvb_get_uint8(tvb, offset);
+	proto_tree_add_item(asdu_tree, hf_fun, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	offset++;
+	inf = tvb_get_uint8(tvb, offset);
+	proto_tree_add_item(asdu_tree, hf_inf, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	offset++;
+	pname = nari_lookup_point_name(fun, inf);
+	if (pname != NULL) {
+		proto_item *pni = proto_tree_add_string(asdu_tree, hf_point_name, tvb, offset - 2, 2, pname);
+		proto_item_set_generated(pni);
+	}
+
+	switch (typ) {
+	case 1: /* SPI + CP56 (or CP32 fallback) */
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_spi, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		if (end - offset >= 7)
+			dissect_cp56time(tvb, &offset, asdu_tree);
+		else if (end - offset >= 4)
+			dissect_cp32time(tvb, &offset, asdu_tree);
+		break;
+	case 2: /* protection event: DPI + RET + FAN + CP32 */
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_dpi, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		if (end - offset >= 2) {
+			proto_tree_add_item(asdu_tree, hf_ret, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+			offset += 2;
+		}
+		if (end - offset >= 2) {
+			proto_tree_add_item(asdu_tree, hf_fan, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+			offset += 2;
+		}
+		dissect_cp32time(tvb, &offset, asdu_tree);
+		break;
+	case 3: /* dual-point / control */
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_dpi, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_dco, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		break;
+	case 5:
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_col, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		if (end - offset >= 8) {
+			proto_tree_add_zh_string(asdu_tree, hf_gen_desc, tvb, offset, 8);
+			offset += 8;
+		}
+		if (end - offset >= 8) {
+			proto_tree_add_zh_string(asdu_tree, hf_gen_desc, tvb, offset, 8);
+			offset += 8;
+		}
+		if (end - offset >= 8) {
+			proto_tree_add_zh_string(asdu_tree, hf_gen_desc, tvb, offset, 8);
+			offset += 8;
+		}
+		break;
+	case 6:
+		if (end - offset >= 7)
+			dissect_cp56time(tvb, &offset, asdu_tree);
+		break;
+	case 7:
+	case 8:
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_scn, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		break;
+	case 9:
+	case 50:
+		for (i = 0; i < num && end - offset >= 2; i++) {
+			proto_tree_add_item(asdu_tree, hf_nva, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+			offset += 2;
+		}
+		break;
+	case 36:
+	case 88:
+		for (i = 0; i < num && end - offset >= 4; i++) {
+			proto_tree_add_item(asdu_tree, hf_raw, tvb, offset, 4, ENC_NA);
+			offset += 4;
+		}
+		break;
+	case 43:
+		for (i = 0; i < num && offset < end; i++) {
+			if (!(vsq & 0x80) && i > 0 && offset < end) {
+				/* sequential: INF continues from header; values only */
+			}
+			proto_tree_add_item(asdu_tree, hf_spi, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		if (offset < end)
+			proto_tree_add_item(asdu_tree, hf_scn, tvb, offset++, 1, ENC_LITTLE_ENDIAN);
+		break;
+	case 10:
+		dissect_generic_elements(tvb, pinfo, asdu_tree, &offset, end, false);
+		break;
+	case 20:
+		if (offset < end) {
+			proto_tree_add_item(asdu_tree, hf_dco, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			offset++;
+		}
+		break;
+	case 21:
+		dissect_generic_elements(tvb, pinfo, asdu_tree, &offset, end, true);
+		break;
+	case 23:
+		dissect_asdu23(asdu_tree, pinfo, tvb, &offset, end, vsq, asdu_addr);
+		break;
+	case 24:
+	case 25:
+		dissect_dist_cmd_body(asdu_tree, tvb, &offset, end);
+		break;
+	case 26:
+		dissect_asdu26(asdu_tree, pinfo, tvb, &offset, end, asdu_addr);
+		break;
+	case 27:
+		dissect_asdu27(asdu_tree, pinfo, tvb, &offset, end, asdu_addr);
+		break;
+	case 28:
+		dissect_asdu28(asdu_tree, tvb, &offset, end);
+		break;
+	case 29: {
+		uint8_t not = 0;
+		uint16_t fan29 = 0;
+		int tag_off;
+		unsigned ti;
+		nari_wave_tap_data_t tap_data;
+
+		memset(&tap_data, 0, sizeof(tap_data));
+		tap_data.kind = NARI_WAVE_TAP_ASDU29;
+		tap_data.asdu_addr = asdu_addr;
+
+		if (end - offset >= 2) {
+			proto_tree_add_item(asdu_tree, hf_fan, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+			fan29 = tvb_get_letohs(tvb, offset);
+			tap_data.fan = fan29;
+			offset += 2;
+		}
+		if (offset < end) {
+			not = tvb_get_uint8(tvb, offset);
+			proto_tree_add_item(asdu_tree, hf_not, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+			tap_data.not_count = not;
+			offset++;
+		}
+		tag_off = offset;
+		dissect_asdu29_tags(asdu_tree, tvb, &offset, end, not);
+
+		for (ti = 0; ti < not && tap_data.tag_count < NARI_WAVE_MAX_TAGS; ti++) {
+			int pos = tag_off + (int)ti * NARI_ASDU29_TAG_LEN;
+
+			if (pos + NARI_ASDU29_TAG_LEN > end)
+				break;
+			tap_data.tags[tap_data.tag_count].tap = tvb_get_letohs(tvb, pos);
+			tap_data.tags[tap_data.tag_count].fun = tvb_get_uint8(tvb, pos + 2);
+			tap_data.tags[tap_data.tag_count].inf = tvb_get_uint8(tvb, pos + 3);
+			tap_data.tags[tap_data.tag_count].dpi = tvb_get_uint8(tvb, pos + 4) & 0x03;
+			tap_data.tag_count++;
+		}
+		nari_wave_tap_queue(pinfo, &tap_data);
+		break;
+		}
+	case 30: {
+		uint8_t acc_hint = 0;
+		uint16_t ndv_hint = 0;
+
+		if (end - offset >= 8) {
+			acc_hint = tvb_get_uint8(tvb, offset + 5);
+			ndv_hint = tvb_get_letohs(tvb, offset + 6);
+		}
+		dissect_asdu30(asdu_tree, pinfo, tvb, &offset, end, asdu_addr);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " ACC=%u NDV=%u", acc_hint, ndv_hint);
+		break;
+		}
+	case 31:
+		dissect_dist_cmd_body(asdu_tree, tvb, &offset, end);
+		break;
+	default:
+		expert_add_info(pinfo, asdu_item, &ei_asdu_unknown);
+		break;
+	}
+
+	if (offset < end)
+		proto_tree_add_item(asdu_tree, hf_raw, tvb, offset, end - offset, ENC_NA);
+}
+
+static int
+dissect_nari_serial_iec103(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+{
+	proto_item *ti, *ctrl_item, *expert_item;
+	proto_tree *nari_tree, *ctrl_tree;
+	uint8_t frametype, ctrl, prm;
+	uint32_t length = 0, stopchar;
+	unsigned asdu_len = 0;
+	int offset = 0;
+
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "南瑞串口103");
+	col_clear(pinfo->cinfo, COL_INFO);
+
+	ti = proto_tree_add_item(tree, proto_nari_serial_iec103, tvb, 0, -1, ENC_NA);
+	proto_item_set_text(ti, "南瑞串口103规约");
+	nari_tree = proto_item_add_subtree(ti, ett_nari_serial_iec103);
+
+	frametype = tvb_get_uint8(tvb, offset);
+	proto_tree_add_item(nari_tree, hf_frame, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	offset += 1;
+
+	if (frametype == NARI_FT12_SINGLE) {
+		col_set_str(pinfo->cinfo, COL_INFO, "单字符确认 (E5H)");
+		return offset;
+	}
+
+	if (frametype == NARI_FT12_VAR) {
+		uint8_t len1, len2;
+
+		if (tvb_reported_length_remaining(tvb, offset) < 3)
+			return tvb_captured_length(tvb);
+		len1 = tvb_get_uint8(tvb, offset);
+		len2 = tvb_get_uint8(tvb, offset + 1);
+		proto_tree_add_item(nari_tree, hf_length, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		expert_item = proto_tree_add_item(nari_tree, hf_length_dup, tvb, offset + 1, 1, ENC_LITTLE_ENDIAN);
+		length = len1;
+		if (len1 != len2) {
+			expert_add_info(pinfo, expert_item, &ei_length_mismatch);
+			col_set_str(pinfo->cinfo, COL_INFO, "长度字节不一致");
+			return tvb_captured_length(tvb);
+		}
+		expert_item = proto_tree_add_item(nari_tree, hf_frame, tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+		if (tvb_get_uint8(tvb, offset + 2) != NARI_FT12_VAR) {
+			expert_add_info(pinfo, expert_item, &ei_frame_mismatch);
+			col_set_str(pinfo->cinfo, COL_INFO, "可变帧启动字符不一致");
+			return tvb_captured_length(tvb);
+		}
+		offset += 3;
+		asdu_len = (length >= 2) ? (length - 2) : 0;
+	}
+
+	if (tvb_reported_length_remaining(tvb, offset) < 2)
+		return tvb_captured_length(tvb);
+
+	ctrl = tvb_get_uint8(tvb, offset);
+	prm = (ctrl & 0x40) ? 1 : 0;
+	ctrl_item = proto_tree_add_item(nari_tree, hf_ctrl, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	ctrl_tree = proto_item_add_subtree(ctrl_item, ett_nari_ctrl);
+	proto_tree_add_item(ctrl_tree, hf_ctrl_prm, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	if (prm) {
+		col_append_sep_str(pinfo->cinfo, COL_INFO, ", ", "Pri->Sec");
+		proto_tree_add_item(ctrl_tree, hf_ctrl_fcb, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(ctrl_tree, hf_ctrl_fcv, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(ctrl_tree, hf_ctrl_func, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		col_append_sep_str(pinfo->cinfo, COL_INFO, NULL,
+			val_to_str_const(ctrl & 0x0F, func_pri_vals, "功能码"));
+	} else {
+		col_append_sep_str(pinfo->cinfo, COL_INFO, ", ", "Sec->Pri");
+		proto_tree_add_item(ctrl_tree, hf_ctrl_acd, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(ctrl_tree, hf_ctrl_dfc, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(ctrl_tree, hf_ctrl_func, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		col_append_sep_str(pinfo->cinfo, COL_INFO, NULL,
+			val_to_str_const(ctrl & 0x0F, func_sec_vals, "功能码"));
+	}
+	offset += 1;
+
+	proto_tree_add_item(nari_tree, hf_linkaddr, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " Addr=%u", tvb_get_uint8(tvb, offset));
+	offset += 1;
+
+	if (frametype == NARI_FT12_VAR && asdu_len > 0 &&
+	    (unsigned)tvb_reported_length_remaining(tvb, offset) >= asdu_len) {
+		tvbuff_t *asdu_tvb = tvb_new_subset_length(tvb, offset, (int)asdu_len);
+		dissect_asdu(asdu_tvb, pinfo, nari_tree);
+		offset += (int)asdu_len;
+	}
+
+	if (tvb_reported_length_remaining(tvb, offset) >= 2) {
+		proto_tree_add_item(nari_tree, hf_checksum, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		expert_item = proto_tree_add_item_ret_uint(nari_tree, hf_stopchar, tvb, offset + 1, 1,
+			ENC_LITTLE_ENDIAN, &stopchar);
+		if (stopchar != NARI_FT12_STOP)
+			expert_add_info(pinfo, expert_item, &ei_stopchar_invalid);
+		offset += 2;
+	}
+
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "南瑞串口103");
+	return tvb_captured_length(tvb);
+}
+
+void
+proto_register_nari_serial_iec103(void)
+{
+	static hf_register_info hf[] = {
+		{ &hf_frame,
+		  { "帧格式", "nari_serial_iec103.frame", FT_UINT8, BASE_HEX,
+		    VALS(frame_vals), 0x0, NULL, HFILL }},
+		{ &hf_length,
+		  { "长度 L", "nari_serial_iec103.length", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_length_dup,
+		  { "长度 L(重复)", "nari_serial_iec103.length_dup", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_ctrl,
+		  { "控制域", "nari_serial_iec103.ctrl", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_ctrl_prm,
+		  { "PRM", "nari_serial_iec103.ctrl.prm", FT_UINT8, BASE_DEC,
+		    VALS(prm_vals), 0x40, NULL, HFILL }},
+		{ &hf_ctrl_fcb,
+		  { "FCB", "nari_serial_iec103.ctrl.fcb", FT_UINT8, BASE_DEC,
+		    NULL, 0x20, NULL, HFILL }},
+		{ &hf_ctrl_fcv,
+		  { "FCV", "nari_serial_iec103.ctrl.fcv", FT_UINT8, BASE_DEC,
+		    NULL, 0x10, NULL, HFILL }},
+		{ &hf_ctrl_acd,
+		  { "ACD", "nari_serial_iec103.ctrl.acd", FT_UINT8, BASE_DEC,
+		    NULL, 0x20, NULL, HFILL }},
+		{ &hf_ctrl_dfc,
+		  { "DFC", "nari_serial_iec103.ctrl.dfc", FT_UINT8, BASE_DEC,
+		    NULL, 0x10, NULL, HFILL }},
+		{ &hf_ctrl_func,
+		  { "功能码", "nari_serial_iec103.ctrl.func", FT_UINT8, BASE_DEC,
+		    NULL, 0x0F, NULL, HFILL }},
+		{ &hf_linkaddr,
+		  { "链路地址(装置地址)", "nari_serial_iec103.linkaddr", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_checksum,
+		  { "校验和", "nari_serial_iec103.checksum", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_stopchar,
+		  { "结束字符", "nari_serial_iec103.stop", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_spi,
+		  { "SPI", "nari_serial_iec103.spi", FT_UINT8, BASE_DEC,
+		    VALS(spi_vals), 0x01, NULL, HFILL }},
+		{ &hf_nva,
+		  { "被测值 NVA", "nari_serial_iec103.nva", FT_INT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_point_name,
+		  { "点名称", "nari_serial_iec103.point_name", FT_STRING, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_cp32time,
+		  { "时标 (CP32Time2a)", "nari_serial_iec103.cp32time", FT_NONE, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_cp32time_ms,
+		  { "毫秒", "nari_serial_iec103.cp32time.ms", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_cp32time_min,
+		  { "分", "nari_serial_iec103.cp32time.min", FT_UINT8, BASE_DEC,
+		    NULL, 0x3f, NULL, HFILL }},
+		{ &hf_cp32time_iv,
+		  { "IV", "nari_serial_iec103.cp32time.iv", FT_UINT8, BASE_DEC,
+		    NULL, 0x80, NULL, HFILL }},
+		{ &hf_cp32time_hour,
+		  { "时", "nari_serial_iec103.cp32time.hour", FT_UINT8, BASE_DEC,
+		    NULL, 0x1f, NULL, HFILL }},
+		{ &hf_cp32time_su,
+		  { "SU", "nari_serial_iec103.cp32time.su", FT_UINT8, BASE_DEC,
+		    NULL, 0x80, NULL, HFILL }},
+		{ &hf_typeid,
+		  { "类型标识 (Type ID)", "nari_serial_iec103.typeid", FT_UINT8, BASE_DEC,
+		    VALS(asdu_type_vals), 0x0, NULL, HFILL }},
+		{ &hf_vsq,
+		  { "可变结构限定词 (VSQ)", "nari_serial_iec103.vsq", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_vsq_sq,
+		  { "顺序位 (SQ)", "nari_serial_iec103.vsq.sq", FT_UINT8, BASE_DEC,
+		    NULL, 0x80, NULL, HFILL }},
+		{ &hf_vsq_num,
+		  { "信息体数目 (Number of objects)", "nari_serial_iec103.vsq.num", FT_UINT8, BASE_DEC,
+		    NULL, 0x7F, NULL, HFILL }},
+		{ &hf_cot,
+		  { "传送原因 (COT)", "nari_serial_iec103.cot", FT_UINT8, BASE_DEC,
+		    VALS(cot_vals), 0x0, NULL, HFILL }},
+		{ &hf_asdu_addr,
+		  { "ASDU地址 (ASDU address)", "nari_serial_iec103.asdu_addr", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_fun,
+		  { "功能类型 (FUN)", "nari_serial_iec103.fun", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_inf,
+		  { "信息序号 (INF)", "nari_serial_iec103.inf", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_dpi,
+		  { "双点信息 (DPI)", "nari_serial_iec103.dpi", FT_UINT8, BASE_DEC,
+		    VALS(dpi_vals), 0x03, NULL, HFILL }},
+		{ &hf_scn,
+		  { "扫描序号 (SCN)", "nari_serial_iec103.scn", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_rii,
+		  { "返回信息标识符 (RII)", "nari_serial_iec103.rii", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_ngd,
+		  { "通用数据集数目 (NGD)", "nari_serial_iec103.ngd", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_ngd_cont,
+		  { "后续标志 (NGD CONT)", "nari_serial_iec103.ngd.cont", FT_UINT8, BASE_DEC,
+		    NULL, 0x80, NULL, HFILL }},
+		{ &hf_ngd_count,
+		  { "数据集个数 (NGD count)", "nari_serial_iec103.ngd.count", FT_UINT8, BASE_DEC,
+		    NULL, 0x3F, NULL, HFILL }},
+		{ &hf_nog,
+		  { "通用对象数目 (NOG)", "nari_serial_iec103.nog", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_raw,
+		  { "原始数据 (Data)", "nari_serial_iec103.data", FT_BYTES, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_entry,
+		  { "通用分类元素 (Generic entry)", "nari_serial_iec103.gen.entry_item", FT_NONE, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_cp56time,
+		  { "时标 (CP56Time2a)", "nari_serial_iec103.cp56time", FT_ABSOLUTE_TIME, ABSOLUTE_TIME_LOCAL,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_cp56time_ms,
+		  { "毫秒 (Milliseconds)", "nari_serial_iec103.cp56time.ms", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_cp56time_min,
+		  { "分钟 (Minutes)", "nari_serial_iec103.cp56time.min", FT_UINT8, BASE_DEC,
+		    NULL, 0x3f, NULL, HFILL }},
+		{ &hf_cp56time_iv,
+		  { "无效标志 (IV)", "nari_serial_iec103.cp56time.iv", FT_UINT8, BASE_DEC,
+		    NULL, 0x80, NULL, HFILL }},
+		{ &hf_cp56time_hour,
+		  { "小时 (Hours)", "nari_serial_iec103.cp56time.hour", FT_UINT8, BASE_DEC,
+		    NULL, 0x1f, NULL, HFILL }},
+		{ &hf_cp56time_su,
+		  { "夏令时 (SU)", "nari_serial_iec103.cp56time.su", FT_UINT8, BASE_DEC,
+		    NULL, 0x80, NULL, HFILL }},
+		{ &hf_cp56time_day,
+		  { "日 (Day)", "nari_serial_iec103.cp56time.day", FT_UINT8, BASE_DEC,
+		    NULL, 0x1f, NULL, HFILL }},
+		{ &hf_cp56time_dow,
+		  { "星期 (Day of week)", "nari_serial_iec103.cp56time.dow", FT_UINT8, BASE_DEC,
+		    NULL, 0xe0, NULL, HFILL }},
+		{ &hf_cp56time_month,
+		  { "月 (Month)", "nari_serial_iec103.cp56time.month", FT_UINT8, BASE_DEC,
+		    NULL, 0x0f, NULL, HFILL }},
+		{ &hf_cp56time_year,
+		  { "年 (Year)", "nari_serial_iec103.cp56time.year", FT_UINT8, BASE_DEC,
+		    NULL, 0x7f, NULL, HFILL }},
+		{ &hf_gen_gin_group,
+		  { "组号 (GIN group)", "nari_serial_iec103.gen.group", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_gin_entry,
+		  { "条目号 (GIN entry)", "nari_serial_iec103.gen.entry", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_kod,
+		  { "描述类别 (KOD)", "nari_serial_iec103.gen.kod", FT_UINT8, BASE_HEX,
+		    VALS(kod_vals), 0x0, NULL, HFILL }},
+		{ &hf_gen_datatype,
+		  { "数据类型 (Data type)", "nari_serial_iec103.gen.datatype", FT_UINT8, BASE_DEC,
+		    VALS(gdd_type_vals), 0x0, NULL, HFILL }},
+		{ &hf_gen_datasize,
+		  { "数据宽度 (Data size)", "nari_serial_iec103.gen.datasize", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_datanumber,
+		  { "数据数目 (Data number)", "nari_serial_iec103.gen.datanumber", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_gid,
+		  { "通用标识数据 (GID)", "nari_serial_iec103.gen.gid", FT_BYTES, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_desc,
+		  { "描述 (Description)", "nari_serial_iec103.gen.desc", FT_STRING, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_gid_ui,
+		  { "无符号整数 (GID UI)", "nari_serial_iec103.gen.gid_ui", FT_UINT32, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_gen_gid_float,
+		  { "浮点数 (GID R32.23)", "nari_serial_iec103.gen.gid_float", FT_FLOAT, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_col,
+		  { "兼容级别 (COL)", "nari_serial_iec103.col", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_dco,
+		  { "双命令 (DCO)", "nari_serial_iec103.dco", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_tov,
+		  { "扰动值类型 (TOV)", "nari_serial_iec103.tov", FT_UINT8, BASE_DEC,
+		    VALS(tov_vals), 0x0, NULL, HFILL }},
+		{ &hf_fan,
+		  { "故障序号 (FAN)", "nari_serial_iec103.fan", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_acc,
+		  { "实际通道 (ACC)", "nari_serial_iec103.acc", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_ndv,
+		  { "扰动值个数 (NDV)", "nari_serial_iec103.ndv", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_nfe,
+		  { "第一个信息元素序号 (NFE)", "nari_serial_iec103.nfe", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_sdv,
+		  { "扰动值 (SDV)", "nari_serial_iec103.sdv", FT_NONE, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_sdv_entry,
+		  { "单个扰动值 (SDV entry)", "nari_serial_iec103.sdv.entry", FT_NONE, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_sdv_raw,
+		  { "生数据值 SDV (B.6.22)", "nari_serial_iec103.sdv.raw", FT_INT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_sdv_elem,
+		  { "信息元素序号", "nari_serial_iec103.sdv.elem", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, "NFE + 序号", HFILL }},
+		{ &hf_sdv_norm,
+		  { "归一化值 (F16)", "nari_serial_iec103.sdv.norm", FT_FLOAT, BASE_NONE,
+		    NULL, 0x0, "SDV/32768", HFILL }},
+		{ &hf_sdv_primary,
+		  { "一次值", "nari_serial_iec103.sdv.primary", FT_FLOAT, BASE_NONE,
+		    NULL, 0x0, "SDV×RFA×RPV/(RDV×32768)", HFILL }},
+		{ &hf_nof,
+		  { "电网故障序号 (NOF)", "nari_serial_iec103.nof", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_noc,
+		  { "通道数目 (NOC)", "nari_serial_iec103.noc", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_noe,
+		  { "元素数目 (NOE)", "nari_serial_iec103.noe", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_too,
+		  { "命令类型 (TOO)", "nari_serial_iec103.too", FT_UINT8, BASE_DEC,
+		    VALS(too_vals), 0x0, NULL, HFILL }},
+		{ &hf_rpv,
+		  { "一次额定值 (RPV)", "nari_serial_iec103.rpv", FT_FLOAT, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_rdv,
+		  { "二次额定值 (RDV)", "nari_serial_iec103.rdv", FT_FLOAT, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_rfa,
+		  { "参比因子 (RFA)", "nari_serial_iec103.rfa", FT_FLOAT, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_ret,
+		  { "相对时间 (RET)", "nari_serial_iec103.ret", FT_UINT32, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_sof,
+		  { "故障的状态 (SOF)", "nari_serial_iec103.sof", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_sof_tp,
+		  { "TP", "nari_serial_iec103.sof.tp", FT_BOOLEAN, 8,
+		    TFS(&tfs_sof_tp), 0x01, NULL, HFILL }},
+		{ &hf_sof_tm,
+		  { "TM", "nari_serial_iec103.sof.tm", FT_BOOLEAN, 8,
+		    TFS(&tfs_sof_tm), 0x02, NULL, HFILL }},
+		{ &hf_sof_test,
+		  { "TEST", "nari_serial_iec103.sof.test", FT_BOOLEAN, 8,
+		    TFS(&tfs_sof_test), 0x04, NULL, HFILL }},
+		{ &hf_sof_otev,
+		  { "OTEV", "nari_serial_iec103.sof.otev", FT_BOOLEAN, 8,
+		    TFS(&tfs_sof_otev), 0x08, NULL, HFILL }},
+		{ &hf_dist_entry,
+		  { "扰动条目 (Disturbance entry)", "nari_serial_iec103.dist.entry", FT_NONE, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_tag,
+		  { "状态变位 (Tagged status change)", "nari_serial_iec103.tag", FT_NONE, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_not,
+		  { "带标志的状态变位数目 (NOT)", "nari_serial_iec103.not", FT_UINT8, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_tap,
+		  { "标志的位置 (TAP)", "nari_serial_iec103.tap", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_int,
+		  { "信息元素间的间隔 (INT)", "nari_serial_iec103.int", FT_UINT16, BASE_DEC,
+		    NULL, 0x0, "单位: ms", HFILL }},
+		{ &hf_ch_info,
+		  { "通道信息 (Channel info)", "nari_serial_iec103.ch_info", FT_UINT8, BASE_HEX,
+		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_binary_time,
+		  { "二进制时间 (Binary time)", "nari_serial_iec103.binary_time", FT_UINT32, BASE_DEC,
+		    NULL, 0x0, "B.6.28 相对时间 (ms)", HFILL }},
+		{ &hf_unused,
+		  { "未用 (Unused)", "nari_serial_iec103.unused", FT_BYTES, BASE_NONE,
+		    NULL, 0x0, NULL, HFILL }},
+	};
+
+	static int *ett[] = {
+		&ett_nari_serial_iec103,
+		&ett_nari_ctrl,
+		&ett_nari_asdu,
+		&ett_nari_cp56time,
+		&ett_nari_cp32time,
+		&ett_nari_gen,
+		&ett_nari_gen_entry,
+		&ett_nari_dist,
+		&ett_nari_dist_entry,
+		&ett_nari_sof,
+		&ett_nari_sdv,
+		&ett_nari_sdv_entry,
+	};
+
+	static ei_register_info ei[] = {
+		{ &ei_asdu_truncated,
+		  { "nari_serial_iec103.asdu_truncated", PI_MALFORMED, PI_WARN,
+		    "ASDU truncated", EXPFILL }},
+		{ &ei_asdu_unknown,
+		  { "nari_serial_iec103.asdu_unknown", PI_UNDECODED, PI_NOTE,
+		    "Unknown ASDU type", EXPFILL }},
+		{ &ei_sdv_no_scale,
+		  { "nari_serial_iec103.sdv_no_scale", PI_PROTOCOL, PI_WARN,
+		    "No ASDU27 scale (RPV/RDV/RFA) for this channel", EXPFILL }},
+		{ &ei_length_mismatch,
+		  { "nari_serial_iec103.length.mismatch", PI_MALFORMED, PI_ERROR,
+		    "可变帧两个长度字节必须一致", EXPFILL }},
+		{ &ei_frame_mismatch,
+		  { "nari_serial_iec103.frame.mismatch", PI_MALFORMED, PI_ERROR,
+		    "可变帧两个启动字符必须为 0x68", EXPFILL }},
+		{ &ei_stopchar_invalid,
+		  { "nari_serial_iec103.stop.invalid", PI_PROTOCOL, PI_WARN,
+		    "结束字符应为 0x16", EXPFILL }},
+	};
+
+	expert_module_t *expert_mod;
+
+	proto_nari_serial_iec103 = proto_register_protocol(
+		"南瑞串口IEC60870-5-103",
+		"南瑞串口103",
+		"nari_serial_iec103");
+
+	proto_register_field_array(proto_nari_serial_iec103, hf, array_length(hf));
+	proto_register_subtree_array(ett, array_length(ett));
+	expert_mod = expert_register_protocol(proto_nari_serial_iec103);
+	expert_register_field_array(expert_mod, ei, array_length(ei));
+
+	nari_serial_iec103_handle = register_dissector("nari_serial_iec103",
+		dissect_nari_serial_iec103, proto_nari_serial_iec103);
+}
+
+void
+proto_reg_handoff_nari_serial_iec103(void)
+{
+	/* Prefer shared tap registered by packet-nari-net-iec103; create if absent. */
+	nari_wave_tap = find_tap_id(NARI_WAVE_TAP_NAME);
+	if (nari_wave_tap < 0)
+		nari_wave_tap = register_tap(NARI_WAVE_TAP_NAME);
+	(void)nari_serial_iec103_handle;
+}
+
+/*
+ * Editor modelines  -  https://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=true:
+ */

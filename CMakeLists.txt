@@ -179,13 +179,13 @@ set(STRATOSHARK_VERSION "${STRATOSHARK_MAJOR_VERSION}.${STRATOSHARK_MINOR_VERSIO
 include( CMakeOptions.txt )
 
 if(ENABLE_MINIMAL_BUILD)
-	# 宾尧 industrial release branding (installer + About/version strings).
+	# 瀹惧哀 industrial release branding (installer + About/version strings).
 	set(PROJECT_MAJOR_VERSION 0)
 	set(PROJECT_MINOR_VERSION 10)
-	set(PROJECT_PATCH_VERSION 10)
+	set(PROJECT_PATCH_VERSION 11)
 	set(PROJECT_BUILD_VERSION 0)
-	set(PROJECT_VERSION "0.10.10")
-	set(MINIMAL_PRODUCT_NAME "宾尧")
+	set(PROJECT_VERSION "0.10.11")
+	set(MINIMAL_PRODUCT_NAME "瀹惧哀")
 endif()
 
 # We require minimum C17
@@ -2366,7 +2366,7 @@ if(NOT ENABLE_MINIMAL_BUILD)
 	list(APPEND INSTALL_FILES resources/share/wireshark/colorfilters)
 endif()
 if(ENABLE_MINIMAL_BUILD)
-	# MMS over OSI Presentation: Context Id 3 →abstract syntax OID 1.0.9506.2.3
+	# MMS over OSI Presentation: Context Id 3 鈫抋bstract syntax OID 1.0.9506.2.3
 	list(APPEND INSTALL_FILES resources/share/wireshark/pres_context_list)
 	# Full coloring_rules.jsonc references HSRP/HTTP/DCERPC omitted from minimal build.
 	list(REMOVE_ITEM INSTALL_FILES resources/share/wireshark/coloring_rules.jsonc)

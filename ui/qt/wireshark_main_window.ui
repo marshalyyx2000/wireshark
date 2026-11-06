@@ -537,6 +537,7 @@
      <string>串口103</string>
     </property>
     <addaction name="actionIec103XujiSerialParse"/>
+    <addaction name="actionIec103NariSerialParse"/>
    </widget>
    <widget class="QMenu" name="menuIec104">
     <property name="title">
@@ -3060,6 +3061,14 @@
    </property>
    <property name="toolTip">
     <string>将串口报文试解为许继串口103，并过滤显示 (xuji_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103NariSerialParse">
+   <property name="text">
+    <string>南瑞串口103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为南瑞串口103，并过滤显示 (nari_serial_iec103)</string>
    </property>
   </action>
   <action name="actionIec104YunnanCfgFree">

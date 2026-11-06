@@ -3423,6 +3423,9 @@ void WiresharkMainWindow::connectIec103MenuActions()
          * Same pattern as 禹舜 MODBUS menu over serial_raw. */
         tryDecodeSerialRawAs("xuji_serial_iec103", QStringLiteral("xuji_serial_iec103"));
     });
+    connect(main_ui_->actionIec103NariSerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("nari_serial_iec103", QStringLiteral("nari_serial_iec103"));
+    });
 
     /* Also show in 网络103 menu so minimal build (no Tools menu) can export waves. */
     main_ui_->menuIec103->addAction(main_ui_->actionToolsIec103WaveExport);
