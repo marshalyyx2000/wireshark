@@ -2058,7 +2058,9 @@ proto_register_shandong_iec103(void)
 void
 proto_reg_handoff_shandong_iec103(void)
 {
-	dissector_add_uint_with_preference("tcp.port", SHANDONG_IEC103_PORT, shandong_iec103_handle);
+	/* Neutral capture policy: no port binding; the 网络103 menu applies
+	 * Decode As for tcp.port when the user selects 山东主子站103规约. */
+	dissector_add_for_decode_as("tcp.port", shandong_iec103_handle);
 }
 
 /*

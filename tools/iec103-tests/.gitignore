@@ -1,0 +1,6 @@
+# Generated captures and downloaded vendor PDFs are not part of the source tree.
+# Regenerate the captures with: python tools/iec103-tests/build_pcaps.py
+out/
+_raw/
+__pycache__/
+*.pyc

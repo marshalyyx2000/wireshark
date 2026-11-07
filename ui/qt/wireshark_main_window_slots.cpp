@@ -57,6 +57,7 @@ DIAG_ON(frame-larger-than=)
 #include "epan/dfilter/dfilter-macro.h"
 #include "epan/conversation_filter.h"
 #include "epan/epan_dissect.h"
+#include "epan/decode_as.h"
 #include "epan/filter_expressions.h"
 #include "epan/prefs.h"
 #include "epan/serial_raw.h"
@@ -3395,6 +3396,26 @@ void WiresharkMainWindow::tryDecodeSerialRawAs(const char *dissector_name, const
     applyCaptureDisplayFilter(filter, true);
 }
 
+void WiresharkMainWindow::tryDecodeNetworkAs(const char *dissector_name, const QString &filter,
+                                             bool udp)
+{
+    /* Neutral captures carry no protocol hint, so apply Decode As on the
+     * documented ports at runtime, then redissect and filter. */
+    dissector_handle_t handle = find_dissector(dissector_name);
+    if (handle) {
+        const char *table = udp ? "udp.port" : "tcp.port";
+        static const unsigned udp_ports[] = { 1032U, 1888U, 1889U };
+        static const unsigned tcp_ports[] = { 1048U, 2404U, 2405U, 6000U };
+        const unsigned *ports = udp ? udp_ports : tcp_ports;
+        const size_t count = udp ? array_length(udp_ports) : array_length(tcp_ports);
+        for (size_t i = 0; i < count; i++) {
+            decode_as_default_change(table, GUINT_TO_POINTER(ports[i]), handle, NULL);
+        }
+        redissectPackets();
+    }
+    applyCaptureDisplayFilter(filter, true);
+}
+
 void WiresharkMainWindow::connectModbusMenuActions()
 {
     connect(main_ui_->actionModbusYushunVoltagePlate, &QAction::triggered, this, [=]() {
@@ -3407,16 +3428,16 @@ void WiresharkMainWindow::connectModbusMenuActions()
 void WiresharkMainWindow::connectIec103MenuActions()
 {
     connect(main_ui_->actionIec103ShandongMasterSlave, &QAction::triggered, this, [=]() {
-        applyCaptureDisplayFilter(QStringLiteral("shandong_iec103"), true);
+        tryDecodeNetworkAs("shandong_iec103", QStringLiteral("shandong_iec103"), false);
     });
     connect(main_ui_->actionIec103NariNetParse, &QAction::triggered, this, [=]() {
-        applyCaptureDisplayFilter(QStringLiteral("nari_net_iec103"), true);
+        tryDecodeNetworkAs("nari_net_iec103", QStringLiteral("nari_net_iec103"), false);
     });
     connect(main_ui_->actionIec103XujiNetParse, &QAction::triggered, this, [=]() {
-        applyCaptureDisplayFilter(QStringLiteral("xuji_net_iec103"), true);
+        tryDecodeNetworkAs("xuji_net_iec103", QStringLiteral("xuji_net_iec103"), false);
     });
     connect(main_ui_->actionIec103SznariNetParse, &QAction::triggered, this, [=]() {
-        applyCaptureDisplayFilter(QStringLiteral("sznari_net_iec103"), true);
+        tryDecodeNetworkAs("sznari_net_iec103", QStringLiteral("sznari_net_iec103"), false);
     });
     connect(main_ui_->actionIec103XujiSerialParse, &QAction::triggered, this, [=]() {
         /* Neutral serial_raw (FT1.2 framed) captures: force 许继串口103 then filter.
@@ -3425,6 +3446,18 @@ void WiresharkMainWindow::connectIec103MenuActions()
     });
     connect(main_ui_->actionIec103NariSerialParse, &QAction::triggered, this, [=]() {
         tryDecodeSerialRawAs("nari_serial_iec103", QStringLiteral("nari_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103SznariSerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("sznari_serial_iec103", QStringLiteral("sznari_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103SifangSerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("sifang_serial_iec103", QStringLiteral("sifang_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103NrelectricNetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("nrelectric_net_iec103", QStringLiteral("nrelectric_net_iec103"), false);
+    });
+    connect(main_ui_->actionIec103SifangNetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("sifang_net_iec103", QStringLiteral("sifang_net_iec103"), true);
     });
 
     /* Also show in 网络103 menu so minimal build (no Tools menu) can export waves. */

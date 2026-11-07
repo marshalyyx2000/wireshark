@@ -1655,6 +1655,12 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-sgsap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-shandong-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-iec103-net-apci2404-common.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-iec103-points.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-iec103-vendor-common.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sifang-serial-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sifang-net-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sznari-serial-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nrelectric-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-serial-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nari-serial-iec103.c

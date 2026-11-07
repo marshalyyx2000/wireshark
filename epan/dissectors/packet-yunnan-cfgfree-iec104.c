@@ -835,15 +835,8 @@ dissect_yunnan_cfgfree_iec104_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 static void
 yunnan_cfgfree_prefs_apply(void)
 {
-	static bool ports_registered = false;
-
-	if (ports_registered) {
-		dissector_delete_uint_range("tcp.port", pref_tcp_ports, yunnan_cfgfree_iec104_handle);
-	} else {
-		ports_registered = true;
-	}
-
-	dissector_add_uint_range("tcp.port", pref_tcp_ports, yunnan_cfgfree_iec104_handle);
+	/* Neutral capture policy: no port binding, Decode As only. */
+	dissector_add_for_decode_as("tcp.port", yunnan_cfgfree_iec104_handle);
 }
 
 void
@@ -939,8 +932,9 @@ proto_register_yunnan_cfgfree_iec104(void)
 		"若关闭，2404端口仅由其他解析器(如山东103)处理；开启时仅当ASDU类型属于免配置规约时才解析",
 		&pref_heuristic_2404);
 	range_convert_str(wmem_epan_scope(), &pref_tcp_ports, "2405,2404", 65535);
-	prefs_register_range_preference(module, "tcp_ports", "TCP端口",
-		"云南免配置主子站104规约使用的TCP端口", &pref_tcp_ports, 65535);
+	prefs_register_range_preference(module, "tcp_ports", "参考端口",
+		"仅供说明：抓包默认不在这些端口自动解析，请在 104 菜单选择规约以应用 Decode As",
+		&pref_tcp_ports, 65535);
 }
 
 void

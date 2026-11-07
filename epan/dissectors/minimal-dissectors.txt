@@ -55,6 +55,12 @@ packet-sv.c
 packet-iec104.c
 packet-shandong-iec103.c
 packet-iec103-net-apci2404-common.c
+packet-iec103-points.c
+packet-iec103-vendor-common.c
+packet-sifang-serial-iec103.c
+packet-sifang-net-iec103.c
+packet-sznari-serial-iec103.c
+packet-nrelectric-net-iec103.c
 packet-xuji-net-iec103.c
 packet-xuji-serial-iec103.c
 packet-nari-serial-iec103.c

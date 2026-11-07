@@ -642,6 +642,8 @@ proto_reg_handoff_iec103_net_apci2404_common(void)
 		return;
 
 	apci2404_tcp_handle = create_dissector_handle(dissect_apci2404_tcp, R->proto);
-	dissector_add_uint_with_preference("tcp.port", IEC103_NET_APCI2404_PORT, apci2404_tcp_handle);
+	/* Neutral capture policy: TCP 2404 is shared by 许继 / 深圳南瑞, so bind
+	 * only as a Decode As candidate and let the 网络103 menu choose. */
+	dissector_add_for_decode_as("tcp.port", apci2404_tcp_handle);
 	handoff_done = true;
 }

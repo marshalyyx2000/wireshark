@@ -1,0 +1,37 @@
+# IEC 60870-5-103 资料索引
+
+本目录汇总本次四套厂商 103 实现所依据的公开资料。**厂商内部点表属商业资料，本仓库不收录原始文件**，仅以 DL/T 667-1999 标准信息序号表 + 公开报文样例补齐，并在 CSV 中标注来源等级。
+
+## 获取状态
+
+| # | 资料 | 来源 | 状态 | 落地 |
+|---|------|------|------|------|
+| 1 | IEC60870-103 规约说明（E8000，ZLG 工程技术笔记） | https://www.zlg.cn/data/upload/software/Pq/E8000R2-IEC103-xysm.pdf | 已下载 | `_raw/zlge8000_iec103.pdf` |
+| 2 | 103 规约细则（DL/T 667-1999 摘要，含 4.2.5 信息元素定义） | https://m.diyifanwen.net/c1bkkr47veh10ttd0odyd_5.html | 已抓取文本 | 见 `dl667-elements.md` |
+| 3 | 南自 103 网络规约（修改版，方式 1/方式 2 定义） | https://www.wenkuxiazai.com/doc/94q8u6559o8wmephlhsk.html | 仅摘要 | 见 `nari-net.md` |
+| 4 | 深圳南瑞 IEC-103 规约说明 2.00.060901 | https://max.book118.com/html/2017/0923/134760593.shtm | 摘要（PDF 需付费） | 见 `sznari.md` |
+| 5 | 继保南瑞以太网 IEC103（TCP 1048 + UDP 1032） | https://max.book118.com/html/2022/1009/6044143131005001.shtm | 摘要 | 见 `nrelectric-net.md` |
+| 6 | 国电南自以太网 103 规约 2011 版 | https://max.book118.com/html/2015/0809/22877739.shtm | 目录级摘要 | 见 `nari-net.md` |
+| 7 | 四方保护与测控装置 103 规约实施细则 | https://www.elecfans.com/soft/162/2012/20120305262483.html | 正文摘录 | 见 `sifang.md` |
+| 8 | CSC2000 变电自动化系统通讯规约（网络规约 V2.0） | https://max.book118.com/html/2016/0818/51856004.shtm | 目录级摘要 | 见 `sifang-net.md` |
+| 9 | CSC2000 规约采集说明（组播 236.8.8.8:1888/1889） | https://www.kancloud.cn/linkqi/pbox_drive_help/2398747 | 正文 | 见 `sifang-net.md` |
+
+## 无法公开获取（已记录，不伪造）
+
+- CSC-246 / CSC211 / CSC241C 装置 `CSC2000-103 规约点表 V2.05`（.doc）
+- 南自 `IEC60870-5-103 通信规约说明书.doc`（需积分）
+- 各厂商实际工程点表（现场配置，非公开）
+
+处理方式：点表 CSV 的 `source` 列标注 `std`（DL/T 667 标准信息序号）、`public`（公开文档明示）、`inferred`（按厂商报文样例推定）。`inferred` 行在解析树上仍显示名称，但 `REPORT.md` 中标注为推定项。
+
+## 标准公共约定（DL/T 667-1999）
+
+- 物理层：RS-485/RS-232，异步 8E1，2400/4800/9600/19200 bit/s，主从 Polling
+- 固定帧：`10H | C | A | CS | 16H`，CS = (C + A) mod 256
+- 可变帧：`68H | L | L | 68H | C | A | ASDU | CS | 16H`，L = 控制域+地址域+ASDU 字节数
+- 单字符：`E5H`
+- 控制域（主→从）：`0 | PRM=1 | FCB | FCV | 功能码(4bit)`
+- 控制域（从→主）：`0 | PRM=0 | ACD | DFC | 功能码(4bit)`
+- 功能码：0 复位CU / 3 传送数据 / 4 传送数据(无回答) / 7 复位FCB / 9 召唤链路状态 / 10 召唤1级 / 11 召唤2级
+- 从站功能码：0 确认 / 1 链路忙 / 8 以数据响应 / 9 无所召唤数据 / 11 链路状态
+- ASDU 头：`TYP | VSQ | COT | COMADDR | FUN | INF`

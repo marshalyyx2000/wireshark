@@ -529,6 +529,8 @@
     </property>
     <addaction name="actionIec103ShandongMasterSlave"/>
     <addaction name="actionIec103NariNetParse"/>
+    <addaction name="actionIec103NrelectricNetParse"/>
+    <addaction name="actionIec103SifangNetParse"/>
     <addaction name="actionIec103XujiNetParse"/>
     <addaction name="actionIec103SznariNetParse"/>
    </widget>
@@ -538,6 +540,8 @@
     </property>
     <addaction name="actionIec103XujiSerialParse"/>
     <addaction name="actionIec103NariSerialParse"/>
+    <addaction name="actionIec103SznariSerialParse"/>
+    <addaction name="actionIec103SifangSerialParse"/>
    </widget>
    <widget class="QMenu" name="menuIec104">
     <property name="title">
@@ -3065,10 +3069,42 @@
   </action>
   <action name="actionIec103NariSerialParse">
    <property name="text">
-    <string>南瑞串口103规约解析</string>
+    <string>南自串口103规约解析</string>
    </property>
    <property name="toolTip">
-    <string>将串口报文试解为南瑞串口103，并过滤显示 (nari_serial_iec103)</string>
+    <string>将串口报文试解为南自串口103，并过滤显示 (nari_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103NrelectricNetParse">
+   <property name="text">
+    <string>南瑞网络103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南瑞（继保南瑞）网络103规约报文 (nrelectric_net_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103SifangNetParse">
+   <property name="text">
+    <string>四方网络103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示四方 CSC2000 网络103规约报文 (sifang_net_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103SznariSerialParse">
+   <property name="text">
+    <string>深圳南瑞串口103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为深圳南瑞串口103，并过滤显示 (sznari_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103SifangSerialParse">
+   <property name="text">
+    <string>四方串口103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为四方串口103，并过滤显示 (sifang_serial_iec103)</string>
    </property>
   </action>
   <action name="actionIec104YunnanCfgFree">

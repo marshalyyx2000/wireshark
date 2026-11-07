@@ -1163,6 +1163,15 @@ private slots:
      */
     void tryDecodeSerialRawAs(const char *dissector_name, const QString &filter);
 
+    /**
+     * @brief Applies Decode As on the documented 103 ports, then redissects
+     *        and filters. Used because captures carry no protocol hint.
+     * @param dissector_name Registered dissector name (e.g. sifang_net_iec103).
+     * @param filter         Display filter applied after redissection.
+     * @param udp            true for UDP ports, false for TCP ports.
+     */
+    void tryDecodeNetworkAs(const char *dissector_name, const QString &filter, bool udp);
+
     /** @brief Connects 103 menu actions to their implementation slots. */
     void connectIec103MenuActions();
 

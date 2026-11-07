@@ -1824,10 +1824,11 @@ proto_register_nari_net_iec103(void)
 void
 proto_reg_handoff_nari_net_iec103(void)
 {
-	dissector_add_uint_with_preference("tcp.port", NARI_NET_IEC103_TCP_PORT,
-		nari_net_iec103_tcp_handle);
-	dissector_add_uint_with_preference("udp.port", NARI_NET_IEC103_UDP_PORT,
-		nari_net_iec103_udp_handle);
+	/* Neutral capture policy: no port binding. A TCP 1048 / UDP 1032 stream is
+	 * shown as plain TCP/UDP until the user picks 网络103 → 南自网络103规约解析,
+	 * which applies Decode As at runtime. */
+	dissector_add_for_decode_as("tcp.port", nari_net_iec103_tcp_handle);
+	dissector_add_for_decode_as("udp.port", nari_net_iec103_udp_handle);
 }
 
 /*

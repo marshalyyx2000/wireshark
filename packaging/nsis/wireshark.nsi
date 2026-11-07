@@ -604,6 +604,8 @@ File "${STAGING_DIR}\dfilters"
 ; MMS default: PRES Context Id 3 -> OID 1.0.9506.2.3 (global datafile; AppData overrides if present)
 File "${STAGING_DIR}\pres_context_list"
 !endif
+; IEC 60870-5-103 vendor point tables (FUN/INF -> point name)
+File /r "${STAGING_DIR}\iec103"
 ;IfFileExists smi_modules dont_overwrite_smi_modules
 !ifndef ENABLE_MINIMAL_BUILD
 File "${STAGING_DIR}\smi_modules"
@@ -1799,6 +1801,8 @@ Delete "$INSTDIR\colorfilters"
 Delete "$INSTDIR\coloring_rules.jsonc"
 Delete "$INSTDIR\dfilters"
 Delete "$INSTDIR\pres_context_list"
+Delete "$INSTDIR\iec103"
+RMDir /r "$INSTDIR\iec103"
 Delete "$INSTDIR\enterprises.tsv"
 Delete "$INSTDIR\smi_modules"
 RMDir "$INSTDIR"
