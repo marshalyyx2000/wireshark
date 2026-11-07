@@ -531,6 +531,8 @@
     <addaction name="actionIec103NariNetParse"/>
     <addaction name="actionIec103NrelectricNetParse"/>
     <addaction name="actionIec103SifangNetParse"/>
+    <addaction name="actionIec103JinzhiNetParse"/>
+    <addaction name="actionIec103JichengNetParse"/>
     <addaction name="actionIec103XujiNetParse"/>
     <addaction name="actionIec103SznariNetParse"/>
    </widget>
@@ -542,6 +544,13 @@
     <addaction name="actionIec103NariSerialParse"/>
     <addaction name="actionIec103SznariSerialParse"/>
     <addaction name="actionIec103SifangSerialParse"/>
+   </widget>
+   <widget class="QMenu" name="menuRecorder">
+    <property name="title">
+     <string>录波器规约</string>
+    </property>
+    <addaction name="actionRecorderZhParse"/>
+    <addaction name="actionRecorderZhExport"/>
    </widget>
    <widget class="QMenu" name="menuIec104">
     <property name="title">
@@ -852,6 +861,7 @@
    <addaction name="menuModbus"/>
    <addaction name="menuIec103"/>
    <addaction name="menuIec103Serial"/>
+   <addaction name="menuRecorder"/>
    <addaction name="menuIec104"/>
    <addaction name="menuCommonTools"/>
    <addaction name="menuTelephony"/>
@@ -3091,6 +3101,22 @@
     <string>仅显示四方 CSC2000 网络103规约报文 (sifang_net_iec103)</string>
    </property>
   </action>
+  <action name="actionIec103JinzhiNetParse">
+   <property name="text">
+    <string>金智网络103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示金智网络103规约报文 (jinzhi_net_iec103, TCP 6000)</string>
+   </property>
+  </action>
+  <action name="actionIec103JichengNetParse">
+   <property name="text">
+    <string>积成网络103规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示积成 IES-N103 报文 (jicheng_net_iec103, TCP/UDP 6185)</string>
+   </property>
+  </action>
   <action name="actionIec103SznariSerialParse">
    <property name="text">
     <string>深圳南瑞串口103规约解析</string>
@@ -3105,6 +3131,22 @@
    </property>
    <property name="toolTip">
     <string>将串口报文试解为四方串口103，并过滤显示 (sifang_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionRecorderZhParse">
+   <property name="text">
+    <string>武汉中原录波器规约解析</string>
+   </property>
+   <property name="toolTip">
+    <string>将 ZH-2/ZH-3/ZH-5 系列录波装置报文解析为 zh_recorder（TCP 30282）</string>
+   </property>
+  </action>
+  <action name="actionRecorderZhExport">
+   <property name="text">
+    <string>导出录波文件…</string>
+   </property>
+   <property name="toolTip">
+    <string>按 FILE_INFO/FILE_DATA 重组并导出抓包中的录波文件</string>
    </property>
   </action>
   <action name="actionIec104YunnanCfgFree">

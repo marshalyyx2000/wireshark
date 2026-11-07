@@ -159,8 +159,16 @@ def main() -> int:
     write_eth_pcap(path, nrelectric_net_records())
     produced.append((path, len(nrelectric_net_records())))
 
+    # 金智 / 积成: reuse the neutral Ethernet writers from the simulator.
+    for vendor in ("jinzhi", "jicheng"):
+        path = OUT / f"{vendor}_net.pcap"
+        runner = nsim.run_jinzhi if vendor == "jinzhi" else nsim.run_jicheng
+        runner("127.0.0.1", path, 1.0, True)
+        produced.append((path, 0))
+
     for path, count in produced:
-        print(f"{path.relative_to(ROOT)}  ({count} frames, {path.stat().st_size} bytes)")
+        suffix = f"{count} frames" if count else "see simulator output"
+        print(f"{path.relative_to(ROOT)}  ({suffix}, {path.stat().st_size} bytes)")
     return 0
 
 

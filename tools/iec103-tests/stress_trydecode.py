@@ -33,6 +33,10 @@ SERIAL_PCAPS = ["sifang_serial.pcap", "sznari_serial.pcap"]
 NET_CASES: List[Tuple[str, str, bool, Sequence[int]]] = [
     ("sifang_net.pcap", "sifang_net_iec103", True, (1888, 1889)),
     ("nrelectric_net.pcap", "nrelectric_net_iec103", False, (1048,)),
+    ("jinzhi_net.pcap", "jinzhi_net_iec103", False, (6000,)),
+    ("jicheng_net.pcap", "jicheng_net_iec103", False, (6185,)),
+    ("zh_recorder_type1.pcap", "zh_recorder", False, (30282,)),
+    ("zh_recorder_type2.pcap", "zh_recorder", False, (30282,)),
 ]
 
 FAILURE_PATTERNS = re.compile(

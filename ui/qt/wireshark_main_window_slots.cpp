@@ -120,6 +120,7 @@ DIAG_ON(frame-larger-than=)
 #include "mms_ip_classify_dialog.h"
 #include "mms_process_analysis_dialog.h"
 #include "mms_report_filter_dialog.h"
+#include "zh_recorder_file_export.h"
 #include "nic_packet_loss_dialog.h"
 #include "iec103_wave_comtrade_export.h"
 #include "export_object_action.h"
@@ -3403,9 +3404,9 @@ void WiresharkMainWindow::tryDecodeNetworkAs(const char *dissector_name, const Q
      * documented ports at runtime, then redissect and filter. */
     dissector_handle_t handle = find_dissector(dissector_name);
     if (handle) {
+        static const unsigned udp_ports[] = { 1032U, 1888U, 1889U, 6185U };
+        static const unsigned tcp_ports[] = { 1048U, 2404U, 2405U, 6000U, 6185U };
         const char *table = udp ? "udp.port" : "tcp.port";
-        static const unsigned udp_ports[] = { 1032U, 1888U, 1889U };
-        static const unsigned tcp_ports[] = { 1048U, 2404U, 2405U, 6000U };
         const unsigned *ports = udp ? udp_ports : tcp_ports;
         const size_t count = udp ? array_length(udp_ports) : array_length(tcp_ports);
         for (size_t i = 0; i < count; i++) {
@@ -3414,6 +3415,51 @@ void WiresharkMainWindow::tryDecodeNetworkAs(const char *dissector_name, const Q
         redissectPackets();
     }
     applyCaptureDisplayFilter(filter, true);
+}
+
+void WiresharkMainWindow::tryDecodeNetworkAsBoth(const char *dissector_name,
+                                                 const QString &filter)
+{
+    /* Protocols that live on the same port for TCP and UDP (积成 6185). */
+    dissector_handle_t handle = find_dissector(dissector_name);
+    if (handle) {
+        static const unsigned ports[] = { 1048U, 2404U, 2405U, 6000U, 6185U };
+        for (size_t i = 0; i < array_length(ports); i++) {
+            decode_as_default_change("tcp.port", GUINT_TO_POINTER(ports[i]), handle, NULL);
+        }
+        for (size_t i = 0; i < array_length(ports); i++) {
+            decode_as_default_change("udp.port", GUINT_TO_POINTER(ports[i]), handle, NULL);
+        }
+        redissectPackets();
+    }
+    applyCaptureDisplayFilter(filter, true);
+}
+
+void WiresharkMainWindow::connectRecorderMenuActions()
+{
+    connect(main_ui_->actionRecorderZhParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("zh_recorder", QStringLiteral("zh_recorder"), false);
+    });
+
+    connect(main_ui_->actionRecorderZhExport, &QAction::triggered, this, [=]() {
+        if (!capture_file_.isValid() || capture_file_.capFile()->count == 0) {
+            QMessageBox::warning(this, tr("录波文件导出"),
+                                 tr("请先打开含录波器报文的抓包文件。"));
+            return;
+        }
+
+        const QString out_dir = ZhRecorderFileExporter::promptOutputDir(this);
+        if (out_dir.isEmpty())
+            return;
+
+        QString err;
+        QString info;
+        if (!ZhRecorderFileExporter::exportFromCapture(capture_file_, out_dir, err, &info)) {
+            QMessageBox::warning(this, tr("录波文件导出"), err);
+            return;
+        }
+        QMessageBox::information(this, tr("录波文件导出"), info);
+    });
 }
 
 void WiresharkMainWindow::connectModbusMenuActions()
@@ -3459,7 +3505,12 @@ void WiresharkMainWindow::connectIec103MenuActions()
     connect(main_ui_->actionIec103SifangNetParse, &QAction::triggered, this, [=]() {
         tryDecodeNetworkAs("sifang_net_iec103", QStringLiteral("sifang_net_iec103"), true);
     });
-
+    connect(main_ui_->actionIec103JinzhiNetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("jinzhi_net_iec103", QStringLiteral("jinzhi_net_iec103"), false);
+    });
+    connect(main_ui_->actionIec103JichengNetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("jicheng_net_iec103", QStringLiteral("jicheng_net_iec103"));
+    });
     /* Also show in 网络103 menu so minimal build (no Tools menu) can export waves. */
     main_ui_->menuIec103->addAction(main_ui_->actionToolsIec103WaveExport);
 

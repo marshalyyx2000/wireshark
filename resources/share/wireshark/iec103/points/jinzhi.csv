@@ -1,0 +1,65 @@
+vendor,fun,inf,name,asdu,datatype,unit,source,note
+jinzhi,255,0,通用分类功能类型,10,GIN,,std,组标识符
+jinzhi,255,1,时间同步,6,CP56,,std,
+jinzhi,255,2,总查询启动,7,NONE,,std,
+jinzhi,255,3,总查询终止,8,NONE,,std,
+jinzhi,255,4,装置复位/初始化,5,COL,,std,
+jinzhi,255,5,信号复归,20,RII,,std,
+jinzhi,255,16,一般命令(遥控),20,DCO,,std,
+jinzhi,255,19,扰动数据传输命令,24,TOO,,std,
+jinzhi,255,20,扰动数据传输认可,25,TOO,,std,
+jinzhi,255,23,被记录的扰动表,23,SOF,,std,
+jinzhi,255,24,扰动数据传输准备就绪,26,TOV,,std,
+jinzhi,255,25,通道传输准备就绪,27,ACC,,std,
+jinzhi,255,26,带标志状态变位准备就绪,28,FAN,,std,
+jinzhi,255,27,传送带标志的状态变位,29,TAP,,std,
+jinzhi,255,28,传输扰动值,30,SDV,,std,
+jinzhi,255,31,传送结束,31,TOO,,std,
+jinzhi,128,16,距离I段动作,2,DPI,,std,距离保护
+jinzhi,128,17,距离II段动作,2,DPI,,std,距离保护
+jinzhi,128,18,距离III段动作,2,DPI,,std,距离保护
+jinzhi,128,19,距离加速动作,2,DPI,,std,距离保护
+jinzhi,128,20,距离保护启动,2,DPI,,std,距离保护
+jinzhi,128,21,距离保护返回,2,DPI,,std,距离保护
+jinzhi,160,16,过流I段动作,2,DPI,,std,过流保护
+jinzhi,160,17,过流II段动作,2,DPI,,std,过流保护
+jinzhi,160,18,过流III段动作,2,DPI,,std,过流保护
+jinzhi,160,19,过流加速动作,2,DPI,,std,过流保护
+jinzhi,160,20,过流保护启动,2,DPI,,std,过流保护
+jinzhi,160,21,过流保护返回,2,DPI,,std,过流保护
+jinzhi,160,22,零序过流动作,2,DPI,,std,过流保护
+jinzhi,160,23,负序过流动作,2,DPI,,std,过流保护
+jinzhi,176,16,差动速断动作,2,DPI,,std,变压器差动
+jinzhi,176,17,比率差动动作,2,DPI,,std,变压器差动
+jinzhi,176,18,差流越限告警,1,DPI,,std,变压器差动
+jinzhi,176,19,二次谐波闭锁,1,DPI,,std,变压器差动
+jinzhi,176,20,差动保护启动,2,DPI,,std,变压器差动
+jinzhi,192,16,线路差动动作,2,DPI,,std,线路差动
+jinzhi,192,17,线路差动启动,2,DPI,,std,线路差动
+jinzhi,192,18,线路差动告警,1,DPI,,std,线路差动
+jinzhi,254,1,装置描述组,10,GIN,,public,4.1
+jinzhi,254,2,装置参数组,10,GIN,,public,4.2
+jinzhi,254,3,定值区号组,10,GIN,,public,4.3
+jinzhi,254,4,定值组,10,GIN,,public,4.4
+jinzhi,254,5,动作元件,10,GIN,,public,4.5 主动上送
+jinzhi,254,6,装置自检,10,GIN,,public,4.6 主动上送
+jinzhi,254,7,运行告警,10,GIN,,public,4.7 主动上送
+jinzhi,254,8,软压板,10,GIN,,public,4.8 主动上送
+jinzhi,254,9,硬压板,10,GIN,,public,4.9 主动上送
+jinzhi,254,10,遥信,10,GIN,,public,4.10 主动上送
+jinzhi,254,11,保护测量,10,GIN,,public,4.20 定时上送
+jinzhi,254,12,遥测,10,GIN,,public,4.11 定时上送
+jinzhi,254,13,遥脉,10,GIN,,public,4.12
+jinzhi,254,14,遥控,10,GIN,,public,4.13
+jinzhi,254,15,遥调,10,GIN,,public,4.14
+jinzhi,254,16,档位,10,GIN,,public,4.15 主动上送
+jinzhi,254,17,故障信息,10,GIN,,public,4.16 主动上送
+jinzhi,254,18,扰动数据说明,10,GIN,,public,4.17
+jinzhi,254,19,操作信息,10,GIN,,public,4.18 主动上送
+jinzhi,254,20,制造商专用信息,10,GIN,,public,4.19
+jinzhi,254,21,接地选线数据,10,GIN,,public,4.21
+jinzhi,254,22,接地试跳,10,GIN,,public,4.22
+jinzhi,254,23,顺控操作信息,10,GIN,,public,主动上送
+jinzhi,254,240,读所有组标题,10,GIN,,public,INF F0
+jinzhi,254,241,读一个组全部条目,10,GIN,,public,INF F1
+jinzhi,254,244,遥控校验,10,GIN,,public,ASDU228/229

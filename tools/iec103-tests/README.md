@@ -55,11 +55,14 @@ python tools\iec103-sim\iec103_net_sim.py --vendor nrelectric --mode both
 ```bat
 python tools\iec103-tests\build_pcaps.py
 python tools\iec103-tests\verify.py
+python tools\iec103-tests\verify_jinzhi_jicheng.py
 python tools\iec103-tests\run_serial_live.py --vendor sifang --master COM6 --peer COM7
 python tools\iec103-tests\run_serial_live.py --vendor sznari --master COM6 --peer COM7
 python tools\iec103-tests\run_net_live.py --vendor sifang
 python tools\iec103-tests\run_net_live.py --vendor nrelectric
 ```
+
+| `tools/iec103-tests/verify_jinzhi_jicheng.py` | 金智 12/13 控制域、多 APDU、截断；积成 TCP/UDP 6185 |
 
 `verify.py` 的断言项：
 

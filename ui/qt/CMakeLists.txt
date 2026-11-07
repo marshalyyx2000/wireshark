@@ -326,6 +326,7 @@ set(WIRESHARK_QT_HEADERS
 	mms_filter_helpers.h
 	iec103_filter_widget.h
 	iec103_wave_comtrade_export.h
+	zh_recorder_file_export.h
 	mms_general_filter_widget.h
 	mms_report_filter_dialog.h
 	mms_report_filter_widget.h
@@ -681,6 +682,7 @@ set(WIRESHARK_QT_SRC
 	mms_filter_helpers.cpp
 	iec103_filter_widget.cpp
 	iec103_wave_comtrade_export.cpp
+	zh_recorder_file_export.cpp
 	mms_general_filter_widget.cpp
 	mms_report_filter_dialog.cpp
 	mms_report_filter_widget.cpp

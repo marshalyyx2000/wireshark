@@ -1661,6 +1661,9 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-sifang-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-sznari-serial-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nrelectric-net-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-jinzhi-net-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-jicheng-net-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-zh-recorder.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-serial-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nari-serial-iec103.c

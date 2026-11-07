@@ -277,9 +277,257 @@ def run_nrelectric(host: str, pcap: Path | None, duration: float, emit_only: boo
     return 0
 
 
+# ---------------------------------------------------------------- 金智 (TCP 6000)
+
+JZ_TCP_PORT = 6000
+JZ_CTRL_LEN = 12          # 12- or 13-byte control field; see jinzhi.md
+
+
+def jz_apdu(asdu: bytes, ctrl_len: int = JZ_CTRL_LEN, ns: int = 0, nr: int = 0,
+            src_station: int = 1, src_dev: int = 0x0101,
+            dst_station: int = 1, dst_dev: int = 0xFEFE,
+            u_func: int | None = None) -> bytes:
+    """Build one 金智 APDU: 68H + LE length + extended control + ASDU.
+
+    The length field counts control + ASDU only; it excludes the 3-byte prefix
+    (jinzhi.md, 链路层规范 传输层控制报文).
+    """
+    if u_func is not None:
+        ctrl = bytes((u_func, 0, 0, 0))
+    elif asdu:
+        ctrl = bytes((((ns & 0x7F) << 1) | 0x00, (ns >> 7) & 0xFF,
+                      ((nr & 0x7F) << 1) | 0x00, (nr >> 7) & 0xFF))
+    else:
+        ctrl = bytes(((nr & 0x7F) << 1, (nr >> 7) & 0xFF, 0, 0))
+        ctrl = bytes((0x01, 0, ((nr & 0x7F) << 1) | 0x00, (nr >> 7) & 0xFF))
+    addr = bytes((src_station & 0xFF, src_dev & 0xFF, (src_dev >> 8) & 0xFF,
+                  dst_station & 0xFF, dst_dev & 0xFF, (dst_dev >> 8) & 0xFF))
+    ctrl = ctrl + addr + bytes(ctrl_len - 10)
+    body = ctrl + asdu
+    return bytes((0x68, len(body) & 0xFF, (len(body) >> 8) & 0xFF)) + body
+
+
+def jinzhi_asdus(addr: int = ADDR) -> List[bytes]:
+    """Protection (server) side ASDUs for 金智 network 103."""
+    return [
+        c103.asdu_ident(addr, desc=b"JINZHI  WKB-801  V2.00"),
+        c103.asdu_gi_end(addr, scn=1),
+        # 通用分类：组号放在 INF，条目标题在 GDD 内（应用层规范 4.x）
+        c103.asdu_generic(addr, [
+            c103.gdd_entry(1, 0, 0x01, 7, 4, struct.pack(">f", 5.0)),
+        ], cot=c103.COT_SPONT, fun=c103.FUN_GENERIC, inf=5),      # 动作元件
+        c103.asdu_generic(addr, [
+            c103.gdd_entry(1, 0, 0x01, 3, 1, b"\x00"),
+        ], cot=c103.COT_SPONT, fun=c103.FUN_GENERIC, inf=6),      # 装置自检
+        c103.asdu_generic(addr, [
+            c103.gdd_entry(1, 0, 0x01, 3, 1, b"\x00"),
+        ], cot=c103.COT_SPONT, fun=c103.FUN_GENERIC, inf=7),      # 运行告警        # ASDU220 通用历史数据查询
+        c103.asdu_header(0xDC, 0x80, addr, c103.FUN_GLOBAL, 0)
+        + bytes((1,)) + c103.cp56() + c103.cp56() + bytes((9,)),
+        # ASDU222 文件目录响应：FNAM(2) FLEN(4) SOF(1) FTIM(7)
+        c103.asdu_header(0xDE, 0x82, 0xFF, c103.FUN_GLOBAL, 0)
+        + bytes((0x01, 0x00)) + struct.pack("<I", 4096) + bytes((0x01,)) + c103.cp56(),
+        # ASDU223 文件准备就绪：FNAM(2) SNAM(1) FLEN(4) FRQ(1)
+        c103.asdu_header(0xDF, 0x82, 0xFF, c103.FUN_GLOBAL, 0)
+        + bytes((0x01, 0x00, 0x00)) + struct.pack("<I", 4096) + bytes((0x00,)),
+        # ASDU224 节准备就绪：FNAM(2) SNAM(1) SLEN(4) SRQ(1)
+        c103.asdu_header(0xE0, 0x82, 0xFF, c103.FUN_GLOBAL, 0)
+        + bytes((0x01, 0x00, 0x00)) + struct.pack("<I", 2048) + bytes((0x00,)),
+        # ASDU225 段的发送：FNAM(2) SNAM(1) DLEN(2) data
+        c103.asdu_header(0xE1, 0x82, 0xFF, c103.FUN_GLOBAL, 0)
+        + bytes((0x01, 0x00, 0x00)) + struct.pack("<H", 8) + bytes(range(8)),
+        # ASDU226 最后段/末节：FNAM(2) LSQ(1)
+        c103.asdu_header(0xE2, 0x82, 0xFF, c103.FUN_GLOBAL, 0)
+        + bytes((0x01, 0x00, 0x04)),
+        # ASDU227 确认：AFQ
+        c103.asdu_header(0xE3, 0x82, 0xFF, c103.FUN_GLOBAL, 0) + bytes((0x03,)),
+        # ASDU229 遥控校验结果：RII NOG FADDR(2) DADDR(2) GIN(2) OTP
+        c103.asdu_header(0xE5, 0x14, 0xFF, 0xFE, 0xF4)
+        + bytes((0x01, 0x01)) + struct.pack("<H", 1) + struct.pack("<H", 0x0101)
+        + struct.pack("<H", 0x0801) + bytes((0x01,)),
+        # 联锁数据发送 0xCC：GIN(2) LDT(1) VALUE
+        c103.asdu_header(0xCC, 0x01, 0xFF, 0xFF, 0)
+        + struct.pack("<H", 0x0801) + bytes((0x00, 0x01)),
+    ]
+
+
+def jinzhi_master_asdus(addr: int = ADDR) -> List[bytes]:
+    return [
+        c103.asdu_time_sync(addr),
+        c103.asdu_gi_start(addr, scn=1),
+        # ASDU220 历史数据查询：事件类型 + 起止 CP56 + RII
+        c103.asdu_header(0xDC, 0x80, 0xFF, 0xFF, 0)
+        + bytes((0xFF,)) + c103.cp56() + c103.cp56() + bytes((0x01,)),
+        # ASDU221 文件召唤/选择：FNAM(2) SNAM(1) SCQ(1)
+        c103.asdu_header(0xDD, 0x82, 0xFF, 0xFF, 0)
+        + bytes((0x01, 0x00, 0x00, 0x07)),
+        # ASDU228 遥控校验命令
+        c103.asdu_header(0xE4, 0x14, 0xFF, 0xFE, 0xF4)
+        + bytes((0x01, 0x01)) + struct.pack("<H", 1) + struct.pack("<H", 0x0101)
+        + struct.pack("<H", 0x0801) + bytes((0x02,)),
+        # 联锁数据请求 0xCB：LQT + {DADDR GIN} + RII
+        c103.asdu_header(0xCB, 0x14, 0xFF, 0xFF, 0)
+        + bytes((0x00,)) + struct.pack("<H", 0x0101) + struct.pack("<H", 0x0801)
+        + bytes((0x01,)),
+    ]
+
+def run_jinzhi(host: str, pcap: Path | None, duration: float, emit_only: bool) -> int:
+    """Neutral Ethernet capture of a 金智 master/slave conversation on TCP 6000."""
+    records: List[Tuple[float, bytes, str]] = []
+    ts = time.time()
+
+    seq_m, seq_s = 0, 0          # APDU sequence numbers (N(S) / N(R))
+    isn_m, isn_s = 1000, 5000    # TCP initial sequence numbers
+    off_m, off_s = 0, 0          # TCP byte offsets
+
+    frames: List[tuple[bytes, bool]] = []
+    frames.append((jz_apdu(b"", u_func=0x07, src_dev=0xFEFE, dst_dev=0x0101), True))
+    frames.append((jz_apdu(b"", u_func=0x0B, src_dev=0x0101, dst_dev=0xFEFE), False))
+    for asdu in jinzhi_master_asdus():
+        frames.append((jz_apdu(asdu, ns=seq_m, nr=seq_s, src_dev=0xFEFE, dst_dev=0x0101), True))
+        seq_m += 1
+    for asdu in jinzhi_asdus():
+        frames.append((jz_apdu(asdu, ns=seq_s, nr=seq_m, src_dev=0x0101, dst_dev=0xFEFE), False))
+        seq_s += 1
+
+    for payload, master_to_slave in frames:
+        if master_to_slave:
+            frame = ipv4_tcp("192.168.20.10", "192.168.20.30", 52000, JZ_TCP_PORT,
+                             isn_m + off_m, isn_s + off_s, 0x18, payload,
+                             dst_mac="00:11:22:33:44:66")
+            off_m += len(payload)
+        else:
+            frame = ipv4_tcp("192.168.20.30", "192.168.20.10", JZ_TCP_PORT, 52000,
+                             isn_s + off_s, isn_m + off_m, 0x18, payload,
+                             dst_mac="00:11:22:33:44:55")
+            off_s += len(payload)
+        records.append((ts, frame, ""))
+        ts += 0.02
+
+    if pcap:
+        write_net_pcap(pcap, records)
+        print(f"pcap: {pcap} ({len(records)} frames, neutral Ethernet)")
+    _ = (duration, emit_only, host)
+    return 0
+
+
+# ---------------------------------------------------------------- 积成 (TCP/UDP 6185)
+
+JC_PORT = 6185
+
+
+def jc_apdu(asdu: bytes, ns: int = 0, nr: int = 0, u_func: int | None = None) -> bytes:
+    """Build one 积成 APDU: 68H + length + 4-byte control + ASDU."""
+    if u_func is not None:
+        ctrl = bytes((u_func, 0, 0, 0))
+    elif asdu:
+        ctrl = bytes((((ns & 0x7F) << 1) | 0x00, (ns >> 7) & 0xFF,
+                      ((nr & 0x7F) << 1) | 0x00, (nr >> 7) & 0xFF))
+    else:
+        ctrl = bytes((0x01, 0, ((nr & 0x7F) << 1) | 0x00, (nr >> 7) & 0xFF))
+    body = ctrl + asdu
+    return bytes((0x68, len(body) & 0xFF)) + body
+
+
+def jicheng_asdus(addr: int = ADDR) -> List[bytes]:
+    """IED (server) side ASDUs for 积成 IES-N103."""
+    return [
+        c103.asdu_ident(addr, desc=b"JICHENG  iES-N103"),
+        # 通用分类读响应 COT=42，组 09 保护测量
+        c103.asdu_generic(addr, [
+            c103.gdd_entry(9, 1, 0x01, 7, 4, struct.pack(">f", 1.0)),
+            c103.gdd_entry(9, 2, 0x01, 7, 4, struct.pack(">f", 2.0)),
+        ], cot=42, fun=254, inf=9),
+        # 事件主动上送 COT=1
+        c103.asdu_generic(addr, [
+            c103.gdd_entry(5, 1, 0x01, 3, 1, b"\x01"),
+        ], cot=c103.COT_SPONT, fun=254, inf=5),
+        # 定值组读响应 COT=42
+        c103.asdu_generic(addr, [
+            c103.gdd_entry(4, 1, 0x01, 7, 4, struct.pack(">f", 5.0)),
+        ], cot=42, fun=254, inf=4),
+        c103.asdu_dist_header(addr, 1, [(7, 0x03, None)]),
+        c103.asdu_dist_cmd(addr, 24),
+        c103.asdu_dist_ack(addr, 64),
+        c103.asdu_dist_ready(addr, 1, 7, 1, 1, 0),
+        c103.asdu_chan_ready(addr, 1, 7, 1, 100.0, 1.0, 0.01),
+        c103.asdu_flag_ready(addr, 1, 7, 2),
+        c103.asdu_flag_data(addr, 1),
+        c103.asdu_dist_data(addr, [500, 900, 1400, 2100]),
+        c103.asdu_dist_end(addr, 32),
+    ]
+
+
+def jicheng_master_asdus(addr: int = ADDR) -> List[bytes]:
+    return [
+        c103.asdu_time_sync(addr),
+        # 通用分类读命令 COT=42，INF F1 读一组全部条目
+        c103.asdu_header(0x15, 0x81, 42, addr, 254, 9)
+        + bytes((1, 9, 0, 1)),
+        # 通用分类写命令 COT=40
+        c103.asdu_header(0x0A, 0x81, 40, addr, 254, 0xF2) + bytes((1, 1)),
+        # 一般命令 COT=20
+        c103.asdu_command(addr, dco=0x02, rii=3),
+        c103.asdu_dist_cmd(addr, 24),
+        c103.asdu_dist_ack(addr, 64),
+    ]
+
+
+def jicheng_broadcast(addr: int = 0xFF) -> bytes:
+    """UDP 6185 broadcast time sync (control field carries no meaning)."""
+    asdu = c103.asdu_time_sync(addr)
+    return bytes((0x68, 4 + len(asdu), 0, 0, 0, 0)) + asdu
+
+
+def run_jicheng(host: str, pcap: Path | None, duration: float, emit_only: bool) -> int:
+    """Neutral Ethernet capture of a 积成 master/IED conversation on 6185."""
+    records: List[Tuple[float, bytes, str]] = []
+    ts = time.time()
+
+    # UDP broadcast first (master -> IED).
+    records.append((ts, ipv4_udp("192.168.30.10", "192.168.30.255", JC_PORT, JC_PORT,
+                                 jicheng_broadcast(), dst_mac="ff:ff:ff:ff:ff:ff"), ""))
+    ts += 0.02
+
+    seq_m, seq_s = 0, 0
+    isn_m, isn_s = 3000, 7000
+    off_m, off_s = 0, 0
+
+    frames: List[tuple[bytes, bool]] = []
+    frames.append((jc_apdu(b"", u_func=0x07), True))
+    frames.append((jc_apdu(b"", u_func=0x0B), False))
+    for asdu in jicheng_master_asdus():
+        frames.append((jc_apdu(asdu, ns=seq_m, nr=seq_s), True))
+        seq_m += 1
+    for asdu in jicheng_asdus():
+        frames.append((jc_apdu(asdu, ns=seq_s, nr=seq_m), False))
+        seq_s += 1
+
+    for payload, master_to_slave in frames:
+        if master_to_slave:
+            frame = ipv4_tcp("192.168.30.10", "192.168.30.30", 53000, JC_PORT,
+                             isn_m + off_m, isn_s + off_s, 0x18, payload,
+                             dst_mac="00:11:22:33:44:66")
+            off_m += len(payload)
+        else:
+            frame = ipv4_tcp("192.168.30.30", "192.168.30.10", JC_PORT, 53000,
+                             isn_s + off_s, isn_m + off_m, 0x18, payload,
+                             dst_mac="00:11:22:33:44:55")
+            off_s += len(payload)
+        records.append((ts, frame, ""))
+        ts += 0.02
+
+    if pcap:
+        write_net_pcap(pcap, records)
+        print(f"pcap: {pcap} ({len(records)} frames, neutral Ethernet)")
+    _ = (duration, emit_only, host)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="IEC 60870-5-103 network simulator")
-    ap.add_argument("--vendor", choices=["sifang", "nrelectric"], default="sifang")
+    ap.add_argument("--vendor", choices=["sifang", "nrelectric", "jinzhi", "jicheng"],
+                    default="sifang")
     ap.add_argument("--mode", choices=["both", "emit"], default="both")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--pcap", type=Path, default=None)
@@ -289,6 +537,10 @@ def main() -> int:
     emit_only = args.mode == "emit"
     if args.vendor == "sifang":
         return run_sifang(args.host, args.pcap, args.duration, emit_only)
+    if args.vendor == "jinzhi":
+        return run_jinzhi(args.host, args.pcap, args.duration, emit_only)
+    if args.vendor == "jicheng":
+        return run_jicheng(args.host, args.pcap, args.duration, emit_only)
     return run_nrelectric(args.host, args.pcap, args.duration, emit_only)
 
 

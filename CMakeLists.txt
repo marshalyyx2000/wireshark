@@ -3045,7 +3045,9 @@ list(APPEND copy_data_files_depends
 )
 
 # Copy files including ${INSTALL_FILES} and ${INSTALL_DIRS} to ${DATAFILE_DIR}
-# Vendor point tables live in a nested directory, so copy the tree explicitly.
+# Vendor point tables: glob the directory so adding a vendor needs no CMake edit.
+file(GLOB IEC103_POINT_TABLES CONFIGURE_DEPENDS
+	"${CMAKE_SOURCE_DIR}/resources/share/wireshark/iec103/points/*.csv")
 add_custom_command(
 	OUTPUT "${DATAFILE_DIR}/iec103/points/.stamp"
 	COMMAND ${CMAKE_COMMAND} -E make_directory "${DATAFILE_DIR}/iec103/points"
@@ -3053,11 +3055,7 @@ add_custom_command(
 		"${CMAKE_SOURCE_DIR}/resources/share/wireshark/iec103/points"
 		"${DATAFILE_DIR}/iec103/points"
 	COMMAND ${CMAKE_COMMAND} -E touch "${DATAFILE_DIR}/iec103/points/.stamp"
-	DEPENDS
-		${CMAKE_SOURCE_DIR}/resources/share/wireshark/iec103/points/sifang.csv
-		${CMAKE_SOURCE_DIR}/resources/share/wireshark/iec103/points/sznari.csv
-		${CMAKE_SOURCE_DIR}/resources/share/wireshark/iec103/points/nrelectric.csv
-		${CMAKE_SOURCE_DIR}/resources/share/wireshark/iec103/points/nari.csv
+	DEPENDS ${IEC103_POINT_TABLES}
 )
 list(APPEND copy_data_files_depends "${DATAFILE_DIR}/iec103/points/.stamp")
 

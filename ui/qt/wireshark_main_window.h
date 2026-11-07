@@ -1172,8 +1172,17 @@ private slots:
      */
     void tryDecodeNetworkAs(const char *dissector_name, const QString &filter, bool udp);
 
+    /**
+     * @brief Same as tryDecodeNetworkAs() but applies Decode As to both the
+     *        TCP and UDP tables (protocols sharing one port, e.g. 积成 6185).
+     */
+    void tryDecodeNetworkAsBoth(const char *dissector_name, const QString &filter);
+
     /** @brief Connects 103 menu actions to their implementation slots. */
     void connectIec103MenuActions();
+
+    /** @brief Connects 录波器规约 menu actions to their implementation slots. */
+    void connectRecorderMenuActions();
 
     /** @brief Connects 104 menu actions to their implementation slots. */
     void connectIec104MenuActions();

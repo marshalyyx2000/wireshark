@@ -35,14 +35,18 @@ static const char *const points_file_names[IEC103_POINTS_COUNT] = {
 	"sifang",
 	"sznari",
 	"nrelectric",
-	"nari"
+	"nari",
+	"jinzhi",
+	"jicheng"
 };
 
 static const char *const points_display_names[IEC103_POINTS_COUNT] = {
 	"四方",
 	"深圳南瑞",
 	"南瑞",
-	"南自"
+	"南自",
+	"金智",
+	"积成"
 };
 
 /* Strip UTF-8 BOM and trailing CR/LF/space in place. */

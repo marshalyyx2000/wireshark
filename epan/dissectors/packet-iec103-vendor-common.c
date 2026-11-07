@@ -23,7 +23,10 @@
 #include "packet-iec103-vendor-common.h"
 #include "packet-iec103-points.h"
 
-#define MAX_PROFILES 4
+#define MAX_PROFILES 8
+
+/* FUN code that carries the generic-classification group table. */
+#define FUN_GENERIC_CODE 254
 
 typedef enum {
 	HF_CTRL,
@@ -307,6 +310,36 @@ iec103_vendor_looks_like_asdu(tvbuff_t *tvb, int offset, int remaining)
 	return true;
 }
 
+bool
+iec103_vendor_looks_like_asdu_ext(tvbuff_t *tvb, int offset, int remaining,
+				  const iec103_vendor_profile_t *profile)
+{
+	if (remaining < IEC103_ASDU_HDR_LEN)
+		return false;
+
+	uint8_t typ = tvb_get_uint8(tvb, offset);
+	uint8_t cot = tvb_get_uint8(tvb, offset + 2);
+
+	if (iec103_vendor_looks_like_asdu(tvb, offset, remaining))
+		return true;
+
+	if (profile == NULL)
+		return false;
+
+	/* A vendor TYP is only plausible when its COT is in range: the standard
+	 * range for compatible TYPs, or one of the vendor's own COT values
+	 * (金智 uses 0x80-0x82 for history/file transfer). */
+	if (profile->extra_asdu_types != NULL &&
+	    try_val_to_str(typ, profile->extra_asdu_types) != NULL) {
+		if (cot > 0 && cot <= 63)
+			return true;
+		if (profile->extra_cot != NULL && try_val_to_str(cot, profile->extra_cot) != NULL)
+			return true;
+	}
+
+	return false;
+}
+
 static int
 asdu_pdu_len(tvbuff_t *tvb, int offset, int remaining)
 {
@@ -462,7 +495,8 @@ add_dpi(tvbuff_t *tvb, int offset, proto_tree *tree, const iec103_regs_t *R)
 /* ASDU10 / ASDU21: NGD [NOG] { GIN KOD GDD GID } */
 static void
 dissect_generic(tvbuff_t *tvb, int *offset, int end, proto_tree *tree,
-		const iec103_regs_t *R, packet_info *pinfo, bool is_command)
+		const iec103_regs_t *R, packet_info *pinfo, bool is_command,
+		const iec103_vendor_profile_t *profile)
 {
 	if (*offset >= end)
 		return;
@@ -491,9 +525,19 @@ dissect_generic(tvbuff_t *tvb, int *offset, int end, proto_tree *tree,
 		uint8_t datatype = 0, datasize = 0, datanum = 0;
 
 		if (*offset + 2 <= end) {
-			proto_tree_add_item(et, R->hf[HF_GIN_GROUP], tvb, *offset, 1, ENC_LITTLE_ENDIAN);
-			proto_tree_add_item(et, R->hf[HF_GIN_ENTRY], tvb, *offset + 1, 1,
-					    ENC_LITTLE_ENDIAN);
+			uint8_t gin_group = tvb_get_uint8(tvb, *offset);
+			const char *group_name = iec103_points_lookup(profile->points_vendor,
+								     (uint8_t)FUN_GENERIC_CODE,
+								     gin_group);
+			proto_item *g = proto_tree_add_item(et, R->hf[HF_GIN_GROUP], tvb, *offset, 1,
+							   ENC_LITTLE_ENDIAN);
+			proto_item *e = proto_tree_add_item(et, R->hf[HF_GIN_ENTRY], tvb, *offset + 1,
+							   1, ENC_LITTLE_ENDIAN);
+			if (group_name) {
+				proto_item_append_text(g, " [%s]", group_name);
+				proto_item_append_text(e, " [%s]", group_name);
+				proto_item_append_text(ei, " %s", group_name);
+			}
 			*offset += 2;
 		}
 		if (*offset + 1 <= end) {
@@ -550,9 +594,14 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 	fun = tvb_get_uint8(tvb, offset + 4);
 	inf = tvb_get_uint8(tvb, offset + 5);
 
-	proto_item *ai = proto_tree_add_none_format(tree, R->hf[HF_ASDU_ITEM], tvb, start, end - start,
-						    "ASDU%u %s", typ,
-						    val_to_str_const(typ, asdu_type_vals, "未知类型"));
+	const char *typ_name = try_val_to_str(typ, asdu_type_vals);
+	if (typ_name == NULL && profile->extra_asdu_types != NULL)
+		typ_name = try_val_to_str(typ, profile->extra_asdu_types);
+	if (typ_name == NULL)
+		typ_name = "未知类型";
+
+	proto_item *ai = proto_tree_add_none_format(tree, R->hf[HF_ASDU_ITEM], tvb, start,
+						    end - start, "ASDU%u %s", typ, typ_name);
 	proto_tree *at = proto_item_add_subtree(ai, R->ett_asdu);
 
 	proto_tree_add_item(at, R->hf[HF_TYPEID], tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -562,7 +611,10 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 	proto_tree_add_item(at, R->hf[HF_VSQ_NUM], tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	offset += 1;
 	proto_item *cot_item = proto_tree_add_item(at, R->hf[HF_COT], tvb, offset, 1, ENC_LITTLE_ENDIAN);
-	proto_item_append_text(cot_item, " %s", val_to_str_const(cot, cot_vals, "未知"));
+	const char *cot_name = try_val_to_str(cot, cot_vals);
+	if (cot_name == NULL && profile->extra_cot != NULL)
+		cot_name = try_val_to_str(cot, profile->extra_cot);
+	proto_item_append_text(cot_item, " %s", cot_name ? cot_name : "未知");
 	offset += 1;
 	proto_tree_add_item(at, R->hf[HF_COMADDR], tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	offset += 1;
@@ -651,7 +703,7 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 		break;
 
 	case 10:
-		dissect_generic(tvb, &offset, end, at, R, pinfo, false);
+		dissect_generic(tvb, &offset, end, at, R, pinfo, false, profile);
 		break;
 
 	case 20:
@@ -666,7 +718,7 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 		break;
 
 	case 21:
-		dissect_generic(tvb, &offset, end, at, R, pinfo, true);
+		dissect_generic(tvb, &offset, end, at, R, pinfo, true, profile);
 		break;
 
 	case 23:
@@ -788,6 +840,9 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 		break;
 
 	default:
+		if (profile->dissect_extra_asdu != NULL &&
+		    profile->dissect_extra_asdu(tvb, &offset, end, pinfo, at, profile))
+			break;
 		proto_tree_add_expert_format(at, pinfo, &ei_unknown_asdu, tvb, offset, end - offset,
 					    "%s：ASDU 类型 %u 未专门解码",
 					    profile->unknown_asdu_prefix
@@ -796,7 +851,6 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 					    typ);
 		break;
 	}
-
 	if (offset < end)
 		proto_tree_add_item(at, R->hf[HF_RAW], tvb, offset, end - offset, ENC_NA);
 
@@ -1010,6 +1064,25 @@ iec103_vendor_point_rows(iec103_points_vendor_t vendor)
 /* ------------------------------------------------------------------ */
 /* Registration                                                        */
 /* ------------------------------------------------------------------ */
+
+void
+iec103_vendor_dissect_one_asdu(tvbuff_t *tvb, int offset, int len,
+			       packet_info *pinfo, proto_tree *tree,
+			       const iec103_vendor_profile_t *profile)
+{
+	const iec103_regs_t *R;
+
+	if (len < IEC103_ASDU_HDR_LEN)
+		return;
+	if (offset < 0 || offset + len > (int)tvb_reported_length(tvb))
+		return;
+
+	R = regs_for_proto(profile->proto);
+	if (R == NULL)
+		return;
+
+	dissect_asdu(tvb, offset, offset + len, pinfo, tree, R, profile);
+}
 
 static void
 register_experts_once(int proto)

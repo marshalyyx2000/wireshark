@@ -53,6 +53,13 @@ class Case:
 SERIAL_ASDUS = (1, 2, 3, 5, 6, 7, 8, 10, 23, 24, 25, 26, 27, 28, 29, 30, 31)
 NET_ASDUS = (5, 1, 2, 3, 10, 23, 24, 25, 26, 27, 28, 29, 30, 31)
 
+# 金智扩展 ASDU: 203/204 联锁, 220-229 历史查询/文件传输/遥控校验
+JINZHI_ASDUS = (5, 6, 7, 10, 203, 204, 220, 221, 222, 223, 224, 225, 226, 227,
+                228, 229)
+
+# 积成使用兼容范围 + 录波
+JICHENG_ASDUS = (5, 6, 20, 23, 24, 25, 26, 27, 28, 29, 30, 31, 10)
+
 
 def _serial(proto: str) -> List[str]:
     return ["-o", f"serial_raw.payload_dissector:{proto}"]
@@ -84,12 +91,23 @@ CASES = [
          _net("nrelectric_net_iec103", (1048,), False), SERIAL_ASDUS,
          ("距离I段动作", "线路差动动作", "差动速断动作"),
          ("nrelectric_net_iec103.cot", "nrelectric_net_iec103.fun")),
+    Case("金智网络103", "jinzhi_net.pcap", "jinzhi_net_iec103",
+         _net("jinzhi_net_iec103", (6000,), False), JINZHI_ASDUS,
+         ("动作元件", "装置自检", "运行告警"),
+         ("jinzhi_net_iec103.apci.src_dev", "jinzhi_net_iec103.apci.dst_dev")),
+    Case("积成网络103", "jicheng_net.pcap", "jicheng_net_iec103",
+         _net("jicheng_net_iec103", (6185,), False), JICHENG_ASDUS,
+         ("保护测量值", "定值组"),
+         ("jicheng_net_iec103.cot", "jicheng_net_iec103.apci.frame_type")),
 ]
 
 EXISTING_CASES = [
     ("南自网络103(回归)", "nari_net_iec103"),
     ("许继串口103(回归)", "xuji_serial_iec103"),
     ("深圳南瑞网络103(回归)", "sznari_net_iec103"),
+    ("四方串口103(回归)", "sifang_serial_iec103"),
+    ("四方网络103(回归)", "sifang_net_iec103"),
+    ("南瑞网络103(回归)", "nrelectric_net_iec103"),
 ]
 
 

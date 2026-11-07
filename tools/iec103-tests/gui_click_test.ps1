@@ -1,7 +1,7 @@
 param(
     [string]$Wireshark = "C:\Development\Wireshark-Industrial-Bundle-0.10.3\06-build\wsbuild-industrial\run\RelWithDebInfo\Wireshark.exe",
-    [string]$Pcap = "C:\Development\Wireshark-Industrial-Bundle-0.10.3\03-source\wireshark\tools\iec103-tests\out\sznari_serial.pcap",
-    [int]$SerialMenuIndex = 9,
+    [string]$Pcap = "C:\Development\Wireshark-Industrial-Bundle-0.10.3\03-source\wireshark\tools\iec103-tests\out\zh_recorder_type1.pcap",
+    [int]$NetMenuIndex = 10,
     [int]$Rounds = 3
 )
 Add-Type -AssemblyName UIAutomationClient
@@ -21,9 +21,9 @@ if (-not $win) { Write-Host "NO WINDOW"; exit 2 }
 $menuCond = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty,
     [System.Windows.Automation.ControlType]::MenuItem)
 $top = $win.FindAll($TS::Descendants, $menuCond)
-Write-Host "top menus: $($top.Count)  using index $SerialMenuIndex"
-$serial = $top.Item($SerialMenuIndex)
-Write-Host ("serial menu name='{0}'" -f $serial.Current.Name)
+Write-Host "top menus: $($top.Count)  using index $NetMenuIndex"
+$serial = $top.Item($NetMenuIndex)
+Write-Host ("network-103 menu name='{0}'" -f $serial.Current.Name)
 
 function Open-And-Click([int]$index) {
     $exp = $serial.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
@@ -47,8 +47,8 @@ function Open-And-Click([int]$index) {
     return $ok
 }
 
-# 0=许继 1=南自 2=深圳南瑞 3=四方 (order follows the .ui addaction list)
-$plan = @(2, 3, 2, 0, 1, 2)
+# 0=解析 1=导出 (order follows the menuRecorder addaction list)
+$plan = @(0, 0, 0, 0)
 $fail = 0
 for ($r = 1; $r -le $Rounds; $r++) {
     foreach ($idx in $plan) {

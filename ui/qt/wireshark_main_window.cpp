@@ -729,6 +729,7 @@ WiresharkMainWindow::WiresharkMainWindow(QWidget *parent) :
     connectMmsMenuActions();
     connectModbusMenuActions();
     connectIec103MenuActions();
+    connectRecorderMenuActions();
     connectIec104MenuActions();
     connectCommonToolsMenuActions();
 #ifndef ENABLE_MINIMAL_BUILD
@@ -2760,6 +2761,10 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionIec103SifangSerialParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103NrelectricNetParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103SifangNetParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103JinzhiNetParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103JichengNetParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderZhParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderZhExport->setEnabled(have_captured_packets);
     main_ui_->actionToolsIec103WaveExport->setEnabled(have_captured_packets);
 
 #ifndef ENABLE_MINIMAL_BUILD

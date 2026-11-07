@@ -37,11 +37,6 @@ nrelectric,176,20,差动保护启动,2,DPI,,std,变压器差动
 nrelectric,192,16,线路差动动作,2,DPI,,std,线路差动
 nrelectric,192,17,线路差动启动,2,DPI,,std,线路差动
 nrelectric,192,18,线路差动告警,1,DPI,,std,线路差动
-nrelectric,254,1,定值组,10,GIN,,std,通用分类
-nrelectric,254,2,测量值组,10,GIN,,std,通用分类
-nrelectric,254,3,软压板/控制字组,10,GIN,,std,通用分类
-nrelectric,254,4,动作事件组,10,GIN,,std,通用分类
-nrelectric,254,5,告警组,10,GIN,,std,通用分类
 nrelectric,254,30,定值区号,10,UI,,inferred,继保南瑞定值
 nrelectric,254,31,定值项,10,R32,,inferred,
 nrelectric,254,32,测量值Ia,10,R32,A,inferred,
@@ -49,3 +44,8 @@ nrelectric,254,33,测量值Ib,10,R32,A,inferred,
 nrelectric,254,34,测量值Ic,10,R32,A,inferred,
 nrelectric,254,35,开关位置,10,DPI,,inferred,
 nrelectric,254,36,系统状态字,10,BS1,,public,系统状态字更新版
+nrelectric,254,1,定值组,10,GIN,,std,通用分类
+nrelectric,254,2,测量值组,10,GIN,,std,通用分类
+nrelectric,254,3,软压板/控制字组,10,GIN,,std,通用分类
+nrelectric,254,4,动作事件组,10,GIN,,std,通用分类
+nrelectric,254,5,告警组,10,GIN,,std,通用分类

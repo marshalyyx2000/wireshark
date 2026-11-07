@@ -116,19 +116,68 @@ NARI = [
     (255, 34, "召唤历史信息", 17, "NONE", "", "public", "ASDU17"),
 ]
 
+# 金智 应用层规范 4.x 通用分类组（GIN 组号，条目 00 为组标题）
+JINZHI = [
+    (254, 1,  "装置描述组", 10, "GIN", "", "public", "4.1"),
+    (254, 2,  "装置参数组", 10, "GIN", "", "public", "4.2"),
+    (254, 3,  "定值区号组", 10, "GIN", "", "public", "4.3"),
+    (254, 4,  "定值组", 10, "GIN", "", "public", "4.4"),
+    (254, 5,  "动作元件", 10, "GIN", "", "public", "4.5 主动上送"),
+    (254, 6,  "装置自检", 10, "GIN", "", "public", "4.6 主动上送"),
+    (254, 7,  "运行告警", 10, "GIN", "", "public", "4.7 主动上送"),
+    (254, 8,  "软压板", 10, "GIN", "", "public", "4.8 主动上送"),
+    (254, 9,  "硬压板", 10, "GIN", "", "public", "4.9 主动上送"),
+    (254, 10, "遥信", 10, "GIN", "", "public", "4.10 主动上送"),
+    (254, 11, "保护测量", 10, "GIN", "", "public", "4.20 定时上送"),
+    (254, 12, "遥测", 10, "GIN", "", "public", "4.11 定时上送"),
+    (254, 13, "遥脉", 10, "GIN", "", "public", "4.12"),
+    (254, 14, "遥控", 10, "GIN", "", "public", "4.13"),
+    (254, 15, "遥调", 10, "GIN", "", "public", "4.14"),
+    (254, 16, "档位", 10, "GIN", "", "public", "4.15 主动上送"),
+    (254, 17, "故障信息", 10, "GIN", "", "public", "4.16 主动上送"),
+    (254, 18, "扰动数据说明", 10, "GIN", "", "public", "4.17"),
+    (254, 19, "操作信息", 10, "GIN", "", "public", "4.18 主动上送"),
+    (254, 20, "制造商专用信息", 10, "GIN", "", "public", "4.19"),
+    (254, 21, "接地选线数据", 10, "GIN", "", "public", "4.21"),
+    (254, 22, "接地试跳", 10, "GIN", "", "public", "4.22"),
+    (254, 23, "顺控操作信息", 10, "GIN", "", "public", "主动上送"),
+    (254, 240, "读所有组标题", 10, "GIN", "", "public", "INF F0"),
+    (254, 241, "读一个组全部条目", 10, "GIN", "", "public", "INF F1"),
+    (254, 244, "遥控校验", 10, "GIN", "", "public", "ASDU228/229"),
+]
+
+# 积成 IES-N103 通用分类与召唤
+JICHENG = [
+    (254, 230, "召唤", 21, "GIN", "", "public", "INF E6"),
+    (254, 240, "读所有组标题", 21, "GIN", "", "public", "读命令 COT=42"),
+    (254, 241, "读一个组全部条目", 21, "GIN", "", "public", "读命令 COT=42"),
+    (254, 242, "读单个条目", 21, "GIN", "", "public", "读命令 COT=42"),
+    (254, 1, "装置描述组", 10, "GIN", "", "public", "通用分类"),
+    (254, 2, "装置参数组", 10, "GIN", "", "public", "通用分类"),
+    (254, 3, "定值区号", 10, "GIN", "", "public", "通用分类"),
+    (254, 4, "定值组", 10, "GIN", "", "public", "通用分类"),
+    (254, 9, "保护测量值", 10, "GIN", "", "public", "报文示例 组号09"),
+    (254, 10, "遥测组", 10, "GIN", "", "public", "通用分类"),
+    (254, 11, "遥信组", 10, "GIN", "", "public", "通用分类"),
+]
+
 VENDORS = {
     "sifang": SIFANG,
     "sznari": SZNARI,
     "nrelectric": NRElectric,
     "nari": NARI,
+    "jinzhi": JINZHI,
+    "jicheng": JICHENG,
 }
 
 
 def rows_for(vendor: str):
     seen = set()
     out = []
+    # Vendor-specific rows come before the generic classification baseline so a
+    # vendor's own FUN/INF meaning wins over the shared "定值组/测量值组" rows.
     for fun, inf, name, asdu, dt, unit, src, note in (
-        GLOBAL_STD + PROTECTION_STD + COMMON_MEAS + VENDORS[vendor]
+        GLOBAL_STD + PROTECTION_STD + VENDORS[vendor] + COMMON_MEAS
     ):
         key = (fun, inf)
         if key in seen:

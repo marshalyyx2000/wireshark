@@ -1,0 +1,51 @@
+vendor,fun,inf,name,asdu,datatype,unit,source,note
+jicheng,255,0,通用分类功能类型,10,GIN,,std,组标识符
+jicheng,255,1,时间同步,6,CP56,,std,
+jicheng,255,2,总查询启动,7,NONE,,std,
+jicheng,255,3,总查询终止,8,NONE,,std,
+jicheng,255,4,装置复位/初始化,5,COL,,std,
+jicheng,255,5,信号复归,20,RII,,std,
+jicheng,255,16,一般命令(遥控),20,DCO,,std,
+jicheng,255,19,扰动数据传输命令,24,TOO,,std,
+jicheng,255,20,扰动数据传输认可,25,TOO,,std,
+jicheng,255,23,被记录的扰动表,23,SOF,,std,
+jicheng,255,24,扰动数据传输准备就绪,26,TOV,,std,
+jicheng,255,25,通道传输准备就绪,27,ACC,,std,
+jicheng,255,26,带标志状态变位准备就绪,28,FAN,,std,
+jicheng,255,27,传送带标志的状态变位,29,TAP,,std,
+jicheng,255,28,传输扰动值,30,SDV,,std,
+jicheng,255,31,传送结束,31,TOO,,std,
+jicheng,128,16,距离I段动作,2,DPI,,std,距离保护
+jicheng,128,17,距离II段动作,2,DPI,,std,距离保护
+jicheng,128,18,距离III段动作,2,DPI,,std,距离保护
+jicheng,128,19,距离加速动作,2,DPI,,std,距离保护
+jicheng,128,20,距离保护启动,2,DPI,,std,距离保护
+jicheng,128,21,距离保护返回,2,DPI,,std,距离保护
+jicheng,160,16,过流I段动作,2,DPI,,std,过流保护
+jicheng,160,17,过流II段动作,2,DPI,,std,过流保护
+jicheng,160,18,过流III段动作,2,DPI,,std,过流保护
+jicheng,160,19,过流加速动作,2,DPI,,std,过流保护
+jicheng,160,20,过流保护启动,2,DPI,,std,过流保护
+jicheng,160,21,过流保护返回,2,DPI,,std,过流保护
+jicheng,160,22,零序过流动作,2,DPI,,std,过流保护
+jicheng,160,23,负序过流动作,2,DPI,,std,过流保护
+jicheng,176,16,差动速断动作,2,DPI,,std,变压器差动
+jicheng,176,17,比率差动动作,2,DPI,,std,变压器差动
+jicheng,176,18,差流越限告警,1,DPI,,std,变压器差动
+jicheng,176,19,二次谐波闭锁,1,DPI,,std,变压器差动
+jicheng,176,20,差动保护启动,2,DPI,,std,变压器差动
+jicheng,192,16,线路差动动作,2,DPI,,std,线路差动
+jicheng,192,17,线路差动启动,2,DPI,,std,线路差动
+jicheng,192,18,线路差动告警,1,DPI,,std,线路差动
+jicheng,254,230,召唤,21,GIN,,public,INF E6
+jicheng,254,240,读所有组标题,21,GIN,,public,读命令 COT=42
+jicheng,254,241,读一个组全部条目,21,GIN,,public,读命令 COT=42
+jicheng,254,242,读单个条目,21,GIN,,public,读命令 COT=42
+jicheng,254,1,装置描述组,10,GIN,,public,通用分类
+jicheng,254,2,装置参数组,10,GIN,,public,通用分类
+jicheng,254,3,定值区号,10,GIN,,public,通用分类
+jicheng,254,4,定值组,10,GIN,,public,通用分类
+jicheng,254,9,保护测量值,10,GIN,,public,报文示例 组号09
+jicheng,254,10,遥测组,10,GIN,,public,通用分类
+jicheng,254,11,遥信组,10,GIN,,public,通用分类
+jicheng,254,5,告警组,10,GIN,,std,通用分类

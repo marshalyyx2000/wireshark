@@ -48,7 +48,8 @@ enum ItemKind {
 constexpr char kCombinedTapFilter[] =
     "mms || goose || r-goose || sv || mbtcp || yushun_modbus || "
     "iec60870_5_103 || shandong_iec103 || nari_net_iec103 || nrelectric_net_iec103 || "
-    "sifang_net_iec103 || xuji_net_iec103 || sznari_net_iec103 || "
+    "sifang_net_iec103 || jinzhi_net_iec103 || jicheng_net_iec103 || "
+    "xuji_net_iec103 || sznari_net_iec103 || zh_recorder || "
     "iec60870_104 || yunnan_cfgfree_iec104 || iec60870_101";
 
 bool ipLessThan(const QString &a, const QString &b)
@@ -81,10 +82,11 @@ IndustrialProtocolClassifyPanel::protocolDefs()
         {"sv", "SV", "sv", nullptr, "sv"},
         {"modbus", "MODBUS", "mbtcp", "yushun_modbus", "(mbtcp || yushun_modbus)"},
         {"103", "103", "iec60870_5_103", "shandong_iec103",
-         "(iec60870_5_103 || shandong_iec103 || nari_net_iec103 || nrelectric_net_iec103 || sifang_net_iec103 || xuji_net_iec103 || sznari_net_iec103)"},
+         "(iec60870_5_103 || shandong_iec103 || nari_net_iec103 || nrelectric_net_iec103 || sifang_net_iec103 || jinzhi_net_iec103 || jicheng_net_iec103 || xuji_net_iec103 || sznari_net_iec103)"},
         {"104", "104", "iec60870_104", "yunnan_cfgfree_iec104",
          "(iec60870_104 || yunnan_cfgfree_iec104)"},
         {"101", "101", "iec60870_101", nullptr, "iec60870_101"},
+        {"zh_recorder", "录波器", "zh_recorder", nullptr, "zh_recorder"},
     };
     return defs;
 }
