@@ -1,0 +1,4 @@
+# Generated captures (run run_zh_demo.py to rebuild) and bytecode caches.
+out/
+__pycache__/
+*.pyc
