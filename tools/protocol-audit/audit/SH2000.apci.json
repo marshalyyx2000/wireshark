@@ -1,0 +1,27 @@
+{
+  "vendor": "SH2000",
+  "file": "Sh2000_packet.cpp",
+  "header_bytes": 20,
+  "layout": [
+    "00: 0x12",
+    "01: 0x3D   // 报文长度",
+    "02: 0x00",
+    "03: LOBYTE(data_length)",
+    "04: HIBYTE(data_length)",
+    "05: LOBYTE(connect_type)",
+    "06: HIBYTE(connect_type)",
+    "07: LOBYTE(ver)",
+    "08: HIBYTE(ver)",
+    "09: LOBYTE(protol_type)",
+    "10: HIBYTE(protol_type)",
+    "11: LOBYTE(LOWORD(m_StationID))   // 调试时注意",
+    "12: HIBYTE(LOWORD(m_StationID))",
+    "13: LOBYTE(HIWORD(m_StationID))",
+    "14: HIBYTE(HIWORD(m_StationID))",
+    "15: LOBYTE(LOWORD(m_LBID))",
+    "16: HIBYTE(LOWORD(m_LBID))",
+    "17: LOBYTE(HIWORD(m_LBID))",
+    "18: HIBYTE(HIWORD(m_LBID))",
+    "19: (BYTE)(*name)"
+  ]
+}

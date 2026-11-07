@@ -1,0 +1,19 @@
+{
+  "vendor": "DGT801",
+  "file": "Rtu.cpp",
+  "header_bytes": 12,
+  "layout": [
+    "00: 0xFF",
+    "01: 0x3E",
+    "02: 0x07",
+    "03: IntToBCD(time.wYear%100)",
+    "04: IntToBCD(time.wYear/100)",
+    "05: IntToBCD(time.wMonth)",
+    "06: IntToBCD(time.wDay)",
+    "07: IntToBCD(time.wHour)",
+    "08: IntToBCD(time.wMinute)",
+    "09: IntToBCD(time.wSecond)",
+    "10: btLCrc",
+    "11: btHCrc"
+  ]
+}

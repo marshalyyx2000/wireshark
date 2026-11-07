@@ -1,0 +1,29 @@
+{
+  "vendor": "Toshiba_Com_RSM",
+  "file": "ToshibaPacket.cpp",
+  "header_bytes": 22,
+  "layout": [
+    "00: LOBYTE(LOWORD((DWORD)all_packet_size))",
+    "01: HIBYTE(LOWORD((DWORD)all_packet_size))",
+    "02: LOBYTE(HIWORD((DWORD)all_packet_size))",
+    "03: HIBYTE(HIWORD((DWORD)all_packet_size))   // Relay address",
+    "04: LOBYTE(m_iSourceAddr)",
+    "05: HIBYTE(m_iSourceAddr)   // for (int j=0;j<16;j++)",
+    "06: 0X00",
+    "07: 0X04",
+    "08: LOBYTE((WORD)group_num)",
+    "09: HIBYTE((WORD)group_num)",
+    "10: LOBYTE((WORD)current_group)",
+    "11: HIBYTE((WORD)current_group)",
+    "12: LOBYTE((WORD)type_num)",
+    "13: HIBYTE((WORD)type_num)",
+    "14: LOBYTE((WORD)type_no)",
+    "15: HIBYTE((WORD)type_no)",
+    "16: LOBYTE((WORD)down_dz_array.size())",
+    "17: HIBYTE((WORD)down_dz_array.size())",
+    "18: LOBYTE((WORD)down_dz_array[j].offset)",
+    "19: HIBYTE((WORD)down_dz_array[j].offset)",
+    "20: LOBYTE((WORD)down_dz_array[j].i_value)",
+    "21: HIBYTE((WORD)down_dz_array[j].i_value)"
+  ]
+}

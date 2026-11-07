@@ -1,0 +1,20 @@
+{
+  "vendor": "GEC",
+  "file": "Rtu.cpp",
+  "header_bytes": 13,
+  "layout": [
+    "00: 0x68",
+    "01: 0x00",
+    "02: 0x00",
+    "03: 0x68",
+    "04: GetFunCode()",
+    "05: m_btAddr",
+    "06: 0x00",
+    "07: 0x07",
+    "08: 0x40   // preload",
+    "09: cell.row",
+    "10: cell.col",
+    "11: Datetype   // 数据类型",
+    "12: strValue.size()"
+  ]
+}

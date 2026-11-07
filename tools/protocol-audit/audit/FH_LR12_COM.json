@@ -1,0 +1,20 @@
+{
+  "vendor": "FH_LR12_COM",
+  "files": 11,
+  "bytes": 74081,
+  "framing": "ft12",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

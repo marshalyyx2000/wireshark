@@ -1,0 +1,13 @@
+{
+  "vendor": "GE_Modbus",
+  "file": "CPacket.cpp",
+  "header_bytes": 6,
+  "layout": [
+    "00: HIBYTE(map_mem_addr)",
+    "01: LOBYTE(map_mem_addr)",
+    "02: HIBYTE((WORD)number_setting)",
+    "03: LOBYTE((WORD)number_setting)",
+    "04: (BYTE) iNumber",
+    "05: pbt_databody[j]"
+  ]
+}

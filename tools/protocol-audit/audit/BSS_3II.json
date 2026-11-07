@@ -1,0 +1,16 @@
+{
+  "vendor": "BSS_3II",
+  "files": 5,
+  "bytes": 7821,
+  "framing": "unknown",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": false
+}

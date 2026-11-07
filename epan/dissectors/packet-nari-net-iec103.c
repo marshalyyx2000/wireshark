@@ -78,6 +78,7 @@ static int ett_nari_sof;
 static int ett_nari_sdv;
 static int ett_nari_sdv_entry;
 static int ett_nari_udp;
+static int ett_nari_priv;
 
 static int hf_typeid;
 static int hf_vsq;
@@ -95,6 +96,7 @@ static int hf_ngd_cont;
 static int hf_ngd_count;
 static int hf_nog;
 static int hf_raw;
+static int hf_nari_priv_apci;
 static int hf_gen_entry;
 static int hf_cp56time;
 static int hf_cp56time_ms;
@@ -1481,9 +1483,49 @@ nari_tcp_stream_looks_valid(tvbuff_t *tvb)
 	return is_plausible_nari_asdu_type(tvb_get_uint8(tvb, 0));
 }
 
+/* 南自私有 APCI（参考实现 Net103 的 Set_PacketHead）：
+ *   90 EB | len32(小端) | 90 EB | 源厂站(1) | 源地址(1) | 目标厂站(1)
+ *   | 目标地址(1) | 00 | 报文类型(1) | 00 00 | 数据编号(2) | FF x 8
+ * 共 29 字节，其中 ASDU 从偏移 28 开始。 */
+#define NARI_PRIV_APCI_LEN    28
+#define NARI_PRIV_APCI_MARK   0xEB90
+
+static bool
+nari_priv_apci_ok(tvbuff_t *tvb)
+{
+	return tvb_reported_length(tvb) >= NARI_PRIV_APCI_LEN + NARI_ASDU_HDR_LEN &&
+		tvb_get_letohs(tvb, 0) == NARI_PRIV_APCI_MARK &&
+		tvb_get_letohs(tvb, 6) == NARI_PRIV_APCI_MARK;
+}
+
+static int
+dissect_nari_priv_apci(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+	int end = (int)tvb_reported_length(tvb);
+	int asdu_off = NARI_PRIV_APCI_LEN;
+
+	proto_item *ti = proto_tree_add_item(tree, proto_nari_net_iec103, tvb, 0, end, ENC_NA);
+	proto_item_set_text(ti, "南自网络103规约（私有 APCI）");
+	proto_tree *root = proto_item_add_subtree(ti, ett_nari_priv);
+
+	proto_tree_add_bytes_format_value(root, hf_nari_priv_apci, tvb, 0, NARI_PRIV_APCI_LEN,
+		NULL, "同步 %04X 长度 %u 报文类型 %u", NARI_PRIV_APCI_MARK,
+		tvb_get_letohl(tvb, 2), tvb_get_uint8(tvb, 17));
+
+	if (end - asdu_off >= NARI_ASDU_HDR_LEN)
+		dissect_nari_asdu_pdu(tvb_new_subset_length(tvb, asdu_off, end - asdu_off),
+				      pinfo, root, NULL);
+	return end;
+}
+
 static int
 dissect_nari_net_iec103_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
+	/* Neutral captures may carry 南自's private 28-byte APCI instead of a bare
+	 * ASDU stream (see tools/protocol-audit/audit/APCI.md). */
+	if (nari_priv_apci_ok(tvb))
+		return dissect_nari_priv_apci(tvb, pinfo, tree);
+
 	if (!nari_tcp_stream_looks_valid(tvb))
 		return 0;
 
@@ -1591,6 +1633,9 @@ proto_register_nari_net_iec103(void)
 		{ &hf_raw,
 		  { "原始数据 (Data)", "nari_net_iec103.data", FT_BYTES, BASE_NONE,
 		    NULL, 0x0, NULL, HFILL }},
+		{ &hf_nari_priv_apci,
+		  { "私有 APCI", "nari_net_iec103.priv_apci", FT_BYTES, BASE_NONE,
+		    NULL, 0x0, "28 字节私有应用规约控制信息", HFILL }},
 		{ &hf_gen_entry,
 		  { "通用分类元素 (Generic entry)", "nari_net_iec103.gen.entry_item", FT_NONE, BASE_NONE,
 		    NULL, 0x0, NULL, HFILL }},
@@ -1782,6 +1827,7 @@ proto_register_nari_net_iec103(void)
 		&ett_nari_sdv,
 		&ett_nari_sdv_entry,
 		&ett_nari_udp,
+		&ett_nari_priv,
 	};
 
 	static ei_register_info ei[] = {

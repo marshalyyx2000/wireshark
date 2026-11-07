@@ -2765,6 +2765,38 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionIec103JichengNetParse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderZhParse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderZhExport->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderNfdfrParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderNfdfr200Parse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderNfRfw200Parse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderYs88aParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderYs89NetParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderYs89aNetParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderSddffrParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103XjNet103Wxh13Parse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103SfNet103TcpParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Keli103TcpParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Nr103Rcs9691SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Xj103ComSerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103XjCom103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Nz103iiSerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Sf103Csc103aSerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Abb103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Bp103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Siemens103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Sj103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Alstom103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Nr103NetParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Nrr103Rcs9793Parse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103NzNet103Parse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103SfUdp103Parse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Wgl3000Parse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Sznr103TcpParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103SfCsfm103TcpParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103XjNet103TcpParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Nz103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Sf103SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103AbbCom101SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionVendorRecipeParse->setEnabled(have_captured_packets);
     main_ui_->actionToolsIec103WaveExport->setEnabled(have_captured_packets);
 
 #ifndef ENABLE_MINIMAL_BUILD

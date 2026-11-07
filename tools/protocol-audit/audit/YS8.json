@@ -1,0 +1,20 @@
+{
+  "vendor": "YS8",
+  "files": 9,
+  "bytes": 65635,
+  "framing": "ft12",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

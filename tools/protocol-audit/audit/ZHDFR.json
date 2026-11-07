@@ -1,0 +1,24 @@
+{
+  "vendor": "ZHDFR",
+  "files": 9,
+  "bytes": 71687,
+  "framing": "unknown",
+  "asdu_comments": [
+    10
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3
+  ],
+  "case_hex": [],
+  "ports": [
+    30282
+  ],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

@@ -1,0 +1,44 @@
+{
+  "vendor": "SF_UDP103",
+  "asdu_start_candidates": [
+    28
+  ],
+  "defines": {
+    "HEART_BEAT_PACKET_POSITION": 16,
+    "NOT_LENGTH_POSITION": 8,
+    "ASDU_START_POSTION": 28
+  },
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    6,
+    8,
+    9,
+    10,
+    11
+  ],
+  "checksum_ranges": [
+    [
+      1,
+      "2"
+    ],
+    [
+      4,
+      "len"
+    ]
+  ],
+  "frame_len_expr": [
+    "i",
+    "i",
+    "i",
+    "i"
+  ],
+  "sockets": [
+    "SOCK_DGRAM"
+  ],
+  "bytes": 227342
+}

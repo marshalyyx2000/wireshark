@@ -1,0 +1,29 @@
+{
+  "vendor": "YS88A",
+  "asdu_start_candidates": [],
+  "defines": {},
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    1,
+    3,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "i",
+    "= 717) { //处理自检信息 DillSelfTest()",
+    "i",
+    "16"
+  ],
+  "sockets": [
+    "SOCK_DGRAM"
+  ],
+  "bytes": 74555
+}

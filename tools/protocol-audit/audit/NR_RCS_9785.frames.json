@@ -1,0 +1,15 @@
+{
+  "vendor": "NR_RCS_9785",
+  "asdu_start_candidates": [],
+  "defines": {
+    "PACK_HEAD": 28
+  },
+  "magics": {},
+  "len_field_offsets": [],
+  "checksum_ranges": [],
+  "frame_len_expr": [],
+  "sockets": [
+    "SOCK_DGRAM"
+  ],
+  "bytes": 7816
+}

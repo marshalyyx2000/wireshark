@@ -49,6 +49,9 @@ typedef struct {
 	int hf_vsq_num;
 	int hf_cot;
 	int hf_cot_hi;
+	/* 1 = 103 compatible range (single byte), 2 = 104 style (little endian).
+	 * The reference implementations differ: 许继 uses 2 bytes, 深圳南瑞 1. */
+	int cot_len;
 	int hf_comaddr_unit;
 	int hf_comaddr_dev;
 	int hf_fun;

@@ -1,0 +1,25 @@
+{
+  "vendor": "HathAwayIDM",
+  "files": 10,
+  "bytes": 45093,
+  "framing": "ascii",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    32,
+    64,
+    128
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": true,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

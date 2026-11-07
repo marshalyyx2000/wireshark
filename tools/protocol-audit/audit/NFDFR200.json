@@ -1,0 +1,20 @@
+{
+  "vendor": "NFDFR200",
+  "files": 11,
+  "bytes": 53229,
+  "framing": "unknown",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": true,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

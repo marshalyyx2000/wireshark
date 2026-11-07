@@ -45,13 +45,25 @@ static const enum_val_t vendor_pref_vals[] = {
 	{ NULL, NULL, 0 }
 };
 
+static const iec103_apci2404_regs_t *
+active_regs(void);
+
 bool
 iec103_net_apci2404_asdu_prefers_vendor(tvbuff_t *tvb, int asdu_offset, int asdu_len)
 {
 	uint8_t cot_hi, fun6;
+	const iec103_apci2404_regs_t *R = active_regs();
 
 	if (asdu_len < IEC103_NET_ASDU_HDR_LEN)
 		return false;
+
+	/* 深圳南瑞 sends the compatible-range layout: TYP|VSQ|COT|ADDR|FUN|INF,
+	 * so FUN is at +4 and there is no COT high byte to test. */
+	if (R != NULL && R->cot_len == 1) {
+		fun6 = tvb_get_uint8(tvb, asdu_offset + 4);
+		return (fun6 == 254 || fun6 == 255);
+	}
+
 	cot_hi = tvb_get_uint8(tvb, asdu_offset + 3);
 	if (cot_hi != 0)
 		return false;
@@ -358,15 +370,25 @@ dissect_asdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	offset++;
 
 	cot = tvb_get_letohs(tvb, offset);
-	proto_tree_add_item(asdu_tree, R->hf_cot, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-	proto_tree_add_item(asdu_tree, R->hf_cot_hi, tvb, offset + 1, 1, ENC_LITTLE_ENDIAN);
-	col_append_fstr(pinfo->cinfo, COL_INFO, " COT=%u", cot);
-	offset += 2;
+	if (R->cot_len == 1) {
+		proto_tree_add_item(asdu_tree, R->hf_cot, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " COT=%u", tvb_get_uint8(tvb, offset));
+		offset += 1;
+	} else {
+		proto_tree_add_item(asdu_tree, R->hf_cot, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(asdu_tree, R->hf_cot_hi, tvb, offset + 1, 1, ENC_LITTLE_ENDIAN);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " COT=%u", cot);
+		offset += 2;
+	}
 
 	proto_tree_add_item(asdu_tree, R->hf_comaddr_unit, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	offset++;
-	proto_tree_add_item(asdu_tree, R->hf_comaddr_dev, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-	offset++;
+	if (R->cot_len == 1) {
+		/* Compatible range: COMADDR is one byte, so nothing else to read here. */
+	} else {
+		proto_tree_add_item(asdu_tree, R->hf_comaddr_dev, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		offset++;
+	}
 
 	fun = tvb_get_uint8(tvb, offset);
 	proto_tree_add_item(asdu_tree, R->hf_fun, tvb, offset, 1, ENC_LITTLE_ENDIAN);

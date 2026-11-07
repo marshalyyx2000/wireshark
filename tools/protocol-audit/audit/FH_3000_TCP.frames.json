@@ -1,0 +1,39 @@
+{
+  "vendor": "FH_3000_TCP",
+  "asdu_start_candidates": [],
+  "defines": {
+    "NOT_LENGTH_POSITION": 8,
+    "PACKET_INFO_POS": 4
+  },
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    10,
+    11,
+    12
+  ],
+  "checksum_ranges": [
+    [
+      1,
+      "2"
+    ],
+    [
+      4,
+      "len"
+    ]
+  ],
+  "frame_len_expr": [
+    "0",
+    "0",
+    "iTotalLen",
+    "i"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 96233
+}

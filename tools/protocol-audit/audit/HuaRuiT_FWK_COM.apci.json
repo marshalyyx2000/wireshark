@@ -1,0 +1,19 @@
+{
+  "vendor": "HuaRuiT_FWK_COM",
+  "file": "Packet.cpp",
+  "header_bytes": 12,
+  "layout": [
+    "00: 0xaa   // 起始符",
+    "01: 0X08   // 长度;＝0代表这一帧接收完毕",
+    "02: (BYTE)m_iSourceAddr   // 地址",
+    "03: 0x3c   // 命令/数据类型",
+    "04: dec_to_CBD(Time.wSecond)",
+    "05: dec_to_CBD(Time.wMinute)",
+    "06: dec_to_CBD(Time.wHour)",
+    "07: dec_to_CBD(Time.wDay)",
+    "08: dec_to_CBD(Time.wMonth)",
+    "09: dec_to_CBD(Time.wYear%100)",
+    "10: LOBYTE(checksum)   // 校验和（LB）",
+    "11: HIBYTE(checksum)   // 校验和（HB）"
+  ]
+}

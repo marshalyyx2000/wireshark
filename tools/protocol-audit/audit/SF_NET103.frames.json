@@ -1,0 +1,30 @@
+{
+  "vendor": "SF_NET103",
+  "asdu_start_candidates": [
+    28
+  ],
+  "defines": {
+    "HEART_BEAT_PACKET_POSITION": 16,
+    "NOT_LENGTH_POSITION": 8,
+    "ASDU_START_POSTION": 28,
+    "MAX_POS": 65535
+  },
+  "magics": {},
+  "len_field_offsets": [
+    12,
+    14,
+    16,
+    24
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "33+(9*iDigitNum)",
+    "21+(16*iDZNum)",
+    "33+(16*TotalAnalogNum)"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 168054
+}

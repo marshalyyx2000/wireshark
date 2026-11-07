@@ -1,0 +1,28 @@
+{
+  "vendor": "KELI_103_TCP",
+  "asdu_start_candidates": [],
+  "defines": {},
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    8,
+    9,
+    12,
+    14
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "0",
+    "iTotalLen",
+    "iTotalLen"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 76546
+}

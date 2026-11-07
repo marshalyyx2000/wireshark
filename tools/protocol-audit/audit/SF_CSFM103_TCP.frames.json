@@ -1,0 +1,43 @@
+{
+  "vendor": "SF_CSFM103_TCP",
+  "asdu_start_candidates": [
+    28
+  ],
+  "defines": {
+    "ASDU_START_POSTION": 28,
+    "U_START_FRAME": 1,
+    "U_START_ACK_FRAME": 2,
+    "U_START_CON_MASK": 0,
+    "U_START_ACT_MASK": 0,
+    "NOT_LENGTH_POSITION": 8
+  },
+  "magics": {
+    "U_TEST_CON_MASK": "0x80",
+    "U_TEST_ACT_MASK": "0x40",
+    "U_STOP_CON_MASK": "0x20",
+    "U_STOP_ACT_MASK": "0x10"
+  },
+  "len_field_offsets": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "0",
+    "0",
+    "0"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 220433
+}

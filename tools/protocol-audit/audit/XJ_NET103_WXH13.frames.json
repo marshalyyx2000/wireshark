@@ -1,0 +1,39 @@
+{
+  "vendor": "XJ_NET103_WXH13",
+  "asdu_start_candidates": [],
+  "defines": {
+    "U_START_FRAME": 1,
+    "U_START_ACK_FRAME": 2,
+    "U_START_CON_MASK": 0,
+    "U_START_ACT_MASK": 0
+  },
+  "magics": {
+    "U_TEST_CON_MASK": "0x80",
+    "U_TEST_ACT_MASK": "0x40",
+    "U_STOP_CON_MASK": "0x20",
+    "U_STOP_ACT_MASK": "0x10"
+  },
+  "len_field_offsets": [
+    1,
+    6,
+    8,
+    11,
+    12,
+    13,
+    14,
+    28,
+    30,
+    35
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "14",
+    "17+(9*pSoftBoardBuff->iRealNumber)",
+    "17+(9*pSoftBoardBuff->iRealNumber)"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 235914
+}

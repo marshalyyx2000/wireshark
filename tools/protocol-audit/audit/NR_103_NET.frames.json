@@ -1,0 +1,32 @@
+{
+  "vendor": "NR_103_NET",
+  "asdu_start_candidates": [],
+  "defines": {
+    "MAX_ASDU23_NUM": 50,
+    "MAX_POS": 4096
+  },
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    1,
+    2,
+    6,
+    7,
+    8,
+    10,
+    12,
+    13,
+    14
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "16",
+    "i",
+    "m_pStreamNet->Read(m_pRead->buf, 8)"
+  ],
+  "sockets": [
+    "SOCK_DGRAM"
+  ],
+  "bytes": 161415
+}

@@ -1,0 +1,51 @@
+{
+  "vendor": "FH_3000_TCP",
+  "files": 13,
+  "bytes": 96232,
+  "framing": "iec103",
+  "asdu_comments": [
+    6,
+    7,
+    12,
+    13,
+    14,
+    15,
+    16,
+    20,
+    101,
+    102,
+    230,
+    231,
+    232,
+    239
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "case_hex": [
+    "0x0001",
+    "0x0002",
+    "0x0003",
+    "0x000C",
+    "0x000E",
+    "0x0010",
+    "0x0066",
+    "0x00C8",
+    "0x00C9",
+    "0x00CC",
+    "0x00CE"
+  ],
+  "ports": [],
+  "tcp": true,
+  "udp": false,
+  "serial": false,
+  "checksum": [
+    "sum8_add"
+  ],
+  "has_sttp_dll": false
+}

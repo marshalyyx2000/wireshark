@@ -1,0 +1,65 @@
+{
+  "_comment": [
+    "录波器 68 帧家族：帧结构 68|地址|命令|应答|密码(2)|总长(4,LE)|主体，",
+    "长度含 10 字节头。事实来源 PROTOCOL/<dir>/DFR.cpp 的 ReadWrite/SearchFile 等。",
+    "解析器（gen_dfr_dissectors.py）与模拟器（dfr_sim.py）共用本文件。"
+  ],
+  "vendors": [
+    {
+      "short": "nfdfr",
+      "display": "南自录波器(NFDFR)",
+      "short_display": "南自录波器",
+      "vendor_dir": "NFDFR",
+      "transport": "tcp_udp",
+      "note": "TCP/UDP 双承载，68 帧 + 长度32LE"
+    },
+    {
+      "short": "nfdfr200",
+      "display": "南自录波器200(NFDFR200)",
+      "short_display": "南自录波器200",
+      "vendor_dir": "NFDFR200",
+      "transport": "tcp_udp",
+      "note": "与 NFDFR 同构，文件传输流程略有差异"
+    },
+    {
+      "short": "nf_rfw200_net",
+      "display": "南瑞 RFW200 录波器",
+      "short_display": "南瑞RFW200录波器",
+      "vendor_dir": "NF_RFW200_NET",
+      "transport": "tcp_udp",
+      "note": "头部第 4-5 字节为密码（CaculPassWord），命令码表同 NFDFR"
+    },
+    {
+      "short": "ys88a",
+      "display": "YS88A 录波器",
+      "short_display": "YS88A录波器",
+      "vendor_dir": "YS88A",
+      "transport": "tcp_udp",
+      "note": "68 帧，检索应答的文件长度在偏移 6"
+    },
+    {
+      "short": "ys_89_net",
+      "display": "YS-89 网络录波器",
+      "short_display": "YS-89网络录波器",
+      "vendor_dir": "YS_89_NET",
+      "transport": "tcp_udp",
+      "note": "68 帧，检索请求带文件类型字节（与 YS88A 差 1 字节）"
+    },
+    {
+      "short": "ys_89a_net",
+      "display": "YS-89A 网络录波器",
+      "short_display": "YS-89A网络录波器",
+      "vendor_dir": "YS_89A_NET",
+      "transport": "tcp_udp",
+      "note": "与 YS-89 同构"
+    },
+    {
+      "short": "sddffr",
+      "display": "山东电研院录波器(SDDFR)",
+      "short_display": "山东电研院录波器",
+      "vendor_dir": "SDDFR",
+      "transport": "serial_ft12",
+      "note": "68 帧 + 串口 FT1.2 变体（ASDU 类型 231/233/235）"
+    }
+  ]
+}

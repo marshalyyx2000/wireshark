@@ -1,0 +1,216 @@
+{
+  "_comment": [
+    "单一事实来源：剩余厂家的承载/APCI/COT/点表。",
+    "解析器（gen_generic_vendors.py 生成 C 表）与模拟器（run_vendor_sim2.py）共用本文件。",
+    "事实来源：tools/现场运行的各种规约程序/PROTOCOL/<vendor_dir> 的 C++ 实现，",
+    "抽取结果见 tools/protocol-audit/audit/APCI.md 与 FRAMES.md。",
+    "GPS_* 四家按需求不做规约解析。"
+  ],
+  "apci": {
+    "eb90_28": {
+      "label": "28 字节传输头 (90 EB | 长度32LE | 90 EB | 地址 | 类型 | FF×8)",
+      "hdr_len": 28,
+      "len_off": 2,
+      "len_size": 4,
+      "len_bias": 8,
+      "len_be": false,
+      "sig": [[0, 144], [1, 235], [6, 144], [7, 235]]
+    },
+    "wgl_6": {
+      "label": "6 字节传输头 (68 | 长度16BE | 68 43 地址)",
+      "hdr_len": 6,
+      "len_off": 1,
+      "len_size": 2,
+      "len_bias": 6,
+      "len_be": true,
+      "sig": [[0, 104], [3, 104], [4, 67]]
+    },
+    "apdu_6": {
+      "label": "6 字节 APDU 头 (68 | APDU长度 | 发送序号×2 | 接收序号×2)",
+      "hdr_len": 6,
+      "len_off": 1,
+      "len_size": 1,
+      "len_bias": 2,
+      "len_be": false,
+      "sig": [[0, 104]]
+    }
+  },
+  "vendors": [
+    {
+      "short": "abb103_serial_iec103",
+      "display": "ABB 串口103",
+      "short_display": "ABB 串口103",
+      "transport": "serial_ft12",
+      "vendor_dir": "ABB103",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "note": "FT1.2 可变帧 68 | 长度 | 长度 | 68；ASDU 使用 1 字节 COT，FUN=0xFE/0xFF"
+    },
+    {
+      "short": "bp103_serial_iec103",
+      "display": "BP 串口103",
+      "short_display": "BP 串口103",
+      "transport": "serial_ft12",
+      "vendor_dir": "BP103",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "note": "FT1.2 可变帧；ASDU24/25 扰动命令，COT=0x1F"
+    },
+    {
+      "short": "siemens103_serial_iec103",
+      "display": "西门子串口103",
+      "short_display": "西门子串口103",
+      "transport": "serial_ft12",
+      "vendor_dir": "SIEMENS_103_COM",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "note": "FT1.2 可变帧；ASDU1..31 全量"
+    },
+    {
+      "short": "sj103_serial_iec103",
+      "display": "SJ 串口103",
+      "short_display": "SJ 串口103",
+      "transport": "serial_ft12",
+      "vendor_dir": "SJ103",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "note": "FT1.2 可变帧；时间同步 ASDU6 与总查询 ASDU7"
+    },
+    {
+      "short": "alstom103_serial_iec103",
+      "display": "阿尔斯通串口103",
+      "short_display": "阿尔斯通串口103",
+      "transport": "serial_ft12",
+      "vendor_dir": "ALSTOM_103_COM",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "note": "FT1.2 可变帧；另有 90 EB 28 字节网络头版本（见 sf_net103_tcp）"
+    },
+    {
+      "short": "nr103_net_iec103",
+      "display": "南瑞网络103(NR_103_NET)",
+      "short_display": "南瑞网络103(NR_103_NET)",
+      "transport": "udp_asdu",
+      "vendor_dir": "NR_103_NET",
+      "points": "NARI",
+      "cot_len": 1,
+      "port": 6000,
+      "note": "UDP 数据报内为裸 ASDU（0x0A 0x81 0x28 ...），ASDU 地址 2 字节低字节在前"
+    },
+    {
+      "short": "sznr103_tcp_iec103",
+      "display": "深圳南瑞网络103(TCP)",
+      "short_display": "深圳南瑞网络103(TCP)",
+      "transport": "tcp_ft12",
+      "vendor_dir": "SZNR_103_TCP",
+      "points": "SZNARI",
+      "cot_len": 1,
+      "ft12_len16le": 0,
+      "port": 0,
+      "note": "标准 FT1.2 可变帧（68 | 长度 | 长度 | 68 | 控制域 | 链路地址），承载于 TCP；链路地址在偏移 5，与 CheckUp 的 68/68/16 校验一致"
+    },
+    {
+      "short": "nz_net103_iec103",
+      "display": "南自网络103(NZ_NET103)",
+      "short_display": "南自网络103(NZ_NET103)",
+      "transport": "tcp_apci",
+      "vendor_dir": "NZ_NET103",
+      "points": "NARI",
+      "cot_len": 1,
+      "apci": "eb90_28",
+      "port": 0,
+      "note": "90 EB + 长度32LE + 90 EB 传输头，ASDU 从偏移 28 开始"
+    },
+    {
+      "short": "sf_udp103_iec103",
+      "display": "四方网络103(UDP)",
+      "short_display": "四方网络103(UDP)",
+      "transport": "udp_apci",
+      "vendor_dir": "SF_UDP103",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "apci": "eb90_28",
+      "port": 1888,
+      "note": "与 SF_NET103 相同的 28 字节传输头，承载于 UDP"
+    },
+    {
+      "short": "wgl3000_iec103",
+      "display": "WGL3000 网络103",
+      "short_display": "WGL3000 网络103",
+      "transport": "tcp_apci",
+      "vendor_dir": "WGL3000",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "apci": "wgl_6",
+      "port": 0,
+      "note": "68 | 长度16BE | 68 43 地址，ASDU 从偏移 6 开始，尾部校验和 + 0x16"
+    },
+    {
+      "short": "nr103_rcs9793_iec103",
+      "display": "南瑞 RCS-9793 网络103",
+      "short_display": "南瑞RCS9793网络103",
+      "transport": "tcp_apci",
+      "vendor_dir": "NR103_RCS9793",
+      "points": "NARI",
+      "cot_len": 1,
+      "apci": "eb90_28",
+      "port": 0,
+      "note": "90 EB + 长度32LE + 90 EB，长度字段 = 总长 - 8"
+    },
+    {
+      "short": "sf_csfm103_tcp_iec103",
+      "display": "四方 CSFM103 网络103",
+      "short_display": "四方CSFM103网络103",
+      "transport": "tcp_apci",
+      "vendor_dir": "SF_CSFM103_TCP",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "apci": "apdu_6",
+      "port": 0,
+      "note": "68 | APDU长度 | 发送序号(2) | 接收序号(2)，ASDU 从偏移 6 开始，APDU长度 = 总长 - 2"
+    },
+    {
+      "short": "nz103_serial_iec103",
+      "display": "南自串口103(NZ103)",
+      "short_display": "南自串口103(NZ103)",
+      "transport": "serial_ft12",
+      "vendor_dir": "NZ103",
+      "points": "NARI",
+      "cot_len": 1,
+      "note": "标准 FT1.2 可变帧，ASDU 使用 1 字节 COT，功能类型 0xFE/0xFF"
+    },
+    {
+      "short": "sf103_serial_iec103",
+      "display": "四方串口103(SF103)",
+      "short_display": "四方串口103(SF103)",
+      "transport": "serial_ft12",
+      "vendor_dir": "SF103",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "note": "标准 FT1.2 可变帧，通用分类召唤 COT=0x28"
+    },
+    {
+      "short": "abb_com101_serial_iec103",
+      "display": "ABB 串口101(ABB_COM_101)",
+      "short_display": "ABB串口101",
+      "transport": "serial_ft12",
+      "vendor_dir": "ABB_COM_101",
+      "points": "SIFANG",
+      "cot_len": 1,
+      "ft12_addr_len": 2,
+      "note": "FT1.2 但链路地址为 2 字节（控制域偏移 4、地址偏移 5、校验偏移 7）"
+    },
+    {
+      "short": "xj_net103_tcp_iec103",
+      "display": "许继网络103(XJ_NET103)",
+      "short_display": "许继网络103(XJ_NET103)",
+      "transport": "tcp_apci",
+      "vendor_dir": "XJ_NET103",
+      "points": "SIFANG",
+      "cot_len": 2,
+      "apci": "apdu_6",
+      "port": 0,
+      "note": "与 WXH13 同构：68 | APDU长度 | 发送/接收序号(4)，ASDU 用 2 字节 COT"
+    }
+  ]
+}

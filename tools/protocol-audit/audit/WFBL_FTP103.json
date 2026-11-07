@@ -1,0 +1,38 @@
+{
+  "vendor": "WFBL_FTP103",
+  "files": 21,
+  "bytes": 165669,
+  "framing": "ascii",
+  "asdu_comments": [
+    1,
+    6,
+    7,
+    10,
+    20,
+    21,
+    24,
+    25
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    6,
+    7,
+    9,
+    10
+  ],
+  "case_hex": [
+    "0x00F0",
+    "0x00F4",
+    "0x00F9",
+    "0x00FA"
+  ],
+  "ports": [],
+  "tcp": true,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

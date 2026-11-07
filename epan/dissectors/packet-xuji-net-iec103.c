@@ -224,6 +224,8 @@ proto_register_xuji_net_iec103(void)
 	xuji_regs.hf_vsq_num = hf_vsq_num;
 	xuji_regs.hf_cot = hf_cot;
 	xuji_regs.hf_cot_hi = hf_cot_hi;
+	/* 许继 uses the 104 style ASDU header with a 2-byte COT. */
+	xuji_regs.cot_len = 2;
 	xuji_regs.hf_comaddr_unit = hf_comaddr_unit;
 	xuji_regs.hf_comaddr_dev = hf_comaddr_dev;
 	xuji_regs.hf_fun = hf_fun;

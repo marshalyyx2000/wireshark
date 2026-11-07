@@ -1,0 +1,27 @@
+{
+  "vendor": "HathAwayIDM",
+  "asdu_start_candidates": [],
+  "defines": {
+    "PACKHEAD": 28
+  },
+  "magics": {},
+  "len_field_offsets": [
+    2,
+    3,
+    5,
+    6,
+    7,
+    14
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "12",
+    "25",
+    "17+12"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 45094
+}

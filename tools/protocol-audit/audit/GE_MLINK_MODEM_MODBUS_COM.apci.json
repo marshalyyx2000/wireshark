@@ -1,0 +1,16 @@
+{
+  "vendor": "GE_MLINK_MODEM_MODBUS_COM",
+  "file": "CMLinkPacket.cpp",
+  "header_bytes": 9,
+  "layout": [
+    "00: 01",
+    "01: bt_Type_of_service",
+    "02: bt_addr",
+    "03: 03",
+    "04: 01",
+    "05: 0x4f   // · 00h: Protection.",
+    "06: bt_Addr_second_station",
+    "07: bt_application_data_length",
+    "08: bt_xor_packet"
+  ]
+}

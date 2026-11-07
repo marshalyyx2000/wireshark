@@ -1,0 +1,23 @@
+{
+  "vendor": "NR103_RCS9793",
+  "asdu_start_candidates": [],
+  "defines": {},
+  "magics": {},
+  "len_field_offsets": [
+    10,
+    12,
+    13,
+    14
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "152",
+    "16+(9*iSoftBoardNum)",
+    "33+(9*iDigitNum)"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 138782
+}

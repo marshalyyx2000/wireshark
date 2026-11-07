@@ -1,0 +1,22 @@
+{
+  "vendor": "WGL3000",
+  "file": "CNet103_Packet.cpp",
+  "header_bytes": 15,
+  "layout": [
+    "00: 0x0a   // ASDU类型",
+    "01: 0x81",
+    "02: bt_cot",
+    "03: m_btSourceAddr",
+    "04: 0xFE",
+    "05: bt_inf",
+    "06: bt_rii",
+    "07: bt_ngd",
+    "08: (BYTE) ((vec_w_gin[j] & 0xFF00) >> 8)   // group 组号",
+    "09: (BYTE) (vec_w_gin[j] & 0x00FF)   // entry 条目号",
+    "10: 0x01   // 实际值",
+    "11: vec_bt_datatype_gdd[j]   // 数据类型",
+    "12: (BYTE) ((vec_w_datasize_number_gdd[j] & 0xFF00) >> 8)   // 数据宽度",
+    "13: (BYTE) (vec_w_datasize_number_gdd[j] & 0x00FF)   // 数据数目（7-1）和后续状态位(8)",
+    "14: vec2_bt_gid[j][k]   // 得到通用分类数据"
+  ]
+}

@@ -23,10 +23,39 @@
 #include "packet-iec103-vendor-common.h"
 #include "packet-iec103-points.h"
 
-#define MAX_PROFILES 8
+/* Room for every 103 vendor profile: 6 original + the PROTOCOL-derived set.
+ * Registration silently stops at the cap, so keep this above the real count
+ * and assert it at registration time instead of failing quietly. */
+#define MAX_PROFILES 32
 
 /* FUN code that carries the generic-classification group table. */
 #define FUN_GENERIC_CODE 254
+
+/* COT width helper: profiles are usually zero-initialised for this field. */
+static int
+iec103_profile_cot_len(const iec103_vendor_profile_t *profile)
+{
+	return (profile != NULL && profile->cot_len == 2) ? 2 : 1;
+}
+
+/* Standard 103 compatible-range TYP, or a vendor-specific one. */
+static bool
+iec103_plausible_type(uint8_t typ, const iec103_vendor_profile_t *profile)
+{
+	switch (typ) {
+	case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8:
+	case 9: case 10: case 11: case 20: case 21:
+	case 23: case 24: case 25: case 26: case 27: case 28: case 29:
+	case 30: case 31:
+		return true;
+	default:
+		break;
+	}
+
+	if (profile != NULL && profile->extra_asdu_types != NULL)
+		return try_val_to_str(typ, profile->extra_asdu_types) != NULL;
+	return false;
+}
 
 typedef enum {
 	HF_CTRL,
@@ -44,6 +73,7 @@ typedef enum {
 	HF_VSQ_SQ,
 	HF_VSQ_NUM,
 	HF_COT,
+	HF_COT_HI,
 	HF_COMADDR,
 	HF_FUN,
 	HF_INF,
@@ -104,6 +134,7 @@ typedef enum {
 	HF_ENTRY_ITEM,
 	HF_SDV,
 	HF_RAW,
+	HF_PRIV_APCI,
 	HF_COUNT
 } iec103_hf_id_t;
 
@@ -115,6 +146,7 @@ typedef struct {
 	int ett_entry;
 	int ett_cp32;
 	int ett_cp56;
+	int ett_apci;
 	int hf[HF_COUNT];
 } iec103_regs_t;
 
@@ -318,7 +350,21 @@ iec103_vendor_looks_like_asdu_ext(tvbuff_t *tvb, int offset, int remaining,
 		return false;
 
 	uint8_t typ = tvb_get_uint8(tvb, offset);
+	uint8_t vsq = tvb_get_uint8(tvb, offset + 1);
 	uint8_t cot = tvb_get_uint8(tvb, offset + 2);
+
+	/* 2-byte COT layouts (许继 network 103): the COT high byte must be zero,
+	 * and the low byte plus FUN still have to look sane. */
+	if (iec103_profile_cot_len(profile) == 2) {
+		uint8_t cot_hi = tvb_get_uint8(tvb, offset + 3);
+		uint8_t fun = tvb_get_uint8(tvb, offset + 5);
+		if (cot_hi != 0 || !iec103_plausible_type(typ, profile))
+			return false;
+		if (cot == 0 && fun == 0)
+			return false;
+		(void)vsq;
+		return true;
+	}
 
 	if (iec103_vendor_looks_like_asdu(tvb, offset, remaining))
 		return true;
@@ -326,11 +372,7 @@ iec103_vendor_looks_like_asdu_ext(tvbuff_t *tvb, int offset, int remaining,
 	if (profile == NULL)
 		return false;
 
-	/* A vendor TYP is only plausible when its COT is in range: the standard
-	 * range for compatible TYPs, or one of the vendor's own COT values
-	 * (金智 uses 0x80-0x82 for history/file transfer). */
-	if (profile->extra_asdu_types != NULL &&
-	    try_val_to_str(typ, profile->extra_asdu_types) != NULL) {
+	if (iec103_plausible_type(typ, profile)) {
 		if (cot > 0 && cot <= 63)
 			return true;
 		if (profile->extra_cot != NULL && try_val_to_str(cot, profile->extra_cot) != NULL)
@@ -341,15 +383,19 @@ iec103_vendor_looks_like_asdu_ext(tvbuff_t *tvb, int offset, int remaining,
 }
 
 static int
-asdu_pdu_len(tvbuff_t *tvb, int offset, int remaining)
+asdu_pdu_len(tvbuff_t *tvb, int offset, int remaining,
+	     const iec103_vendor_profile_t *profile)
 {
 	uint8_t typ, vsq;
 	int fixed;
+	/* Extra bytes the header carries beyond the 6-byte compatible layout;
+	 * 2-byte COT vendors add one. */
+	int hdr_extra = (iec103_profile_cot_len(profile) == 2) ? 1 : 0;
 
 	if (remaining < IEC103_ASDU_HDR_LEN)
 		return remaining;
 
-	if (!iec103_vendor_looks_like_asdu(tvb, offset, remaining))
+	if (!iec103_vendor_looks_like_asdu_ext(tvb, offset, remaining, profile))
 		return asdu_scan_len(tvb, offset, remaining);
 
 	typ = tvb_get_uint8(tvb, offset);
@@ -357,27 +403,27 @@ asdu_pdu_len(tvbuff_t *tvb, int offset, int remaining)
 
 	fixed = asdu_fixed_body_len(typ);
 	if (fixed >= 0) {
-		int len = IEC103_ASDU_HDR_LEN + fixed;
+		int len = IEC103_ASDU_HDR_LEN + hdr_extra + fixed;
 		return (len <= remaining) ? len : remaining;
 	}
 
 	switch (typ) {
 	case 23: {
 		/* NOF(2) + NUM*(FAN(2)+SOF(1)+CP56(7)) */
-		int len = IEC103_ASDU_HDR_LEN + 2 + (vsq & 0x7F) * 10;
+		int len = IEC103_ASDU_HDR_LEN + hdr_extra + 2 + (vsq & 0x7F) * 10;
 		return (len <= remaining) ? len : remaining;
 	}
 	case 2: {
 		/* DPI + RET + FAN + CP56Time2a, or CP32Time2a in short captures. */
-		int len = IEC103_ASDU_HDR_LEN + 1 + 2 + 2 + 7;
+		int len = IEC103_ASDU_HDR_LEN + hdr_extra + 1 + 2 + 2 + 7;
 		if (len <= remaining)
 			return len;
-		len = IEC103_ASDU_HDR_LEN + 1 + 2 + 2 + 4;
+		len = IEC103_ASDU_HDR_LEN + hdr_extra + 1 + 2 + 2 + 4;
 		return (len <= remaining) ? len : remaining;
 	}
 	case 30: {
 		/* NDV then that many 2-byte samples; never read past the PDU. */
-		int len = IEC103_ASDU_HDR_LEN;
+		int len = IEC103_ASDU_HDR_LEN + hdr_extra;
 		uint8_t ndv;
 
 		if (len >= remaining)
@@ -389,7 +435,7 @@ asdu_pdu_len(tvbuff_t *tvb, int offset, int remaining)
 	case 10:
 	case 21: {
 		/* Walk GIN/KOD/GDD/GID entries. */
-		int pos = offset + IEC103_ASDU_HDR_LEN;
+		int pos = offset + IEC103_ASDU_HDR_LEN + hdr_extra;
 		int end = offset + remaining;
 		bool is_command = (typ == 21);
 		uint8_t ngd;
@@ -610,12 +656,17 @@ dissect_asdu(tvbuff_t *tvb, int start, int end, packet_info *pinfo, proto_tree *
 	proto_tree_add_item(at, R->hf[HF_VSQ_SQ], tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(at, R->hf[HF_VSQ_NUM], tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	offset += 1;
-	proto_item *cot_item = proto_tree_add_item(at, R->hf[HF_COT], tvb, offset, 1, ENC_LITTLE_ENDIAN);
+	proto_item *cot_item = proto_tree_add_item(at, R->hf[HF_COT], tvb, offset, 1,
+						   ENC_LITTLE_ENDIAN);
 	const char *cot_name = try_val_to_str(cot, cot_vals);
 	if (cot_name == NULL && profile->extra_cot != NULL)
 		cot_name = try_val_to_str(cot, profile->extra_cot);
 	proto_item_append_text(cot_item, " %s", cot_name ? cot_name : "未知");
 	offset += 1;
+	if (iec103_profile_cot_len(profile) == 2) {
+		proto_tree_add_item(at, R->hf[HF_COT_HI], tvb, offset, 1, ENC_LITTLE_ENDIAN);
+		offset += 1;
+	}
 	proto_tree_add_item(at, R->hf[HF_COMADDR], tvb, offset, 1, ENC_LITTLE_ENDIAN);
 	offset += 1;
 
@@ -889,6 +940,112 @@ dissect_ctrl(tvbuff_t *tvb, int offset, proto_tree *tree, const iec103_regs_t *R
 }
 
 /* ------------------------------------------------------------------ */
+/* Private APCI wrappers                                               */
+/* ------------------------------------------------------------------ */
+
+/* Read the frame length field of @p apci from @p tvb, or -1 when it does not
+ * fit or is implausible. */
+static int
+apci_frame_len(tvbuff_t *tvb, int offset, int remaining, const iec103_apci_desc_t *apci)
+{
+	int field;
+
+	if (apci->len_off < 0)
+		return remaining;
+	if (apci->len_off + apci->len_size > remaining)
+		return -1;
+	field = tvb_get_uint8(tvb, offset + apci->len_off);
+	if (apci->len_size == 2) {
+		field = apci->len_be ? tvb_get_ntohs(tvb, offset + apci->len_off)
+				     : tvb_get_letohs(tvb, offset + apci->len_off);
+	} else if (apci->len_size == 4) {
+		field = (int)tvb_get_letohl(tvb, offset + apci->len_off);
+	}
+	return field + apci->len_bias;
+}
+
+/* Validate the fixed signature of a private APCI at @p offset. */
+static bool
+apci_magic_ok(tvbuff_t *tvb, int offset, int remaining, const iec103_apci_desc_t *apci)
+{
+	for (unsigned i = 0; i < apci->sig_count; i++) {
+		if (apci->sig_off[i] + 1 > remaining)
+			return false;
+		if (tvb_get_uint8(tvb, offset + apci->sig_off[i]) != apci->sig_val[i])
+			return false;
+	}
+	return true;
+}
+
+static void
+dissect_one_frame(tvbuff_t *tvb, int start, int end, packet_info *pinfo,
+		  proto_tree *root, const iec103_regs_t *R,
+		  const iec103_vendor_profile_t *profile)
+{
+	const iec103_apci_desc_t *apci = profile->apci;
+	int asdu_off = apci ? apci->hdr_len : 0;
+
+	if (apci != NULL && start + apci->hdr_len <= end) {
+		proto_item *ti = proto_tree_add_item(root, R->hf[HF_PRIV_APCI], tvb, start,
+						     apci->hdr_len, ENC_NA);
+		proto_item_append_text(ti, " [%s]", apci->label ? apci->label : "APCI");
+	}
+	if (start + asdu_off < end)
+		dissect_asdu(tvb, start + asdu_off, end, pinfo, root, R, profile);
+	else if (start < end)
+		proto_tree_add_item(root, R->hf[HF_RAW], tvb, start, end - start, ENC_NA);
+}
+
+/* Split a bare (or privately wrapped) ASDU byte stream into frames. */
+static void
+dissect_apci_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root,
+		    const iec103_regs_t *R, const iec103_vendor_profile_t *profile)
+{
+	const iec103_apci_desc_t *apci = profile->apci;
+	int total = (int)tvb_reported_length(tvb);
+	int offset = 0;
+	int guard = 0;
+
+	/* Without a private APCI the stream is a sequence of ASDU PDUs whose
+	 * length comes from the ASDU header rules, not from a length field. */
+	if (apci == NULL) {
+		while (offset + IEC103_ASDU_HDR_LEN <= total && guard++ < 4096) {
+			int len = asdu_pdu_len(tvb, offset, total - offset, profile);
+
+			if (len <= 0)
+				break;
+			dissect_asdu(tvb, offset, offset + len, pinfo, root, R, profile);
+			offset += len;
+		}
+		if (offset < total)
+			proto_tree_add_item(root, R->hf[HF_RAW], tvb, offset, total - offset, ENC_NA);
+		return;
+	}
+
+	while (offset < total && guard++ < 4096) {
+		int remaining = total - offset;
+		int frame_len;
+
+		if (!apci_magic_ok(tvb, offset, remaining, apci))
+			break;
+		frame_len = apci_frame_len(tvb, offset, remaining, apci);
+		if (frame_len <= 0)
+			break;
+		if (frame_len > remaining)
+			frame_len = remaining;
+		if (frame_len <= apci->hdr_len)
+			break;
+
+		dissect_one_frame(tvb, offset, offset + frame_len, pinfo, root, R, profile);
+		offset += frame_len;
+		if (apci->len_off < 0)
+			break;
+	}
+	if (offset < total)
+		proto_tree_add_item(root, R->hf[HF_RAW], tvb, offset, total - offset, ENC_NA);
+}
+
+/* ------------------------------------------------------------------ */
 /* Transports                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -920,29 +1077,38 @@ iec103_vendor_dissect_ft12(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	}
 
 	if (start == IEC103_FT12_FIXED) {
-		uint8_t ctrl, addr, cs;
+		uint8_t ctrl, cs;
+		int addr_len = (profile->ft12_addr_len == 2) ? 2 : 1;
+		int cs_off = 2 + addr_len;
+		int stop_off = cs_off + 1;
+		unsigned addr;
 
-		if (total < 5) {
+		if (total < stop_off + 1) {
 			proto_tree_add_expert_format(root, pinfo, &ei_bad_length, tvb, 0, total,
-						    "固定帧长度不足 5 字节");
+						    "固定帧长度不足 %d 字节", stop_off + 1);
 			return total;
 		}
 		ctrl = tvb_get_uint8(tvb, 1);
-		addr = tvb_get_uint8(tvb, 2);
-		cs = tvb_get_uint8(tvb, 3);
+		addr = (addr_len == 2) ? tvb_get_letohs(tvb, 2) : tvb_get_uint8(tvb, 2);
+		cs = tvb_get_uint8(tvb, cs_off);
 
 		dissect_ctrl(tvb, 1, root, R);
-		proto_tree_add_item(root, R->hf[HF_LINKADDR], tvb, 2, 1, ENC_LITTLE_ENDIAN);
-		proto_tree_add_item(root, R->hf[HF_CHECKSUM], tvb, 3, 1, ENC_LITTLE_ENDIAN);
-		proto_tree_add_item(root, R->hf[HF_STOPCHAR], tvb, 4, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(root, R->hf[HF_LINKADDR], tvb, 2, addr_len, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(root, R->hf[HF_CHECKSUM], tvb, cs_off, 1, ENC_LITTLE_ENDIAN);
+		proto_tree_add_item(root, R->hf[HF_STOPCHAR], tvb, stop_off, 1, ENC_LITTLE_ENDIAN);
 
-		if ((uint8_t)(ctrl + addr) != cs) {
-			proto_tree_add_expert_format(root, pinfo, &ei_bad_stopchar, tvb, 3, 1,
-						    "校验和错误：应为 0x%02X",
-						    (uint8_t)(ctrl + addr));
+		{
+			uint8_t sum = ctrl;
+			for (int i = 0; i < addr_len; i++)
+				sum = (uint8_t)(sum + tvb_get_uint8(tvb, 2 + i));
+			if (sum != cs) {
+				proto_tree_add_expert_format(root, pinfo, &ei_bad_stopchar, tvb,
+							    cs_off, 1,
+							    "校验和错误：应为 0x%02X", sum);
+			}
 		}
-		if (tvb_get_uint8(tvb, 4) != IEC103_FT12_STOP) {
-			proto_tree_add_expert_format(root, pinfo, &ei_bad_stopchar, tvb, 4, 1,
+		if (tvb_get_uint8(tvb, stop_off) != IEC103_FT12_STOP) {
+			proto_tree_add_expert_format(root, pinfo, &ei_bad_stopchar, tvb, stop_off, 1,
 						    "结束字符应为 0x16");
 		}
 
@@ -950,7 +1116,7 @@ iec103_vendor_dissect_ft12(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			     val_to_str_const(ctrl & 0x0F,
 					      (ctrl & 0x40) ? func_pri_vals : func_sec_vals,
 					      "备用"));
-		return 5;
+		return stop_off + 1;
 	}
 
 	if (total < 8) {
@@ -961,13 +1127,24 @@ iec103_vendor_dissect_ft12(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	uint8_t len1 = tvb_get_uint8(tvb, 1);
 	uint8_t len2 = tvb_get_uint8(tvb, 2);
-	int asdu_start = 6;
-	int asdu_end = 4 + len1;
+	int addr_len = (profile->ft12_addr_len == 2) ? 2 : 1;
+	/* 控制域在偏移 4，链路地址 1 或 2 字节，ASDU 紧随其后。 */
+	int ctrl_off = 4;
+	int addr_off = ctrl_off + 1;
+	int asdu_start = addr_off + addr_len;
+	int asdu_end;
 
-	if (len1 != len2) {
+	/* 16-bit length variants (深圳南瑞 TCP): the two bytes are LSB/MSB of the
+	 * ASDU length instead of a repeated 8-bit count. */
+	if (profile->ft12_len16le) {
+		asdu_end = ctrl_off + (int)tvb_get_letohs(tvb, 1);
+		len1 = len2;
+	} else if (len1 != len2) {
 		proto_tree_add_expert_format(root, pinfo, &ei_bad_length, tvb, 1, 2,
 					    "两个长度字节不一致：0x%02X / 0x%02X", len1, len2);
-		asdu_end = 4 + len2;
+		asdu_end = ctrl_off + len2;
+	} else {
+		asdu_end = ctrl_off + len1;
 	}
 	if (tvb_get_uint8(tvb, 3) != IEC103_FT12_VAR) {
 		proto_tree_add_expert_format(root, pinfo, &ei_bad_startchar, tvb, 3, 1,
@@ -978,12 +1155,14 @@ iec103_vendor_dissect_ft12(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	if (asdu_end < asdu_start)
 		asdu_end = asdu_start;
 
-	dissect_ctrl(tvb, 4, root, R);
-	proto_tree_add_item(root, R->hf[HF_LINKADDR], tvb, 5, 1, ENC_LITTLE_ENDIAN);
+	dissect_ctrl(tvb, ctrl_off, root, R);
+	proto_tree_add_item(root, R->hf[HF_LINKADDR], tvb, addr_off, addr_len,
+			    ENC_LITTLE_ENDIAN);
 
 	if (asdu_end > asdu_start) {
 		col_add_fstr(pinfo->cinfo, COL_INFO, "可变帧 Addr=%u ",
-			     tvb_get_uint8(tvb, 5));
+			     (addr_len == 2) ? tvb_get_letohs(tvb, addr_off)
+					     : tvb_get_uint8(tvb, addr_off));
 		dissect_asdu(tvb, asdu_start, asdu_end, pinfo, root, R, profile);
 	}
 
@@ -997,18 +1176,109 @@ iec103_vendor_dissect_ft12(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	return total;
 }
 
+/* Number of bytes of a complete FT1.2 frame at @p offset, or 0 when the bytes
+ * there do not start a valid frame. */
+static int
+ft12_frame_len(tvbuff_t *tvb, int offset, int remaining, bool len16le, int addr_len)
+{
+	uint8_t start;
+
+	if (remaining < 1)
+		return 0;
+	start = tvb_get_uint8(tvb, offset);
+	if (start == IEC103_FT12_SINGLE)
+		return 1;
+	if (start == IEC103_FT12_FIXED) {
+		int fixed = 2 + addr_len + 2;   /* 10/68 域 + 地址 + 校验 + 16H */
+		return (remaining >= fixed) ? fixed : remaining;
+	}
+	if (start == IEC103_FT12_VAR) {
+		int len;
+
+		if (remaining < 4)
+			return 0;
+		if (tvb_get_uint8(tvb, offset + 3) != IEC103_FT12_VAR)
+			return 0;
+		len = 4 + (len16le ? (int)tvb_get_letohs(tvb, offset + 1)
+				   : tvb_get_uint8(tvb, offset + 1)) + 2;
+		return (len <= remaining) ? len : remaining;
+	}
+	return 0;
+}
+
+/* Dissect @p len bytes of FT1.2 as exactly one frame, using a subset tvb so the
+ * fixed/variable parsers see only that frame. The subset belongs to the packet
+ * tvb chain and must NOT be freed here: the tree keeps referencing it. */
+static int
+dissect_ft12_one(tvbuff_t *tvb, int offset, int len, packet_info *pinfo, proto_tree *tree,
+		 const iec103_vendor_profile_t *profile)
+{
+	tvbuff_t *sub = tvb_new_subset_length(tvb, offset, len);
+	return iec103_vendor_dissect_ft12(sub, pinfo, tree, profile);
+}
+
+int
+iec103_vendor_dissect_ft12_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+				  const iec103_vendor_profile_t *profile)
+{
+	const iec103_regs_t *R = regs_for_proto(profile->proto);
+	int total = (int)tvb_reported_length(tvb);
+	int offset = 0;
+	int guard = 0;
+
+	if (!R || total < 1)
+		return 0;
+	if (ft12_frame_len(tvb, 0, total, profile->ft12_len16le != 0,
+			   (profile->ft12_addr_len == 2) ? 2 : 1) == 0)
+		return 0;
+
+	while (offset < total && guard++ < 4096) {
+		int len = ft12_frame_len(tvb, offset, total - offset,
+					 profile->ft12_len16le != 0,
+					 (profile->ft12_addr_len == 2) ? 2 : 1);
+
+		if (len <= 0)
+			break;
+		dissect_ft12_one(tvb, offset, len, pinfo, tree, profile);
+		offset += len;
+	}
+	return total;
+}
+
+int
+iec103_vendor_dissect_ft12_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+				    const iec103_vendor_profile_t *profile)
+{
+	const iec103_regs_t *R = regs_for_proto(profile->proto);
+	int total = (int)tvb_reported_length(tvb);
+
+	if (!R || total < 1)
+		return 0;
+	if (ft12_frame_len(tvb, 0, total, profile->ft12_len16le != 0,
+			   (profile->ft12_addr_len == 2) ? 2 : 1) == 0)
+		return 0;
+
+	return dissect_ft12_one(tvb, 0, total, pinfo, tree, profile);
+}
+
 int
 iec103_vendor_dissect_asdu_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				  const iec103_vendor_profile_t *profile)
 {
 	const iec103_regs_t *R = regs_for_proto(profile->proto);
 	int total = (int)tvb_reported_length(tvb);
-	int offset = 0;
 
 	if (!R || total < IEC103_ASDU_HDR_LEN)
 		return 0;
-	if (!iec103_vendor_looks_like_asdu(tvb, 0, total))
+
+	if (profile->apci != NULL) {
+		if (!apci_magic_ok(tvb, 0, total, profile->apci))
+			return 0;
+		if (apci_frame_len(tvb, 0, total, profile->apci) <= 0)
+			return 0;
+	} else if (!iec103_vendor_looks_like_asdu_ext(tvb, 0, total, profile)) {
 		return 0;
+	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, profile->col_protocol);
 	col_clear(pinfo->cinfo, COL_INFO);
@@ -1016,14 +1286,7 @@ iec103_vendor_dissect_asdu_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 	proto_item *ti = proto_tree_add_item(tree, profile->proto, tvb, 0, total, ENC_NA);
 	proto_tree *root = proto_item_add_subtree(ti, R->ett_root);
 
-	while (offset + IEC103_ASDU_HDR_LEN <= total) {
-		int len = asdu_pdu_len(tvb, offset, total - offset);
-		if (len <= 0)
-			break;
-		dissect_asdu(tvb, offset, offset + len, pinfo, root, R, profile);
-		offset += len;
-	}
-
+	dissect_apci_stream(tvb, pinfo, root, R, profile);
 	return total;
 }
 
@@ -1036,7 +1299,7 @@ iec103_vendor_dissect_asdu_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tre
 
 	if (!R || total < IEC103_ASDU_HDR_LEN)
 		return 0;
-	if (!iec103_vendor_looks_like_asdu(tvb, 0, total))
+	if (profile->apci == NULL && !iec103_vendor_looks_like_asdu_ext(tvb, 0, total, profile))
 		return 0;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, profile->col_protocol);
@@ -1044,6 +1307,11 @@ iec103_vendor_dissect_asdu_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tre
 
 	proto_item *ti = proto_tree_add_item(tree, profile->proto, tvb, 0, total, ENC_NA);
 	proto_tree *root = proto_item_add_subtree(ti, R->ett_root);
+
+	if (profile->apci != NULL) {
+		dissect_one_frame(tvb, 0, total, pinfo, root, R, profile);
+		return total;
+	}
 
 	dissect_asdu(tvb, 0, total, pinfo, root, R, profile);
 	return total;
@@ -1134,6 +1402,7 @@ static const iec103_hf_spec_t g_hf_specs[] = {
 	{ HF_VSQ_SQ, "vsq.sq", "SQ", FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x80 },
 	{ HF_VSQ_NUM, "vsq.num", "NUM", FT_UINT8, BASE_DEC, NULL, 0x7F },
 	{ HF_COT, "cot", "传送原因 COT", FT_UINT8, BASE_DEC, NULL, 0 },
+	{ HF_COT_HI, "cot.hi", "COT 高字节", FT_UINT8, BASE_DEC, NULL, 0 },
 	{ HF_COMADDR, "comaddr", "公共地址", FT_UINT8, BASE_DEC, NULL, 0 },
 	{ HF_FUN, "fun", "功能类型 FUN", FT_UINT8, BASE_DEC, NULL, 0 },
 	{ HF_INF, "inf", "信息序号 INF", FT_UINT8, BASE_DEC, NULL, 0 },
@@ -1194,13 +1463,18 @@ static const iec103_hf_spec_t g_hf_specs[] = {
 	{ HF_ASDU_ITEM, "asdu", "ASDU", FT_NONE, BASE_NONE, NULL, 0 },
 	{ HF_ENTRY_ITEM, "entry", "条目", FT_NONE, BASE_NONE, NULL, 0 },
 	{ HF_RAW, "data", "数据", FT_BYTES, BASE_NONE, NULL, 0 },
+	{ HF_PRIV_APCI, "apci", "私有 APCI", FT_BYTES, BASE_NONE, NULL, 0 },
 };
 
 void
 iec103_vendor_register(const iec103_vendor_profile_t *profile)
 {
-	if (g_profile_count >= MAX_PROFILES)
+	if (g_profile_count >= MAX_PROFILES) {
+		/* Loud on purpose: a silent drop leaves a dissector that never runs. */
+		ws_warning("iec103: profile table full (%u), dropping %s",
+			   MAX_PROFILES, proto_get_protocol_filter_name(profile->proto));
 		return;
+	}
 
 	unsigned slot = g_profile_count;
 	iec103_regs_t *R = &g_regs[slot];
@@ -1242,6 +1516,7 @@ iec103_vendor_register(const iec103_vendor_profile_t *profile)
 	static int *ett_entries[MAX_PROFILES];
 	static int *ett_cp32s[MAX_PROFILES];
 	static int *ett_cp56s[MAX_PROFILES];
+	static int *ett_apcis[MAX_PROFILES];
 
 	ett_roots[slot] = &R->ett_root;
 	ett_ctrls[slot] = &R->ett_ctrl;
@@ -1249,9 +1524,10 @@ iec103_vendor_register(const iec103_vendor_profile_t *profile)
 	ett_entries[slot] = &R->ett_entry;
 	ett_cp32s[slot] = &R->ett_cp32;
 	ett_cp56s[slot] = &R->ett_cp56;
+	ett_apcis[slot] = &R->ett_apci;
 
 	int *ett[] = { ett_roots[slot], ett_ctrls[slot], ett_asdus[slot], ett_entries[slot],
-		       ett_cp32s[slot], ett_cp56s[slot] };
+		       ett_cp32s[slot], ett_cp56s[slot], ett_apcis[slot] };
 	proto_register_subtree_array(ett, array_length(ett));
 
 	register_experts_once(profile->proto);

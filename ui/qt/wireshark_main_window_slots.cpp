@@ -121,6 +121,7 @@ DIAG_ON(frame-larger-than=)
 #include "mms_process_analysis_dialog.h"
 #include "mms_report_filter_dialog.h"
 #include "zh_recorder_file_export.h"
+#include "vendor_recipe_dialog.h"
 #include "nic_packet_loss_dialog.h"
 #include "iec103_wave_comtrade_export.h"
 #include "export_object_action.h"
@@ -3420,10 +3421,13 @@ void WiresharkMainWindow::tryDecodeNetworkAs(const char *dissector_name, const Q
 void WiresharkMainWindow::tryDecodeNetworkAsBoth(const char *dissector_name,
                                                  const QString &filter)
 {
-    /* Protocols that live on the same port for TCP and UDP (积成 6185). */
+    /* Protocols that live on the same port for TCP and UDP (积成 6185), plus the
+     * default recorder ports (录波器厂家的端口来自配置文件，常见值如下).
+     * Any other port can still be handled through 分析 → Decode As. */
     dissector_handle_t handle = find_dissector(dissector_name);
     if (handle) {
-        static const unsigned ports[] = { 1048U, 2404U, 2405U, 6000U, 6185U };
+        static const unsigned ports[] = { 1048U, 2404U, 2405U, 6000U, 6185U,
+                                          7000U, 7001U, 8000U, 10000U, 30282U };
         for (size_t i = 0; i < array_length(ports); i++) {
             decode_as_default_change("tcp.port", GUINT_TO_POINTER(ports[i]), handle, NULL);
         }
@@ -3439,6 +3443,29 @@ void WiresharkMainWindow::connectRecorderMenuActions()
 {
     connect(main_ui_->actionRecorderZhParse, &QAction::triggered, this, [=]() {
         tryDecodeNetworkAs("zh_recorder", QStringLiteral("zh_recorder"), false);
+    });
+
+    /* 录波器 68 帧家族（依据 PROTOCOL 参考实现） */
+    connect(main_ui_->actionRecorderNfdfrParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("nfdfr", QStringLiteral("nfdfr"));
+    });
+    connect(main_ui_->actionRecorderNfdfr200Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("nfdfr200", QStringLiteral("nfdfr200"));
+    });
+    connect(main_ui_->actionRecorderNfRfw200Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("nf_rfw200_net", QStringLiteral("nf_rfw200_net"));
+    });
+    connect(main_ui_->actionRecorderYs88aParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("ys88a", QStringLiteral("ys88a"));
+    });
+    connect(main_ui_->actionRecorderYs89NetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("ys_89_net", QStringLiteral("ys_89_net"));
+    });
+    connect(main_ui_->actionRecorderYs89aNetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("ys_89a_net", QStringLiteral("ys_89a_net"));
+    });
+    connect(main_ui_->actionRecorderSddffrParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("sddffr", QStringLiteral("sddffr"));
     });
 
     connect(main_ui_->actionRecorderZhExport, &QAction::triggered, this, [=]() {
@@ -3510,6 +3537,110 @@ void WiresharkMainWindow::connectIec103MenuActions()
     });
     connect(main_ui_->actionIec103JichengNetParse, &QAction::triggered, this, [=]() {
         tryDecodeNetworkAsBoth("jicheng_net_iec103", QStringLiteral("jicheng_net_iec103"));
+    });
+
+    /* 103 家族补充厂家（依据 PROTOCOL 参考实现） */
+    connect(main_ui_->actionIec103XjNet103Wxh13Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("xj_net103_wxh13", QStringLiteral("xj_net103_wxh13"), false);
+    });
+    connect(main_ui_->actionIec103SfNet103TcpParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("sf_net103_tcp", QStringLiteral("sf_net103_tcp"), false);
+    });
+    connect(main_ui_->actionIec103Keli103TcpParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("keli_103_tcp", QStringLiteral("keli_103_tcp"), false);
+    });
+    connect(main_ui_->actionIec103Nr103Rcs9691SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("nr103_rcs9691_serial_iec103",
+                             QStringLiteral("nr103_rcs9691_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Xj103ComSerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("xj103_com_serial_iec103",
+                             QStringLiteral("xj103_com_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103XjCom103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("xj_com103_serial_iec103",
+                             QStringLiteral("xj_com103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Nz103iiSerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("nz103ii_serial_iec103",
+                             QStringLiteral("nz103ii_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Sf103Csc103aSerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("sf103_csc103a_serial_iec103",
+                             QStringLiteral("sf103_csc103a_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Abb103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("abb103_serial_iec103", QStringLiteral("abb103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Bp103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("bp103_serial_iec103", QStringLiteral("bp103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Siemens103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("siemens103_serial_iec103",
+                             QStringLiteral("siemens103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Sj103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("sj103_serial_iec103", QStringLiteral("sj103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Alstom103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("alstom103_serial_iec103",
+                             QStringLiteral("alstom103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Nr103NetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("nr103_net_iec103", QStringLiteral("nr103_net_iec103"), false);
+    });
+    connect(main_ui_->actionIec103Nrr103Rcs9793Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("nr103_rcs9793_iec103",
+                           QStringLiteral("nr103_rcs9793_iec103"), false);
+    });
+    connect(main_ui_->actionIec103NzNet103Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("nz_net103_iec103", QStringLiteral("nz_net103_iec103"), false);
+    });
+    connect(main_ui_->actionIec103SfUdp103Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("sf_udp103_iec103", QStringLiteral("sf_udp103_iec103"), true);
+    });
+    connect(main_ui_->actionIec103Wgl3000Parse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("wgl3000_iec103", QStringLiteral("wgl3000_iec103"), false);
+    });
+    connect(main_ui_->actionIec103Sznr103TcpParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("sznr103_tcp_iec103", QStringLiteral("sznr103_tcp_iec103"), false);
+    });
+    connect(main_ui_->actionIec103SfCsfm103TcpParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("sf_csfm103_tcp_iec103",
+                           QStringLiteral("sf_csfm103_tcp_iec103"), false);
+    });
+    connect(main_ui_->actionIec103XjNet103TcpParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAs("xj_net103_tcp_iec103",
+                           QStringLiteral("xj_net103_tcp_iec103"), false);
+    });
+    connect(main_ui_->actionIec103Nz103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("nz103_serial_iec103", QStringLiteral("nz103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Sf103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("sf103_serial_iec103", QStringLiteral("sf103_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103AbbCom101SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("abb_com101_serial_iec103",
+                             QStringLiteral("abb_com101_serial_iec103"));
+    });
+    connect(main_ui_->actionVendorRecipeParse, &QAction::triggered, this, [=]() {
+        if (!capture_file_.isValid() || capture_file_.capFile()->count == 0) {
+            QMessageBox::warning(this, tr("厂家规约解析"),
+                                 tr("请先打开含报文的抓包文件。"));
+            return;
+        }
+        VendorRecipeDialog dlg(this);
+        if (dlg.exec() != QDialog::Accepted)
+            return;
+        const QString proto = dlg.protocolName();
+        if (proto.isEmpty())
+            return;
+        const QString carrier = dlg.carrier();
+        if (carrier == QLatin1String("serial"))
+            tryDecodeSerialRawAs(proto.toUtf8().constData(), proto);
+        else
+            tryDecodeNetworkAs(proto.toUtf8().constData(), proto,
+                               carrier == QLatin1String("udp"));
     });
     /* Also show in 网络103 menu so minimal build (no Tools menu) can export waves. */
     main_ui_->menuIec103->addAction(main_ui_->actionToolsIec103WaveExport);

@@ -1,0 +1,57 @@
+{
+  "vendor": "SF103_CSC103A",
+  "files": 11,
+  "bytes": 167228,
+  "framing": "iec103",
+  "asdu_comments": [
+    1,
+    2,
+    5,
+    6,
+    8,
+    9,
+    10,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    23,
+    26,
+    28,
+    29,
+    30,
+    36
+  ],
+  "case_hex": [
+    "0x00F0",
+    "0x00F1",
+    "0x00F4",
+    "0x00F9",
+    "0x00FA"
+  ],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [
+    "sum8_add"
+  ],
+  "has_sttp_dll": true
+}

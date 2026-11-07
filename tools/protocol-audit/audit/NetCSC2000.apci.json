@@ -1,0 +1,29 @@
+{
+  "vendor": "NetCSC2000",
+  "file": "Rtu.cpp",
+  "header_bytes": 22,
+  "layout": [
+    "00: (BYTE)(7+btMaxLen)   // 报文长度",
+    "01: (BYTE)m_btAddr   // Rtu地址",
+    "02: (BYTE)(m_btDssAddr | (m_btTempCpuNo<<5))   // 主站地址",
+    "03: (SET_SETTINGS | 0x80)   // 报文类型",
+    "04: (BYTE)((btFrameIndex+1) % 256)   // 帧序号低",
+    "05: (BYTE)((btFrameIndex+1) / 256)   // 帧序号高",
+    "06: m_btTempGroupNo   // 定值区号",
+    "07: btSettingType   // 定值类型",
+    "08: (BYTE)(6+btMaxLen)   // 报文长度",
+    "09: (BYTE)m_btAddr   // Rtu地址",
+    "10: (BYTE)(m_btDssAddr | (m_btTempCpuNo<<5))   // 主站地址",
+    "11: (SET_SETTINGS | 0x80)   // 报文类型",
+    "12: (BYTE)((btFrameIndex+1) % 256)   // 帧序号低",
+    "13: (BYTE)(((btFrameIndex+1) / 256) | 0x80)   // 帧序号高",
+    "14: m_btTempGroupNo   // 定值区号",
+    "15: (BYTE)(6+btMaxLen)   // 报文长度",
+    "16: (BYTE)m_btAddr   // Rtu地址",
+    "17: (BYTE)(m_btDssAddr | (m_btTempCpuNo<<5))   // 主站地址",
+    "18: (SET_SETTINGS | 0x80)   // 报文类型",
+    "19: (BYTE)((btFrameIndex+1) % 256)   // 帧序号低",
+    "20: (BYTE)((btFrameIndex+1) / 256)   // 帧序号高",
+    "21: m_btTempGroupNo   // 定值区号"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "vendor": "GPS_SF_CSN_1A_COM",
+  "files": 5,
+  "bytes": 6965,
+  "framing": "unknown",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": false
+}

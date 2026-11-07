@@ -1,0 +1,46 @@
+{
+  "vendor": "NR103_RCS9793",
+  "files": 9,
+  "bytes": 138781,
+  "framing": "ascii",
+  "asdu_comments": [
+    230
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    14,
+    18,
+    19,
+    23,
+    40,
+    41,
+    42,
+    44,
+    173,
+    176,
+    204,
+    205,
+    230,
+    232
+  ],
+  "case_hex": [
+    "0x00F0",
+    "0x00F1",
+    "0x00F4"
+  ],
+  "ports": [],
+  "tcp": true,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

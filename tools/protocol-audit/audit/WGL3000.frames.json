@@ -1,0 +1,27 @@
+{
+  "vendor": "WGL3000",
+  "asdu_start_candidates": [
+    28
+  ],
+  "defines": {
+    "HEART_BEAT_PACKET_POSITION": 16,
+    "NOT_LENGTH_POSITION": 8,
+    "ASDU_START_POSTION": 28
+  },
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    4
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "i+2",
+    "i+2",
+    "i+2",
+    "i"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 202558
+}

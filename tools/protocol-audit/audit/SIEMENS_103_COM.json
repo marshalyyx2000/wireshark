@@ -1,0 +1,49 @@
+{
+  "vendor": "SIEMENS_103_COM",
+  "files": 11,
+  "bytes": 153363,
+  "framing": "iec103",
+  "asdu_comments": [
+    1,
+    2,
+    5,
+    6,
+    8,
+    9,
+    10,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    5,
+    6,
+    8,
+    9,
+    10,
+    23,
+    26,
+    28,
+    29,
+    30
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [
+    "sum8_add"
+  ],
+  "has_sttp_dll": true
+}

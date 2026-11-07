@@ -1,0 +1,48 @@
+{
+  "vendor": "ALSTOM_103_COM",
+  "files": 11,
+  "bytes": 62777,
+  "framing": "iec103",
+  "asdu_comments": [
+    1,
+    2,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    20,
+    21,
+    24,
+    25
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    36
+  ],
+  "case_hex": [
+    "0x00F0",
+    "0x00F1",
+    "0x00F4",
+    "0x00F9",
+    "0x00FA"
+  ],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [
+    "sum8_add"
+  ],
+  "has_sttp_dll": false
+}

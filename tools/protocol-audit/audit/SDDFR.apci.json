@@ -1,0 +1,30 @@
+{
+  "vendor": "SDDFR",
+  "file": "DFR.cpp",
+  "header_bytes": 23,
+  "layout": [
+    "00: 237",
+    "01: 0x81",
+    "02: 32",
+    "03: 0x00",
+    "04: 0xFF",
+    "05: 0x00",
+    "06: 0x00",
+    "07: 0x00",
+    "08: 0x00",
+    "09: wValue%256",
+    "10: wValue/256",
+    "11: StartTime.wMinute",
+    "12: StartTime.wHour",
+    "13: StartTime.wDay",
+    "14: StartTime.wMonth",
+    "15: StartTime.wYear%100",
+    "16: wValue%256",
+    "17: wValue/256",
+    "18: EndTime.wMinute",
+    "19: EndTime.wHour",
+    "20: EndTime.wDay",
+    "21: EndTime.wMonth",
+    "22: EndTime.wYear%100"
+  ]
+}

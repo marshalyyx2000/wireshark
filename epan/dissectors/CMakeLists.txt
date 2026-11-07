@@ -1664,6 +1664,66 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-jinzhi-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-jicheng-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-zh-recorder.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nr103-serial-iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nr103_rcs9691_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-xj103_com_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-xj_com103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-xj_net103_wxh13.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nz103ii_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sf103_csc103a_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sf_net103_tcp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-keli_103_tcp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-abb103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-bp103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-siemens103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sj103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-alstom103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nr103_net_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sznr103_tcp_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nz_net103_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sf_udp103_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-wgl3000_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nr103_rcs9793_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sf_csfm103_tcp_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nz103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sf103_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-abb_com101_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-xj_net103_tcp_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-modbus-vendor-common.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-modbus-vendor.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-vendor-generic-frame.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sh2000.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-wfbl_ftp103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-fh_lr2000_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-fh_lr12_com.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-fh_lr2000_com.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-fh3000_tcp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sd_wgdlv_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-gec_serial_iec103.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-dgt801_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ys8_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ysosc_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nr_lfp_com.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-huaruit_fwk_com.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-wxb_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-wxb11_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-toshbia_com_rsm.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nrcs9785_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-netcsc2000l_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ascii_meter_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-lbd_lubo_tcp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-netcsc2000_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-spabus_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-wds_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-lfp_serial.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-iec103-dfr-common.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nfdfr.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nfdfr200.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nf_rfw200_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ys88a.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ys_89_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ys_89a_net.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-sddffr.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-net-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-xuji-serial-iec103.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nari-serial-iec103.c

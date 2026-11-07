@@ -1,0 +1,36 @@
+{
+  "vendor": "NZ_NET103",
+  "asdu_start_candidates": [
+    28
+  ],
+  "defines": {
+    "HEART_BEAT_PACKET_POSITION": 16,
+    "NOT_LENGTH_POSITION": 8,
+    "ASDU_START_POSTION": 28
+  },
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    2,
+    3,
+    5,
+    8,
+    9,
+    15,
+    16,
+    17,
+    18
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "i",
+    "i",
+    "i",
+    "i"
+  ],
+  "sockets": [
+    "SOCK_DGRAM",
+    "SOCK_STREAM"
+  ],
+  "bytes": 305630
+}

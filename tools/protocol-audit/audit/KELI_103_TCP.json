@@ -1,0 +1,38 @@
+{
+  "vendor": "KELI_103_TCP",
+  "files": 9,
+  "bytes": 76545,
+  "framing": "iec103",
+  "asdu_comments": [
+    14,
+    20,
+    21
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    7
+  ],
+  "case_hex": [
+    "0x0001",
+    "0x000A",
+    "0x000C",
+    "0x000E",
+    "0x0010",
+    "0x00F0",
+    "0x00F1",
+    "0x00F4",
+    "0x00F9",
+    "0x00FA"
+  ],
+  "ports": [],
+  "tcp": true,
+  "udp": false,
+  "serial": false,
+  "checksum": [
+    "sum8_add"
+  ],
+  "has_sttp_dll": true
+}

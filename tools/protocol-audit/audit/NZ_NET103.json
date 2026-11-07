@@ -1,0 +1,53 @@
+{
+  "vendor": "NZ_NET103",
+  "files": 21,
+  "bytes": 305629,
+  "framing": "ascii",
+  "asdu_comments": [
+    6,
+    7,
+    10,
+    20,
+    21,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    6,
+    7,
+    10,
+    12,
+    21,
+    23,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "case_hex": [
+    "0x00F0",
+    "0x00F1",
+    "0x00F9",
+    "0x00FA"
+  ],
+  "ports": [],
+  "tcp": true,
+  "udp": true,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

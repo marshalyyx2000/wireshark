@@ -535,6 +535,18 @@
     <addaction name="actionIec103JichengNetParse"/>
     <addaction name="actionIec103XujiNetParse"/>
     <addaction name="actionIec103SznariNetParse"/>
+    <addaction name="actionIec103XjNet103Wxh13Parse"/>
+    <addaction name="actionIec103SfNet103TcpParse"/>
+    <addaction name="actionIec103Keli103TcpParse"/>
+    <addaction name="separator"/>
+    <addaction name="actionIec103Nr103NetParse"/>
+    <addaction name="actionIec103Nrr103Rcs9793Parse"/>
+    <addaction name="actionIec103NzNet103Parse"/>
+    <addaction name="actionIec103SfUdp103Parse"/>
+    <addaction name="actionIec103Wgl3000Parse"/>
+    <addaction name="actionIec103Sznr103TcpParse"/>
+    <addaction name="actionIec103SfCsfm103TcpParse"/>
+    <addaction name="actionIec103XjNet103TcpParse"/>
    </widget>
    <widget class="QMenu" name="menuIec103Serial">
     <property name="title">
@@ -544,6 +556,22 @@
     <addaction name="actionIec103NariSerialParse"/>
     <addaction name="actionIec103SznariSerialParse"/>
     <addaction name="actionIec103SifangSerialParse"/>
+    <addaction name="actionIec103Nr103Rcs9691SerialParse"/>
+    <addaction name="actionIec103Xj103ComSerialParse"/>
+    <addaction name="actionIec103XjCom103SerialParse"/>
+    <addaction name="actionIec103Nz103iiSerialParse"/>
+    <addaction name="actionIec103Sf103Csc103aSerialParse"/>
+    <addaction name="separator"/>
+    <addaction name="actionIec103Abb103SerialParse"/>
+    <addaction name="actionIec103Bp103SerialParse"/>
+    <addaction name="actionIec103Siemens103SerialParse"/>
+    <addaction name="actionIec103Sj103SerialParse"/>
+    <addaction name="actionIec103Alstom103SerialParse"/>
+    <addaction name="actionIec103Nz103SerialParse"/>
+    <addaction name="actionIec103Sf103SerialParse"/>
+    <addaction name="actionIec103AbbCom101SerialParse"/>
+    <addaction name="separator"/>
+    <addaction name="actionVendorRecipeParse"/>
    </widget>
    <widget class="QMenu" name="menuRecorder">
     <property name="title">
@@ -551,6 +579,14 @@
     </property>
     <addaction name="actionRecorderZhParse"/>
     <addaction name="actionRecorderZhExport"/>
+    <addaction name="separator"/>
+    <addaction name="actionRecorderNfdfrParse"/>
+    <addaction name="actionRecorderNfdfr200Parse"/>
+    <addaction name="actionRecorderNfRfw200Parse"/>
+    <addaction name="actionRecorderYs88aParse"/>
+    <addaction name="actionRecorderYs89NetParse"/>
+    <addaction name="actionRecorderYs89aNetParse"/>
+    <addaction name="actionRecorderSddffrParse"/>
    </widget>
    <widget class="QMenu" name="menuIec104">
     <property name="title">
@@ -3069,6 +3105,206 @@
     <string>仅显示深圳南瑞网络103规约报文 (sznari_net_iec103)</string>
    </property>
   </action>
+  <action name="actionIec103XjNet103Wxh13Parse">
+   <property name="text">
+    <string>许继网络103(WXH13)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示许继网络103 WXH13 变体报文 (xj_net103_wxh13)</string>
+   </property>
+  </action>
+  <action name="actionIec103SfNet103TcpParse">
+   <property name="text">
+    <string>四方网络103(TCP)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示四方网络103 TCP 变体报文 (sf_net103_tcp)</string>
+   </property>
+  </action>
+  <action name="actionIec103Keli103TcpParse">
+   <property name="text">
+    <string>开利网络103</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示开利网络103报文 (keli_103_tcp)</string>
+   </property>
+  </action>
+  <action name="actionIec103Nr103Rcs9691SerialParse">
+   <property name="text">
+    <string>南瑞 RCS-9691 串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为南瑞 RCS-9691 串口103 (nr103_rcs9691_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Xj103ComSerialParse">
+   <property name="text">
+    <string>许继串口103(XJ_103_COM)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为许继 XJ_103_COM (xj103_com_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103XjCom103SerialParse">
+   <property name="text">
+    <string>许继串口103(XJ_COM103)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为许继 XJ_COM103 (xj_com103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Nz103iiSerialParse">
+   <property name="text">
+    <string>南自串口103(II)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为南自 NZ103II (nz103ii_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Sf103Csc103aSerialParse">
+   <property name="text">
+    <string>四方 CSC-103A 串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为四方 CSC-103A (sf103_csc103a_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Abb103SerialParse">
+   <property name="text">
+    <string>ABB 串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为 ABB 串口103 (abb103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Bp103SerialParse">
+   <property name="text">
+    <string>BP 串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为 BP 串口103 (bp103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Siemens103SerialParse">
+   <property name="text">
+    <string>西门子串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为西门子串口103 (siemens103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Sj103SerialParse">
+   <property name="text">
+    <string>SJ 串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为 SJ 串口103 (sj103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Alstom103SerialParse">
+   <property name="text">
+    <string>阿尔斯通串口103</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为阿尔斯通串口103 (alstom103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Nr103NetParse">
+   <property name="text">
+    <string>南瑞网络103(NR_103_NET)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南瑞 NR_103_NET 报文 (nr103_net_iec103，UDP 6000)</string>
+   </property>
+  </action>
+  <action name="actionIec103Nrr103Rcs9793Parse">
+   <property name="text">
+    <string>南瑞 RCS-9793 网络103</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南瑞 RCS-9793 报文 (nr103_rcs9793_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103NzNet103Parse">
+   <property name="text">
+    <string>南自网络103(NZ_NET103)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南自 NZ_NET103 报文 (nz_net103_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103SfUdp103Parse">
+   <property name="text">
+    <string>四方网络103(UDP)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示四方 SF_UDP103 报文 (sf_udp103_iec103，UDP 1888)</string>
+   </property>
+  </action>
+  <action name="actionIec103Wgl3000Parse">
+   <property name="text">
+    <string>WGL3000 网络103</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示 WGL3000 报文 (wgl3000_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Sznr103TcpParse">
+   <property name="text">
+    <string>深圳南瑞网络103(TCP)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示深圳南瑞 SZNR_103_TCP 报文 (sznr103_tcp_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103SfCsfm103TcpParse">
+   <property name="text">
+    <string>四方 CSFM103 网络103</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示四方 SF_CSFM103_TCP 报文 (sf_csfm103_tcp_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103XjNet103TcpParse">
+   <property name="text">
+    <string>许继网络103(XJ_NET103)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示许继 XJ_NET103 报文 (xj_net103_tcp_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Nz103SerialParse">
+   <property name="text">
+    <string>南自串口103(NZ103)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为南自 NZ103 (nz103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Sf103SerialParse">
+   <property name="text">
+    <string>四方串口103(SF103)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为四方 SF103 (sf103_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103AbbCom101SerialParse">
+   <property name="text">
+    <string>ABB 串口101(2 字节地址)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为 ABB_COM_101 (abb_com101_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionVendorRecipeParse">
+   <property name="text">
+    <string>更多厂家规约…</string>
+   </property>
+   <property name="toolTip">
+    <string>从厂家清单中挑选串口/TCP/UDP 规约并试解（含录波器、Modbus、私有帧厂家）</string>
+   </property>
+  </action>
   <action name="actionIec103XujiSerialParse">
    <property name="text">
     <string>许继串口103规约解析</string>
@@ -3147,6 +3383,62 @@
    </property>
    <property name="toolTip">
     <string>按 FILE_INFO/FILE_DATA 重组并导出抓包中的录波文件</string>
+   </property>
+  </action>
+  <action name="actionRecorderNfdfrParse">
+   <property name="text">
+    <string>南自录波器(NFDFR)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南自 NFDFR 录波器 68 帧报文 (nfdfr)</string>
+   </property>
+  </action>
+  <action name="actionRecorderNfdfr200Parse">
+   <property name="text">
+    <string>南自录波器200(NFDFR200)</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南自 NFDFR200 录波器报文 (nfdfr200)</string>
+   </property>
+  </action>
+  <action name="actionRecorderNfRfw200Parse">
+   <property name="text">
+    <string>南瑞 RFW200 录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示南瑞 RFW200 录波器报文 (nf_rfw200_net)</string>
+   </property>
+  </action>
+  <action name="actionRecorderYs88aParse">
+   <property name="text">
+    <string>YS88A 录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示 YS88A 录波器报文 (ys88a)</string>
+   </property>
+  </action>
+  <action name="actionRecorderYs89NetParse">
+   <property name="text">
+    <string>YS-89 网络录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示 YS-89 网络录波器报文 (ys_89_net)</string>
+   </property>
+  </action>
+  <action name="actionRecorderYs89aNetParse">
+   <property name="text">
+    <string>YS-89A 网络录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示 YS-89A 网络录波器报文 (ys_89a_net)</string>
+   </property>
+  </action>
+  <action name="actionRecorderSddffrParse">
+   <property name="text">
+    <string>山东电研院录波器(SDDFR)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为山东电研院 SDDFR 录波器 (sddffr)</string>
    </property>
   </action>
   <action name="actionIec104YunnanCfgFree">

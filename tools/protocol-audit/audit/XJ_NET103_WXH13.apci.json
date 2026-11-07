@@ -1,0 +1,28 @@
+{
+  "vendor": "XJ_NET103_WXH13",
+  "file": "Net103.cpp",
+  "header_bytes": 21,
+  "layout": [
+    "00: 0x68   // 同步字符0x68",
+    "01: 0x13   // APDU长度18",
+    "02: (BYTE)((m_dwSendFrameCounter%128)<<1)   // 发送序列号低",
+    "03: (BYTE)(m_dwSendFrameCounter/128)   // 发送序列号高",
+    "04: (BYTE)((m_dwRecvFrameCounter%128)<<1)   // 接收序列号低",
+    "05: (BYTE)(m_dwRecvFrameCounter/128)   // 接收序列号高",
+    "06: 0x06   // 类型标识6",
+    "07: 0x81   // 可变结构限定词",
+    "08: 0x08   // 传送原因低字节(8)",
+    "09: 0x00   // 传送原因高字节",
+    "10: 0x00   // 单元公共地址低字节(支持CPU地址)",
+    "11: m_pCurrentRtu->m_btAddr   // 单元公共地址高字节(支持广播地址0xFF)",
+    "12: 0xFF   // FUN",
+    "13: 0x00   // FIN",
+    "14: (BYTE)((Time.wMilliseconds+Time.wSecond*1000)%256)",
+    "15: (BYTE)((Time.wMilliseconds+Time.wSecond*1000)/256)",
+    "16: (BYTE)Time.wMinute",
+    "17: (BYTE)Time.wHour",
+    "18: (BYTE)Time.wDay",
+    "19: (BYTE)Time.wMonth",
+    "20: (BYTE)(Time.wYear%100)"
+  ]
+}

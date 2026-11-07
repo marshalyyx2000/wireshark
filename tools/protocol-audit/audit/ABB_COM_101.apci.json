@@ -1,0 +1,13 @@
+{
+  "vendor": "ABB_COM_101",
+  "file": "Com103.cpp",
+  "header_bytes": 6,
+  "layout": [
+    "00: 0x10   // 起始符",
+    "01: 0x49   // 控制码",
+    "02: m_btAddr1   // 地址码",
+    "03: m_btAddr   // 地址码",
+    "04: CheckSum(&m_pSend->buf[1],2)   // 校验码",
+    "05: 0x16   // 结束符"
+  ]
+}

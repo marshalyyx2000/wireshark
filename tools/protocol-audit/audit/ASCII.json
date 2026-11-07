@@ -1,0 +1,22 @@
+{
+  "vendor": "ASCII",
+  "files": 9,
+  "bytes": 338586,
+  "framing": "ascii",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    4,
+    16
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": true
+}

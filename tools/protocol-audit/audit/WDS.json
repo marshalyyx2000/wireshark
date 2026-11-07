@@ -1,0 +1,20 @@
+{
+  "vendor": "WDS",
+  "files": 11,
+  "bytes": 56389,
+  "framing": "ascii",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3
+  ],
+  "case_hex": [],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": true,
+  "checksum": [],
+  "has_sttp_dll": true
+}

@@ -1,0 +1,31 @@
+{
+  "vendor": "YS_89A_NET",
+  "file": "DFR.cpp",
+  "header_bytes": 24,
+  "layout": [
+    "00: 0x68",
+    "01: m_iAddr",
+    "02: 0x81",
+    "03: 0xff",
+    "04: 0x00",
+    "05: 0x00",
+    "06: 0x18   // 文件长度(这点和YS88A不一致)",
+    "07: 0x00",
+    "08: 0x00",
+    "09: 0x00",
+    "10: StartTime.wYear%256",
+    "11: StartTime.wYear/256",
+    "12: StartTime.wMonth",
+    "13: StartTime.wDay",
+    "14: StartTime.wHour",
+    "15: StartTime.wMinute",
+    "16: EndTime.wYear%256",
+    "17: EndTime.wYear/256",
+    "18: EndTime.wMonth",
+    "19: EndTime.wDay",
+    "20: EndTime.wHour",
+    "21: EndTime.wMinute",
+    "22: FileType   // 搜索的文件类型",
+    "23: 0x00"
+  ]
+}

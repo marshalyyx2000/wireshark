@@ -219,6 +219,8 @@ proto_register_sznari_net_iec103(void)
 	sznari_regs.hf_vsq_num = hf_vsq_num;
 	sznari_regs.hf_cot = hf_cot;
 	sznari_regs.hf_cot_hi = hf_cot_hi;
+	/* 深圳南瑞 uses the DL/T 667 compatible range: 1-byte COT, 1-byte COMADDR. */
+	sznari_regs.cot_len = 1;
 	sznari_regs.hf_comaddr_unit = hf_comaddr_unit;
 	sznari_regs.hf_comaddr_dev = hf_comaddr_dev;
 	sznari_regs.hf_fun = hf_fun;

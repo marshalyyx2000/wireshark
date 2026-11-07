@@ -1,0 +1,19 @@
+{
+  "vendor": "FH_LR2000_NET",
+  "file": "DFR.cpp",
+  "header_bytes": 12,
+  "layout": [
+    "00: StartTime.wYear - 1980",
+    "01: StartTime.wMonth",
+    "02: StartTime.wDay",
+    "03: StartTime.wHour",
+    "04: StartTime.wMinute",
+    "05: StartTime.wSecond   // 查询文件的结束时间",
+    "06: EndTime.wYear - 1980",
+    "07: EndTime.wMonth",
+    "08: EndTime.wDay",
+    "09: EndTime.wHour",
+    "10: EndTime.wMinute",
+    "11: EndTime.wSecond"
+  ]
+}

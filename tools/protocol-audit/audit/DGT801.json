@@ -1,0 +1,29 @@
+{
+  "vendor": "DGT801",
+  "files": 9,
+  "bytes": 56419,
+  "framing": "ft12",
+  "asdu_comments": [],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    7
+  ],
+  "case_hex": [
+    "0x0006",
+    "0x0057",
+    "0x0063",
+    "0x0065",
+    "0x00A0",
+    "0x00A7",
+    "0x00AA"
+  ],
+  "ports": [],
+  "tcp": false,
+  "udp": false,
+  "serial": false,
+  "checksum": [],
+  "has_sttp_dll": false
+}

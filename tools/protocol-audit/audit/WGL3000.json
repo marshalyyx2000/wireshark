@@ -1,0 +1,44 @@
+{
+  "vendor": "WGL3000",
+  "files": 23,
+  "bytes": 202557,
+  "framing": "iec103",
+  "asdu_comments": [
+    1,
+    2,
+    3,
+    6,
+    7,
+    10,
+    20,
+    21,
+    24,
+    25
+  ],
+  "typ_comments": [],
+  "case_ints": [
+    1,
+    2,
+    3,
+    4,
+    6,
+    7,
+    9,
+    10
+  ],
+  "case_hex": [
+    "0x00F0",
+    "0x00F1",
+    "0x00F4",
+    "0x00F9",
+    "0x00FA"
+  ],
+  "ports": [],
+  "tcp": true,
+  "udp": false,
+  "serial": false,
+  "checksum": [
+    "sum8_add"
+  ],
+  "has_sttp_dll": true
+}

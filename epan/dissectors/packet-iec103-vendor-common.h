@@ -27,6 +27,36 @@
 #define IEC103_ASDU_HDR_LEN 6
 
 typedef struct iec103_vendor_profile iec103_vendor_profile_t;
+typedef struct iec103_apci_desc iec103_apci_desc_t;
+
+/**
+ * Private APCI placed in front of every ASDU on a byte stream.
+ *
+ * Covers the wrappers the PROTOCOL reference implementations use on top of
+ * the 103 ASDU, e.g.
+ *   90 EB | len32le | 90 EB | 源/目标厂站地址 | 报文类型 | ... | FF x 8   (28 字节)
+ *   68 | len16be | 68 | 0x43 | addr                                    (6 字节)
+ *   68 | len16le | ctrl(4)                                             (6 字节)
+ *
+ * With len_off < 0 the ASDU runs to the end of the tvb (one frame per packet).
+ */
+#define IEC103_APCI_MAX_SIG 4
+
+struct iec103_apci_desc {
+	const char *label;              /* tree label for the APCI block */
+	int hdr_len;                    /* ASDU offset inside the frame */
+	int len_off;                    /* offset of the frame-length field, -1 = none */
+	int len_size;                   /* 1, 2 or 4 bytes */
+	int len_bias;                   /* total frame length = length field + len_bias */
+	bool len_be;                    /* big-endian length field */
+	unsigned sig_count;             /* number of fixed signature bytes to verify */
+	int sig_off[IEC103_APCI_MAX_SIG];
+	uint8_t sig_val[IEC103_APCI_MAX_SIG];
+};
+
+/** Convenience initialiser helper: build a signature entry list inline. */
+#define IEC103_APCI_SIG(d, o0, v0) \
+	do { (d)->sig_off[0] = (o0); (d)->sig_val[0] = (uint8_t)(v0); (d)->sig_count = 1; } while (0)
 
 /** One vendor profile. Fill statically, then call register. */
 struct iec103_vendor_profile {
@@ -44,6 +74,16 @@ struct iec103_vendor_profile {
 	bool (*dissect_extra_asdu)(tvbuff_t *tvb, int *offset, int end,
 				   packet_info *pinfo, proto_tree *tree,
 				   const iec103_vendor_profile_t *profile);
+	/* COT width in the ASDU header: 1 = DL/T 667 compatible range (default),
+	 * 2 = IEC 60870-5-104 style little endian (许继 network 103). */
+	int cot_len;
+	/* FT1.2 length field style: 0 = two identical bytes (IEC 60870-5-1),
+	 * 1 = 16-bit little endian at offset 1 (深圳南瑞 / 四方网络 variants). */
+	int ft12_len16le;
+	/* FT1.2 link address width: 1 (IEC 60870-5-1) or 2 (ABB_COM_101). */
+	int ft12_addr_len;
+	/* Optional private APCI wrapper. NULL = bare ASDU stream. */
+	const iec103_apci_desc_t *apci;
 };
 
 /**
@@ -66,10 +106,19 @@ int iec103_vendor_dissect_ft12(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
 /**
  * Raw ASDU TCP stream dissection: splits the stream into ASDU PDUs using the
- * ASDU header/length rules and dissects each one.
+ * ASDU header/length rules and dissects each one. Honours the profile's private
+ * APCI wrapper when one is configured.
  */
 int iec103_vendor_dissect_asdu_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				      const iec103_vendor_profile_t *profile);
+
+/** FT1.2 framing carried over a byte stream (TCP) — one or more 68H frames. */
+int iec103_vendor_dissect_ft12_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+				      const iec103_vendor_profile_t *profile);
+
+/** FT1.2 framing inside a single datagram (UDP) — usually exactly one frame. */
+int iec103_vendor_dissect_ft12_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+					const iec103_vendor_profile_t *profile);
 
 /** One ASDU per UDP datagram. Returns bytes consumed, 0 if not an ASDU. */
 int iec103_vendor_dissect_asdu_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,

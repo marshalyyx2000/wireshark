@@ -1,0 +1,21 @@
+{
+  "vendor": "LBD_LuBo_TCP",
+  "asdu_start_candidates": [],
+  "defines": {},
+  "magics": {},
+  "len_field_offsets": [
+    0,
+    4
+  ],
+  "checksum_ranges": [],
+  "frame_len_expr": [
+    "0",
+    "0",
+    "iTotalLen",
+    "33+(9*iRealDigitNum)"
+  ],
+  "sockets": [
+    "SOCK_STREAM"
+  ],
+  "bytes": 142925
+}
