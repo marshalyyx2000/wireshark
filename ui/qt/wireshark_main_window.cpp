@@ -2751,6 +2751,10 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionMmsReportFilter->setEnabled(have_captured_packets);
     main_ui_->actionMmsProcessAnalysis->setEnabled(have_captured_packets);
     main_ui_->actionModbusYushunVoltagePlate->setEnabled(have_captured_packets);
+    main_ui_->actionModbusProtectionParse->setEnabled(have_captured_packets);
+    main_ui_->actionModbusGeRtuParse->setEnabled(have_captured_packets);
+    main_ui_->actionModbusGeMlinkParse->setEnabled(have_captured_packets);
+    main_ui_->actionModbusGeModemTcpParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103ShandongMasterSlave->setEnabled(have_captured_packets);
     main_ui_->actionIec103NariNetParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103XujiNetParse->setEnabled(have_captured_packets);
@@ -2768,6 +2772,9 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionRecorderNfdfrParse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderNfdfr200Parse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderNfRfw200Parse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderFhLr12ComParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderFhLr2000NetParse->setEnabled(have_captured_packets);
+    main_ui_->actionRecorderFhLr2000ComParse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderYs88aParse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderYs89NetParse->setEnabled(have_captured_packets);
     main_ui_->actionRecorderYs89aNetParse->setEnabled(have_captured_packets);
@@ -2776,6 +2783,7 @@ void WiresharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionIec103SfNet103TcpParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103Keli103TcpParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103Nr103Rcs9691SerialParse->setEnabled(have_captured_packets);
+    main_ui_->actionIec103Nr103SerialParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103Xj103ComSerialParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103XjCom103SerialParse->setEnabled(have_captured_packets);
     main_ui_->actionIec103Nz103iiSerialParse->setEnabled(have_captured_packets);

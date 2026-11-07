@@ -522,6 +522,11 @@
      <string>MODBUS</string>
     </property>
     <addaction name="actionModbusYushunVoltagePlate"/>
+    <addaction name="separator"/>
+    <addaction name="actionModbusProtectionParse"/>
+    <addaction name="actionModbusGeRtuParse"/>
+    <addaction name="actionModbusGeMlinkParse"/>
+    <addaction name="actionModbusGeModemTcpParse"/>
    </widget>
    <widget class="QMenu" name="menuIec103">
     <property name="title">
@@ -554,6 +559,7 @@
     </property>
     <addaction name="actionIec103XujiSerialParse"/>
     <addaction name="actionIec103NariSerialParse"/>
+    <addaction name="actionIec103Nr103SerialParse"/>
     <addaction name="actionIec103SznariSerialParse"/>
     <addaction name="actionIec103SifangSerialParse"/>
     <addaction name="actionIec103Nr103Rcs9691SerialParse"/>
@@ -583,6 +589,9 @@
     <addaction name="actionRecorderNfdfrParse"/>
     <addaction name="actionRecorderNfdfr200Parse"/>
     <addaction name="actionRecorderNfRfw200Parse"/>
+    <addaction name="actionRecorderFhLr12ComParse"/>
+    <addaction name="actionRecorderFhLr2000NetParse"/>
+    <addaction name="actionRecorderFhLr2000ComParse"/>
     <addaction name="actionRecorderYs88aParse"/>
     <addaction name="actionRecorderYs89NetParse"/>
     <addaction name="actionRecorderYs89aNetParse"/>
@@ -3073,6 +3082,38 @@
     <string>仅显示禹舜下端电压硬压板 MODBUS 报文 (yushun_modbus)</string>
    </property>
   </action>
+  <action name="actionModbusProtectionParse">
+   <property name="text">
+    <string>保护装置 Modbus(RTU)</string>
+   </property>
+   <property name="toolTip">
+    <string>将报文试解为保护装置 Modbus RTU，含功能码与 CRC16 校验 (modbus_protection)</string>
+   </property>
+  </action>
+  <action name="actionModbusGeRtuParse">
+   <property name="text">
+    <string>GE Modbus(RTU)</string>
+   </property>
+   <property name="toolTip">
+    <string>将报文试解为 GE Modbus RTU，含功能码与 CRC16 校验 (ge_modbus_rtu)</string>
+   </property>
+  </action>
+  <action name="actionModbusGeMlinkParse">
+   <property name="text">
+    <string>GE MLINK 调制解调器 Modbus</string>
+   </property>
+   <property name="toolTip">
+    <string>将报文试解为 GE MLINK 调制解调器 Modbus RTU (ge_mlink_modbus)</string>
+   </property>
+  </action>
+  <action name="actionModbusGeModemTcpParse">
+   <property name="text">
+    <string>GE 调制解调器 Modbus/TCP</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示 GE 调制解调器 Modbus/TCP 报文，带 MBAP 头解析 (ge_modem_modbus_tcp)</string>
+   </property>
+  </action>
   <action name="actionIec103ShandongMasterSlave">
    <property name="text">
     <string>山东主子站103规约</string>
@@ -3135,6 +3176,14 @@
    </property>
    <property name="toolTip">
     <string>将串口报文试解为南瑞 RCS-9691 串口103 (nr103_rcs9691_serial_iec103)</string>
+   </property>
+  </action>
+  <action name="actionIec103Nr103SerialParse">
+   <property name="text">
+    <string>南瑞串口103(NR103)</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为南瑞 NR103 串口103 (nr103_serial_iec103)</string>
    </property>
   </action>
   <action name="actionIec103Xj103ComSerialParse">
@@ -3407,6 +3456,30 @@
    </property>
    <property name="toolTip">
     <string>仅显示南瑞 RFW200 录波器报文 (nf_rfw200_net)</string>
+   </property>
+  </action>
+  <action name="actionRecorderFhLr12ComParse">
+   <property name="text">
+    <string>FH LR12 串口录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为 FH LR12 录波器 (fh_lr12_com)</string>
+   </property>
+  </action>
+  <action name="actionRecorderFhLr2000NetParse">
+   <property name="text">
+    <string>FH LR2000 网络录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>仅显示 FH LR2000 网络录波器报文 (fh_lr2000_net)</string>
+   </property>
+  </action>
+  <action name="actionRecorderFhLr2000ComParse">
+   <property name="text">
+    <string>FH LR2000 串口录波器</string>
+   </property>
+   <property name="toolTip">
+    <string>将串口报文试解为 FH LR2000 录波器 (fh_lr2000_com)</string>
    </property>
   </action>
   <action name="actionRecorderYs88aParse">

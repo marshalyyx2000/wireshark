@@ -3455,6 +3455,15 @@ void WiresharkMainWindow::connectRecorderMenuActions()
     connect(main_ui_->actionRecorderNfRfw200Parse, &QAction::triggered, this, [=]() {
         tryDecodeNetworkAsBoth("nf_rfw200_net", QStringLiteral("nf_rfw200_net"));
     });
+    connect(main_ui_->actionRecorderFhLr12ComParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("fh_lr12_com", QStringLiteral("fh_lr12_com"));
+    });
+    connect(main_ui_->actionRecorderFhLr2000NetParse, &QAction::triggered, this, [=]() {
+        tryDecodeNetworkAsBoth("fh_lr2000_net", QStringLiteral("fh_lr2000_net"));
+    });
+    connect(main_ui_->actionRecorderFhLr2000ComParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("fh_lr2000_com", QStringLiteral("fh_lr2000_com"));
+    });
     connect(main_ui_->actionRecorderYs88aParse, &QAction::triggered, this, [=]() {
         tryDecodeNetworkAsBoth("ys88a", QStringLiteral("ys88a"));
     });
@@ -3495,6 +3504,23 @@ void WiresharkMainWindow::connectModbusMenuActions()
         /* Neutral serial_raw captures: force yushun then filter.
          * TCP yushun captures: override is a no-op; filter still applies. */
         tryDecodeSerialRawAs("yushun_modbus", QStringLiteral("yushun_modbus"));
+    });
+
+    /* 厂家 Modbus 规约（依据 PROTOCOL/ModBus、GE_Modbus、GE_MLINK、GE_MODEM） */
+    connect(main_ui_->actionModbusProtectionParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("modbus_protection", QStringLiteral("modbus_protection"));
+    });
+    connect(main_ui_->actionModbusGeRtuParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("ge_modbus_rtu", QStringLiteral("ge_modbus_rtu"));
+    });
+    connect(main_ui_->actionModbusGeMlinkParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("ge_mlink_modbus", QStringLiteral("ge_mlink_modbus"));
+    });
+    connect(main_ui_->actionModbusGeModemTcpParse, &QAction::triggered, this, [=]() {
+        /* GE Modem 走 Modbus/TCP 的 MBAP 头。端口来自配置，常见 502，
+         * 其余端口仍可在 分析 → Decode As 中指定。 */
+        tryDecodeNetworkAs("ge_modem_modbus_tcp",
+                           QStringLiteral("ge_modem_modbus_tcp"), false);
     });
 }
 
@@ -3552,6 +3578,9 @@ void WiresharkMainWindow::connectIec103MenuActions()
     connect(main_ui_->actionIec103Nr103Rcs9691SerialParse, &QAction::triggered, this, [=]() {
         tryDecodeSerialRawAs("nr103_rcs9691_serial_iec103",
                              QStringLiteral("nr103_rcs9691_serial_iec103"));
+    });
+    connect(main_ui_->actionIec103Nr103SerialParse, &QAction::triggered, this, [=]() {
+        tryDecodeSerialRawAs("nr103_serial_iec103", QStringLiteral("nr103_serial_iec103"));
     });
     connect(main_ui_->actionIec103Xj103ComSerialParse, &QAction::triggered, this, [=]() {
         tryDecodeSerialRawAs("xj103_com_serial_iec103",
